@@ -65,10 +65,13 @@ created = 2026-11-12T20:40:00+01:00
 token_hash = "b3:4e1a…"        # BLAKE3 of the token; the token itself is never stored
 read = ["identity", "people", "agenda", "places", "media", "work", "things", "summaries"]
 propose = []                    # categories where it may submit proposals (milestone 2)
+local = false                   # the person said this AI runs entirely on this computer
 ```
 
 - **Connecting an AI** creates a client, generates a random 256-bit token, and shows the person exactly what to paste or click for their AI app (decision 0007). The token appears once and is stored only by that app.
 - **Removing** a client deletes its entry; its token stops working immediately.
+- **Rights can change at any time**, in both directions, and take effect on the next request. Any category, sensitive ones and `private` included, can be opened to one client without opening it to the others.
+- When connecting an AI, Ipse asks whether it **runs entirely on this computer**. If the person answers yes, the connection screen also offers to open every category at once, still as an explicit choice. Ipse cannot verify the answer; it records it as `local = true` and shows it next to the client.
 - Access levels per category:
     - `read`: the client can read the category.
     - `propose` (milestone 2): the client can submit proposals touching that category; the person accepts or refuses them in the review inbox.
