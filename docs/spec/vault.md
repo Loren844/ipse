@@ -1,6 +1,6 @@
 # Vault format
 
-- **Status:** Draft — open questions below must be settled before implementation.
+- **Status:** Accepted
 - **Version:** `vault-format: 1`
 - **Applies to:** milestone 1 onward. From 1.0, this format is a compatibility promise.
 
@@ -8,16 +8,16 @@ The vault is the **source of truth** of a person's memory: a folder of Markdown 
 
 The words **must**, **must not**, **should** and **may** are used in their usual specification sense.
 
-## Open questions for the project owner
+## Choices settled by the project owner
 
-These choices change the format and are hard to undo after 1.0. Each has a recommendation; the rest of this document assumes it.
+Settled on 2026-11-12. These choices are hard to undo after 1.0.
 
-| # | Question | Options | Recommendation |
+| # | Question | Choice | Why |
 | --- | --- | --- | --- |
-| Q1 | Encryption | (a) rely on the operating system's disk encryption, secrets in the system keychain; (b) encrypt every file | **(a)**, with an optional encrypted vault later. Encrypted files cannot be read in Obsidian, which breaks the "open formats" principle. |
-| Q2 | Language of section headings in files | (a) always English (`## Facts`); (b) the vault's language, chosen at creation (`## Faits` in French) | **(b)**. People read these files. Front-matter keys stay English in every language, so machines are unaffected. |
-| Q3 | Where calendar events live | (a) one file per event; (b) listed inside one note per day | **(a)**. Events need structured fields (time, place, participants) and stable links. Day notes still list and link them. |
-| Q4 | How facts are written | (a) bullet lines in the body, with a short identifier; (b) structured lists in the front matter | **(a)**. A person adds a fact by typing a line. Well-known attributes (birthday, email, phone) still live in the front matter. |
+| Q1 | Encryption | The operating system's disk encryption; secrets (connector tokens) in the system keychain. An optional encrypted vault may come later. | Encrypted files cannot be read in Obsidian, which would break the "open formats" principle. See decision 0009. |
+| Q2 | Language of section headings in files | The vault's language, chosen at creation (`## Faits` in French). Front-matter keys stay English in every language. | People read these files; machines read the keys. |
+| Q3 | Where calendar events live | One file per event. Day summaries list and link them. | Events need structured fields (time, place, participants) and stable links. |
+| Q4 | How facts are written | One bullet line per fact in the body, with a short identifier. Well-known attributes (birthday, email, phone) live in the front matter. | A person adds a fact by typing a line. |
 
 ## 1. Layout
 

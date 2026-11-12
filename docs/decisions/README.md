@@ -14,3 +14,4 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0006](0006-first-sources.md) | First sources: calendar, contacts, location | Accepted |
 | [0007](0007-simple-to-pick-up.md) | Simple to pick up | Accepted |
 | [0008](0008-automation-within-the-rules.md) | Automatic, within the rules | Accepted |
+| [0009](0009-encryption.md) | Encryption: disk and keychain | Accepted |
