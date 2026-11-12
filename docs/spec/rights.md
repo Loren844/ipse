@@ -101,9 +101,24 @@ Rules every tool follows:
 
 - **Invisible means absent.** Hidden data is never returned, counted, or hinted at: no "3 results hidden", no different error.
 - **Links to hidden files are masked.** A wikilink to a file the client cannot read is returned as `[masqué]` (in the vault's language), without its id or display text.
-- **No raw data.** The raw journal is never exposed, in any form.
+- **No raw data.** The raw journal is never exposed as such. Processing tasks (section 4.1) show only the items they concern, normalized and filtered by category.
 - **Bounded answers.** Every list is capped as above and says when it was cut, so an AI asks for more instead of receiving a whole life at once.
 - **Times** are returned in RFC 3339 with the vault's time zone offset.
+
+### 4.1 Processing tools (milestone 2)
+
+Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right on the categories involved; tasks touching other categories are invisible to that client.
+
+| Tool | Arguments | Returns |
+| --- | --- | --- |
+| `tasks` | optional `kind`, `limit` (default 10) | Pending tasks, oldest first: `extract` (new items from a connector to turn into memory), `merge` (possible duplicates), `question` (a gap to ask the person about), `summary` (a period to summarize). Each with its id, a one-line description and how many items it covers. |
+| `task` | `id` | One task in full: what is expected, the items it covers (normalized, at most 100), the related vault files the client may read, and an example of a good answer. |
+| `propose` | `task` (optional), `changes`, `reason` | Submits a proposal: create or update an entity or event, add or edit a fact, merge two entities, write a summary. Returns the proposal id. Nothing is written until the person accepts it. |
+| `proposal` | `id` | Status of a proposal: waiting, accepted, refused (with the person's comment if any). |
+
+- A task is done when a proposal covering it is accepted or refused; a refused proposal reopens the task with the person's comment, so the AI can try again.
+- When the client supports MCP sampling and the person enabled it for that client, Ipse may send `summary` tasks to the client's model directly.
+- Every tool here has an `ipse` command doing the same thing (`ipse tasks`, `ipse propose`…), so that an agent or a script on the same computer can run them on a schedule.
 
 ## 5. Access log
 
