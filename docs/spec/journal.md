@@ -1,6 +1,6 @@
 # Raw journal
 
-- **Status:** Draft — open questions below must be settled before implementation.
+- **Status:** Accepted
 - **Version:** `journal-format: 1`
 - **Applies to:** milestone 1 onward.
 
@@ -8,12 +8,14 @@ The raw journal keeps **everything connectors bring back, exactly as they brough
 
 The vault holds what a person reads; the journal holds what machines read. It is never shown as such in the interface and never sent to an AI (see `rights.md`).
 
-## Open questions for the project owner
+## Choices settled by the project owner
 
-| # | Question | Options | Recommendation |
+Settled on 2026-11-12.
+
+| # | Question | Choice | Why |
 | --- | --- | --- | --- |
-| Q1 | How long raw data is kept | (a) forever by default, the person can shorten it per source; (b) a fixed limit by default, e.g. 2 years for high-volume series | **(a)**. Old raw data is what lets Ipse rebuild a better memory later. A year of GPS points at one per minute is about 20 MB raw and 3 to 5 MB compressed. |
-| Q2 | What "forget this source" does | (a) deletes the source's raw records only; (b) also deletes what the vault learned from them | **(a) + a proposal for (b)**: raw records are deleted at once, and Ipse proposes the vault changes in the review inbox, so the person sees what goes before it goes. |
+| Q1 | How long raw data is kept | Forever by default; the person can shorten it per source. | Old raw data is what lets Ipse rebuild a better memory later. A year of GPS points at one per minute is about 20 MB raw and 3 to 5 MB compressed. |
+| Q2 | What "forget this source" does | Raw records are deleted at once. What the vault learned from them is listed in the review inbox ("312 events, 4 facts and 2 people come from this source"), and the person removes all of it in one action or keeps what they choose. | Nothing the person can read, and may have edited, disappears without being shown first (decision 0005). |
 
 ## 1. Layout
 
@@ -95,7 +97,7 @@ High-volume measurements (GPS points, heart rate, home sensor readings) are stor
 The person can forget a whole source, or a period of a source:
 
 - Ipse rewrites the affected segments without those records, writing each new segment beside the old one, then swapping them, so that a crash leaves either the old or the new segment, never a mix.
-- What the vault learned from the forgotten records follows Q2.
+- What the vault learned from the forgotten records is listed in the review inbox (Q2); nothing in the vault is removed without the person's action.
 - Forgetting is the **only** operation that removes raw data, and it always comes from an explicit action of the person.
 
 ## 9. Settings: `journal.toml`
