@@ -1,6 +1,6 @@
 # 0004 — Any LLM, local or online
 
-- **Status:** Accepted
+- **Status:** Superseded by [0010](0010-the-person-s-ai-does-the-work.md)
 - **Date:** 2026-11-12
 
 ## Context

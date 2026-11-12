@@ -1,17 +1,19 @@
 # Connector protocol
 
-- **Status:** Draft — open questions below must be settled before implementation.
+- **Status:** Accepted
 - **Version:** `protocol: 1`
 - **Applies to:** milestone 1 onward.
 
 A connector brings data from one source into Ipse. It is a **separate program** (decision 0002) that the core starts, and that talks to the core through **JSON messages on its standard input and output**. The core alone writes to the raw journal (`journal.md`); a connector only sends records.
 
-## Open questions for the project owner
+## Choices settled by the project owner
 
-| # | Question | Options | Recommendation |
+Settled on 2026-11-12.
+
+| # | Question | Choice | Why |
 | --- | --- | --- | --- |
-| Q1 | How first-party connectors ship | (a) inside the main `ipse` program, started as a separate process with `ipse connector <name>`; (b) as separate programs to download | **(a)**. One thing to install (decision 0007), while each connector still runs in its own process. Community connectors are separate programs. |
-| Q2 | Community connectors | (a) allowed from 1.0, installed by the person with a clear warning listing what the connector can access; (b) only reviewed connectors from an official list | **(a)** at 1.0, then an official list with reviewed connectors later. Blocking them would slow the community the project relies on. |
+| Q1 | How first-party connectors ship | Inside the main `ipse` program, each started as its own process with `ipse connector <name>`. Community connectors are separate programs. | One thing to install (decision 0007), while each connector still runs in its own process (decision 0002). |
+| Q2 | Community connectors | Allowed from 1.0, installed by the person after a clear warning listing what the connector can access. An official list of reviewed connectors comes later. | Blocking them would slow the community the project relies on. |
 
 ## 1. Vocabulary
 
@@ -142,6 +144,12 @@ When the connector cannot go on without the person:
 
 ```json
 {"type":"need","what":"reauth","message":"Google demande de vous reconnecter à votre agenda."}
+```
+
+For `file`, the message also carries `url`, the direct link to the export page:
+
+```json
+{"type":"need","what":"file","message":"Téléchargez votre historique Netflix, Ipse l'importera tout seul.","url":"https://www.netflix.com/viewingactivity"}
 ```
 
 | `what` | Meaning | The core… |
