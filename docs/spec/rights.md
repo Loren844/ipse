@@ -1,17 +1,19 @@
 # Rights and the AI gateway
 
-- **Status:** Draft — open questions below must be settled before implementation.
+- **Status:** Accepted
 - **Version:** `rights: 1`
 - **Applies to:** milestone 1 onward.
 
 Every AI connected to Ipse sees only the categories the person allowed it. Rights are **enforced by the software**, in the code path that returns data, never by an instruction in a prompt. An AI that is denied a category gets the same answer as if that data did not exist.
 
-## Open questions for the project owner
+## Choices settled by the project owner
 
-| # | Question | Options | Recommendation |
+Settled on 2026-11-12.
+
+| # | Question | Choice | Why |
 | --- | --- | --- | --- |
-| Q1 | What a newly connected AI may read | (a) everything except sensitive categories, shown on the connection screen with one switch per category; (b) nothing until the person ticks categories | **(a)**. One action to connect an AI (decision 0007), and sensitive categories stay off until the person turns them on. |
-| Q2 | Smallest unit a category applies to | (a) a whole file (an entity, an event); (b) a single fact | **(a)** for milestone 1. To hide one fact, the person moves it to a file of a private category. Per-fact categories can be added later without breaking files. |
+| Q1 | What a newly connected AI may read | Every category except sensitive ones, shown on the connection screen with one switch per category. | Connecting an AI stays one action (decision 0007); sensitive categories stay off until the person turns them on. |
+| Q2 | Smallest unit a category applies to | A whole file (an entity, an event) for milestone 1. To hide one fact, the person moves it to a file of a private category. | Simple to understand and to enforce. Per-fact categories can be added later without breaking files. |
 
 ## 1. Categories
 
@@ -32,9 +34,24 @@ Every vault file has one `category` (vault spec, section 2.2). Format version 1 
 | `health` | Health data and facts | health connectors | **yes** |
 | `private` | Anything the person wants hidden from every AI by default | chosen by the person | **yes** |
 
+- A category is a **label**, not a folder: it groups any number of files of any type. A `work` category can hold projects, colleagues, an employer and the events of a work trip.
 - A connector's manifest sets the default category of what it produces; the person may change the category of any file.
+- A file created as part of another (a sub-project linked with `part_of`, a room `located_in` a home) takes the category of its parent by default.
 - **Sensitive** categories are denied to every AI until the person allows them for that AI, one by one.
-- New categories may be added in later versions; an unknown category is treated as `private`.
+
+### 1.1 Adding categories
+
+- **The project** may add categories in later versions of this spec. Existing vaults keep working: files never change category on their own.
+- **The person** may create their own categories, for example `studies` or `association`, in `.ipse/vault.toml`:
+
+  ```toml
+  [categories.studies]
+  name = "Études"         # shown in the interface
+  sensitive = false       # true: denied to every AI until allowed one by one
+  ```
+
+  A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it.
+- A category used in a file but declared nowhere is treated as `private`.
 
 ## 2. Connected AIs
 

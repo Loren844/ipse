@@ -145,7 +145,7 @@ A relation is one bullet line in the `Relations` section: a relation word, a col
 - vit à : [[lyon]]
 ```
 
-- The relation word is free text in the vault's language. Ipse maps common words to a fixed vocabulary for the index (`parent`, `child`, `sibling`, `partner`, `friend`, `colleague`, `works_at`, `lives_in`, `member_of`, `owns`, `located_in`); unknown words are kept as free relations.
+- The relation word is free text in the vault's language. Ipse maps common words to a fixed vocabulary for the index (`parent`, `child`, `sibling`, `partner`, `friend`, `colleague`, `works_at`, `lives_in`, `member_of`, `owns`, `located_in`, `part_of`); unknown words are kept as free relations.
 - A relation is written once, on the file where the person wrote it. The index makes it visible from both ends; Ipse **must not** write the reverse line automatically.
 
 ## 4. Events
