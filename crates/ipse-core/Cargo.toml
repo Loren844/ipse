@@ -1,0 +1,21 @@
+[package]
+name = "ipse-core"
+description = "Core library of Ipse: a local, open memory that any AI can plug into."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+criterion = { workspace = true }
+
+[[bench]]
+name = "slug"
+harness = false
+
+[lints]
+workspace = true

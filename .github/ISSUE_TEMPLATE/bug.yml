@@ -1,0 +1,32 @@
+name: Bug report
+description: Something does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Never paste real personal data (names, places, calendar entries…). Replace it with invented values.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Ipse version and operating system
+      placeholder: "0.0.1 on macOS 26"
