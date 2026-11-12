@@ -1,0 +1,44 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+repository = "https://github.com/Loren844/ipse"
+authors = ["Ipse contributors"]
+
+[workspace.dependencies]
+criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
+
+# One lint policy for every crate. Each crate opts in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_code = "deny"            # allowed locally only with a `// SAFETY:` comment and a benchmark that justifies it
+missing_docs = "warn"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+perf = { level = "deny", priority = -1 }
+unwrap_used = "deny"            # no panics on bad input: return errors
+expect_used = "warn"
+dbg_macro = "deny"
+todo = "deny"
+print_stdout = "warn"           # the core library never prints; binaries opt out locally
+
+# Release builds are tuned for speed and size.
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Benchmarks measure release-grade code.
+[profile.bench]
+inherits = "release"
+debug = true
+strip = false
+panic = "unwind"

@@ -1,0 +1,55 @@
+name: Task
+description: A small, self-contained unit of work for one pull request.
+labels: ["task"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One task = one pull request. Keep it small enough to finish in a single sitting.
+        The coding agent reads `AGENTS.md` before starting.
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: Why this task exists and where it fits. Link the spec section or decision it implements.
+    validations:
+      required: true
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What must exist or work once the task is done, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. Each one must be verifiable by a test or a command.
+      value: |
+        - [ ]
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Expected tests
+      description: The tests to write, including edge cases and failure cases.
+    validations:
+      required: true
+  - type: textarea
+    id: performance
+    attributes:
+      label: Performance
+      description: Is this on a hot path? If yes, the benchmark to add and any target.
+      placeholder: "Not on a hot path."
+  - type: textarea
+    id: files
+    attributes:
+      label: Files likely involved
+      placeholder: "crates/ipse-core/src/…"
+  - type: textarea
+    id: out_of_scope
+    attributes:
+      label: Out of scope
+      description: What must NOT be done in this pull request.
