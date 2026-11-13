@@ -5,6 +5,7 @@
 
 mod cmd;
 mod connectors;
+mod keychain;
 mod mcp;
 
 use std::path::PathBuf;
@@ -44,6 +45,23 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Subscribe to a calendar's link, list or remove subscriptions
+    Calendar {
+        #[command(subcommand)]
+        action: CalendarAction,
+    },
+    /// Sync the calendars you subscribed to
+    Sync {
+        /// Only those whose interval has passed: for a job the system runs every few minutes
+        #[arg(long)]
+        due: bool,
+        /// Fetch everything again, not only what changed
+        #[arg(long)]
+        full: bool,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Connect, list or remove an AI
     Client {
         #[command(subcommand)]
@@ -60,6 +78,38 @@ enum Command {
     Connector {
         /// The connector to run, like `contacts`
         name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum CalendarAction {
+    /// Follow a calendar's link (https:// or webcal://) and keep it in sync
+    Subscribe {
+        /// The calendar's address in iCal format, from your calendar app; kept in your system's keychain
+        link: String,
+        /// A name for this calendar, like "Perso"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 15m or 1h (default: 15m)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the calendars you subscribed to
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing a calendar; its events stay in your memory
+    Unsubscribe {
+        /// The calendar's id, as `ipse calendar list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
     },
 }
 
@@ -98,6 +148,17 @@ fn main() -> ExitCode {
             time_zone,
         } => cmd::init::run(folder, name, language.as_deref(), time_zone.as_deref()),
         Command::Import { file, vault } => cmd::import::run(&file, vault),
+        Command::Calendar { action } => match action {
+            CalendarAction::Subscribe {
+                link,
+                name,
+                every,
+                vault,
+            } => cmd::calendar::subscribe(&link, name.as_deref(), every.as_deref(), vault),
+            CalendarAction::List { vault } => cmd::calendar::list(vault),
+            CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
+        },
+        Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Client { action } => match action {
             ClientAction::Add { name, vault } => cmd::client::add(&name, vault),
             ClientAction::List { vault } => cmd::client::list(vault),

@@ -13,6 +13,7 @@ pub mod materialize;
 pub mod rights;
 pub mod search;
 pub mod slug;
+pub mod sync;
 pub mod time;
 pub mod vault;
 

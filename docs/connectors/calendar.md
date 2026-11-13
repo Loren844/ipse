@@ -1,17 +1,36 @@
 # Calendar connector
 
-Imports your events from a calendar file (`.ics`).
+Follows your calendar's link and keeps your events in sync, or imports them from a calendar file (`.ics`).
 
 | | |
 | --- | --- |
 | Id | `calendar` |
-| Rung (decision 0008) | 4, file export: every calendar app exports iCalendar files; no account or network access is needed. |
-| Modes | `import` |
-| Access | the files the person picks; no network; no secret |
+| Rung (decision 0008) | 1 for a link: calendar apps give each calendar an address in iCal format, their official way to let other apps read it, with no account to sign in to. 4 for a file: every calendar app exports iCalendar files. |
+| Modes | `sync` (a link), `import` (files) |
+| Access | the files the person picks; the network, only to the host of the link the person gives (`network = ["*"]`); one secret, `url`, the link, kept in the system keychain |
+| Sync | every 15 minutes by default |
 | Category | `agenda` |
 | Kind | `calendar.event` |
 
-## Getting the file
+## Getting the link
+
+The link is enough to read the calendar: treat it like a password. Ipse keeps it in your system's keychain, never in your memory's files, its journal or its history, and never shows it in a message.
+
+- **Google Calendar**: on calendar.google.com, Settings → under "Settings for my calendars", pick the calendar → Integrate calendar → **Secret address in iCal format**. If it leaks, "Reset" there gives a new one and the old one stops working.
+- **Outlook / Microsoft 365**: Settings → Calendar → Shared calendars → **Publish a calendar**, pick the calendar and "Can view all details" → Publish → copy the ICS link.
+- **Apple iCloud**: in the Calendar app, the calendar's menu → Share Calendar → **Public Calendar** → copy the `webcal://` link. Apple makes that calendar readable by anyone who has the link, and lists no secret address: share only a calendar you accept that for.
+
+Then: `ipse calendar subscribe "<link>" --name Perso --vault ~/Ipse`. Ipse checks the link, syncs the calendar once, and keeps the subscription. `webcal://` links are read as `https://`; plain `http://` links are refused, except to this computer, because anyone on the way could read them.
+
+## Syncing a link
+
+- The connector fetches the link and sends **the whole calendar** each time: an iCal link cannot give only what changed. It ends with `done.complete`, and the core removes what the calendar no longer holds (`docs/spec/connectors.md`, section 5.8): an event removed before it happened is marked `cancelled`; a past event stays as it happened.
+- Its cursor keeps the server's `ETag` and `Last-Modified`, and the day the calendar was last read whole. The same day, the connector asks the server whether the calendar changed; when it did not (HTTP 304), it sends nothing and leaves out `complete`. The first sync of each day reads the calendar whole, so that repeating events are expanded for the days that came since.
+- Something that is not a whole calendar removes nothing: a web page instead of a calendar (`bad_input`), a calendar cut short (`unavailable`).
+- Failures, in the person's language, never quoting the link: the server cannot be reached or answers 5xx (`unavailable`, tried again with the backoff); 429 (`rate_limited`, with `Retry-After` in seconds when given); 401, 403, 404 or 410 (`auth`: the link was reset or the calendar deleted); a redirect to `http://` or a file over 64 MiB (`bad_input`).
+- At most 5 redirects; 15 seconds to connect, 2 minutes in all.
+
+## Getting a file
 
 - **Google Calendar**: calendar.google.com → Settings → Import & export → Export. You get a `.zip` with one `.ics` file per calendar.
 - **Apple Calendar**: on a Mac, select a calendar → File → Export → Export.
@@ -71,4 +90,4 @@ Events with no start, or a start that cannot be read, are skipped and counted in
 
 ## Not yet
 
-Syncing with CalDAV or Google Calendar: later milestones.
+Syncing with CalDAV or the Google Calendar API, which send only what changed and can read private calendars without a secret link: later milestones.

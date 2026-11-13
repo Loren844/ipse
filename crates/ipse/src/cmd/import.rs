@@ -129,7 +129,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-fn events_line(s: EventsSummary) -> String {
+pub(crate) fn events_line(s: EventsSummary) -> String {
     let events = |n: u64| if n == 1 { "event" } else { "events" };
     let mut line = if s.added == 0 && s.updated == 0 && s.cancelled == 0 {
         format!(
@@ -155,7 +155,7 @@ fn events_line(s: EventsSummary) -> String {
     line
 }
 
-fn deleted_line(n: u64) -> String {
+pub(crate) fn deleted_line(n: u64) -> String {
     if n == 1 {
         "1 file you deleted was not created again.".to_owned()
     } else {
@@ -163,7 +163,7 @@ fn deleted_line(n: u64) -> String {
     }
 }
 
-fn conflicts_line(n: u64) -> String {
+pub(crate) fn conflicts_line(n: u64) -> String {
     if n == 1 {
         "1 file: the source changed a detail you had changed yourself; your version was kept."
             .to_owned()
@@ -174,7 +174,7 @@ fn conflicts_line(n: u64) -> String {
     }
 }
 
-fn summary_line(s: PeopleSummary) -> String {
+pub(crate) fn summary_line(s: PeopleSummary) -> String {
     let people = |n: u64| if n == 1 { "person" } else { "people" };
     if s.added == 0 && s.updated == 0 {
         format!(

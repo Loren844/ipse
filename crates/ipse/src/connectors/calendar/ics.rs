@@ -97,6 +97,9 @@ pub(crate) struct Items<R> {
     /// Depth of components nested in the open one and ignored (alarms).
     ignored: usize,
     done: bool,
+    /// `BEGIN:VCALENDAR` and `END:VCALENDAR` were read.
+    begun: bool,
+    ended: bool,
 }
 
 impl<R: BufRead> Items<R> {
@@ -106,7 +109,20 @@ impl<R: BufRead> Items<R> {
             open: None,
             ignored: 0,
             done: false,
+            begun: false,
+            ended: false,
         }
+    }
+
+    /// True once the input was read to its end and held a whole calendar, from
+    /// `BEGIN:VCALENDAR` to `END:VCALENDAR`: not a web page, not cut short.
+    pub(crate) fn whole(&self) -> bool {
+        self.done && self.begun && self.ended
+    }
+
+    /// True once `BEGIN:VCALENDAR` was read: the input is a calendar, whole or not.
+    pub(crate) fn begun(&self) -> bool {
+        self.begun
     }
 }
 
@@ -157,7 +173,7 @@ impl<R: BufRead> Iterator for Items<R> {
                         self.open = open;
                         self.ignored = 1;
                     }
-                    (_, None) => {}
+                    (kind, None) => self.begun |= kind == "VCALENDAR",
                 },
                 "END" => match (component().as_str(), self.open.take()) {
                     ("VEVENT", Some(Open::Event(event))) => return Some(Ok(Item::Event(event))),
@@ -168,6 +184,7 @@ impl<R: BufRead> Iterator for Items<R> {
                         definition.observances.push(o);
                         self.open = Some(Open::TimeZone(definition));
                     }
+                    (kind, None) => self.ended |= kind == "VCALENDAR",
                     (_, open) => self.open = open,
                 },
                 _ => match &mut self.open {
@@ -339,6 +356,32 @@ mod tests {
         let exdates: Vec<&str> = event.exdates.iter().map(|s| s.value.as_str()).collect();
         assert_eq!(exdates, ["20261109", "20261116"]);
         assert_eq!(event.rdates[0].value, "20261201T100000Z");
+    }
+
+    #[test]
+    fn only_a_whole_calendar_is_whole() {
+        let whole = |text: &str| {
+            let mut items = Items::new(text.as_bytes());
+            items.by_ref().for_each(drop);
+            items.whole()
+        };
+        assert!(whole(
+            "BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:a\nEND:VEVENT\nEND:VCALENDAR\n"
+        ));
+        assert!(
+            whole("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            "an empty calendar"
+        );
+        assert!(
+            !whole("BEGIN:VCALENDAR\nBEGIN:VEVENT\nUID:a\nEND:VEVENT\n"),
+            "cut short"
+        );
+        assert!(!whole("<!DOCTYPE html><html><body>Sign in</body></html>\n"));
+        assert!(!whole(""));
+        let mut items = Items::new(&b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"[..]);
+        assert!(!items.whole(), "not read yet");
+        items.by_ref().for_each(drop);
+        assert!(items.whole());
     }
 
     #[test]

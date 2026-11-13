@@ -4,12 +4,13 @@
 //! own on its standard output. This type keeps the protocol's order and rules so that
 //! each connector only produces records.
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
 use ipse_protocol::{
-    ConnectorMessage, CoreMessage, DoneSummary, ErrorCode, Mode, PROTOCOL_VERSION, Record,
+    ConnectorMessage, CoreMessage, DoneSummary, ErrorCode, Mode, PROTOCOL_VERSION, Record, Secret,
     from_line, to_line,
 };
 use serde_json::Value;
@@ -47,6 +48,10 @@ pub(crate) struct Hello {
     pub(crate) language: String,
     /// The vault's IANA time zone.
     pub(crate) time_zone: String,
+    /// Where the last session stopped, as this connector returned it.
+    pub(crate) cursor: Option<Value>,
+    /// Secrets read from the keychain for this session only; never written anywhere.
+    pub(crate) secrets: BTreeMap<String, Secret>,
     pub(crate) files: Vec<PathBuf>,
 }
 
@@ -79,6 +84,8 @@ impl<R: BufRead, W: Write> Session<R, W> {
                 mode,
                 language,
                 time_zone,
+                cursor,
+                secrets,
                 files,
                 ..
             }) => {
@@ -94,6 +101,8 @@ impl<R: BufRead, W: Write> Session<R, W> {
                     mode,
                     language,
                     time_zone,
+                    cursor,
+                    secrets,
                     files,
                 }
             }
@@ -167,9 +176,19 @@ impl<R: BufRead, W: Write> Session<R, W> {
 
     /// Reports a failure, in words for the person.
     pub(crate) fn error(&mut self, code: ErrorCode, message: String) -> SessionResult<()> {
+        self.error_retry(code, None, message)
+    }
+
+    /// Reports a failure the source asks to retry after `retry_after`, like `10m`.
+    pub(crate) fn error_retry(
+        &mut self,
+        code: ErrorCode,
+        retry_after: Option<String>,
+        message: String,
+    ) -> SessionResult<()> {
         self.send(&ConnectorMessage::Error {
             code,
-            retry_after: None,
+            retry_after,
             message,
         })
     }

@@ -38,7 +38,7 @@ kinds = ["calendar.event"]               # record kinds it may send (journal.md,
 category = "agenda"                      # default rights category of what it produces (rights.md)
 
 [access]                                 # what it needs; shown to the person before installing
-network = ["www.googleapis.com"]         # hosts it may contact; empty for none
+network = ["www.googleapis.com"]         # hosts it may contact; empty for none; "*" for only the host of a link the person gives
 files = "picked"                         # "none" | "picked" (only files the person picks) 
 secrets = ["oauth"]                      # secrets the core keeps in the keychain for it
 

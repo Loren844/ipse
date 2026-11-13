@@ -27,7 +27,7 @@ fn help_lists_the_commands() {
     let out = ipse(&["--help"]);
     assert!(out.status.success());
     let help = String::from_utf8_lossy(&out.stdout);
-    for command in ["init", "import", "client", "mcp"] {
+    for command in ["init", "import", "calendar", "sync", "client", "mcp"] {
         assert!(help.contains(command), "help does not list {command}");
     }
 }
@@ -272,4 +272,63 @@ fn client_add_list_remove() {
     let again = ipse(&["client", "remove", "claude", "--vault", vault]);
     assert!(!again.status.success());
     assert!(String::from_utf8_lossy(&again.stderr).contains("No connected AI is called claude"));
+}
+
+#[test]
+fn subscriptions_without_any_yet() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&["init", vault, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+
+    let out = ipse(&["sync", "--vault", vault]);
+    assert!(out.status.success());
+    assert!(String::from_utf8_lossy(&out.stdout).contains("Nothing to sync yet"));
+    let due = ipse(&["sync", "--due", "--vault", vault]);
+    assert!(due.status.success());
+    assert!(due.stdout.is_empty(), "a scheduled job says nothing");
+
+    let list = ipse(&["calendar", "list", "--vault", vault]);
+    assert!(String::from_utf8_lossy(&list.stdout).contains("No calendar subscriptions yet"));
+    let unknown = ipse(&["calendar", "unsubscribe", "calendar-2", "--vault", vault]);
+    assert!(!unknown.status.success());
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("no calendar subscription"));
+}
+
+#[test]
+fn subscribe_refuses_links_it_cannot_follow_safely() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&["init", vault, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+    for (link, said) in [
+        ("http://cal.example/private-abc/basic.ics", "secure links"),
+        ("agenda.ics", "not a calendar link"),
+    ] {
+        let out = ipse(&["calendar", "subscribe", link, "--vault", vault]);
+        assert!(!out.status.success(), "{link}");
+        let error = String::from_utf8_lossy(&out.stderr);
+        assert!(error.contains(said), "{error}");
+        assert!(!error.contains("private-abc"), "the link is never shown");
+    }
+    let every = ipse(&[
+        "calendar",
+        "subscribe",
+        "https://cal.example/x.ics",
+        "--every",
+        "1m",
+        "--vault",
+        vault,
+    ]);
+    assert!(String::from_utf8_lossy(&every.stderr).contains("at least 5 minutes"));
+    assert!(
+        !dir.path().join(".ipse/connectors.toml").exists(),
+        "nothing kept"
+    );
 }

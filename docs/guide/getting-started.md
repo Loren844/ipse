@@ -44,7 +44,56 @@ ipse import contacts.vcf --vault ~/Ipse
 
 Each contact becomes a file in `people/`. Importing the same file again later updates them; people who look alike are never merged without asking you.
 
-## 4. Connect your AI
+## 4. Subscribe to your calendar
+
+Your AI can also know what you did and what is coming. Copy your calendar's link in iCal format:
+
+- **Google Calendar:** on [calendar.google.com](https://calendar.google.com), **Settings**, pick your calendar under "Settings for my calendars", then **Integrate calendar → Secret address in iCal format**.
+- **Outlook:** **Settings → Calendar → Shared calendars → Publish a calendar**, choose "Can view all details", then copy the ICS link.
+- **iCloud:** in the Calendar app, the calendar's menu → **Share Calendar → Public Calendar**. Apple makes the calendar readable by anyone who has this link.
+
+Whoever has the link can read the calendar: Ipse keeps it in your system's keychain, never in your memory's files. Then:
+
+```sh
+ipse calendar subscribe "<the link>" --name Perso --vault ~/Ipse
+```
+
+Each event becomes a file in `events/`, its guests linked to your contacts. `ipse sync --vault ~/Ipse` syncs your calendars again; `ipse calendar list` shows them, `ipse calendar unsubscribe calendar-2` stops one (its events stay).
+
+To keep them in sync on their own until the app does it, have your computer run `ipse sync --due` every 5 minutes: it syncs each calendar when its interval (15 minutes by default, `--every` to change it) has passed, and says nothing when nothing changed.
+
+- **macOS:** save this as `~/Library/LaunchAgents/org.ipse.sync.plist`, with your user name, then run `launchctl load ~/Library/LaunchAgents/org.ipse.sync.plist`. The first time, macOS asks whether `ipse` may use your keychain: choose **Always Allow**.
+
+  ```xml
+  <?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  <plist version="1.0">
+  <dict>
+    <key>Label</key><string>org.ipse.sync</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/you/.cargo/bin/ipse</string>
+      <string>sync</string><string>--due</string>
+      <string>--vault</string><string>/Users/you/Ipse</string>
+    </array>
+    <key>StartInterval</key><integer>300</integer>
+  </dict>
+  </plist>
+  ```
+
+- **Linux:** run `crontab -e` and add this line, with your user name. Your keyring (GNOME Keyring or KWallet) must be unlocked, which it is while you are logged in.
+
+  ```
+  */5 * * * * /home/you/.cargo/bin/ipse sync --due --vault /home/you/Ipse
+  ```
+
+- **Windows:** in PowerShell:
+
+  ```powershell
+  schtasks /Create /SC MINUTE /MO 5 /TN "Ipse sync" /TR "$HOME\.cargo\bin\ipse.exe sync --due --vault $HOME\Ipse"
+  ```
+
+## 5. Connect your AI
 
 ```sh
 ipse client add "Claude" --vault ~/Ipse
@@ -70,7 +119,7 @@ On Windows, write paths with double backslashes: `"C:\\Users\\you\\.cargo\\bin\\
 
 Quit Claude Desktop completely and open it again. Ipse appears among the connectors, with three tools: `about_me`, `search` and `get`.
 
-## 5. Ask
+## 6. Ask
 
 - "Who am I?"
 - "Who is Marie?"
@@ -88,4 +137,6 @@ Claude searches your memory, reads the right file, and answers. Claude Desktop m
 
 - **Ipse is not among the connectors:** check that the JSON is valid and that both paths are full and correct. Try the command in a terminal: `ipse mcp --vault /Users/you/Ipse`. If the folder is wrong, it says so and stops; otherwise it waits for an AI app (stop it with Ctrl+C).
 - **Claude says the access code is not valid:** the code was mistyped or the AI was removed. Run `ipse client add` again and paste the new code.
+- **Ipse could not use the keychain:** on Linux, install and unlock a keyring (GNOME Keyring or KWallet); on macOS, allow `ipse` when the system asks.
+- **A calendar link no longer works:** it was reset in your calendar app. Copy the new one, then `ipse calendar unsubscribe <id>` and `ipse calendar subscribe` again.
 - **Logs:** Claude Desktop keeps what Ipse says in `mcp-server-ipse.log`, in `~/Library/Logs/Claude` on macOS and `%APPDATA%\Claude\logs` on Windows.
