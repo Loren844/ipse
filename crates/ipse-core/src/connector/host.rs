@@ -117,6 +117,17 @@ pub enum StopReason {
     Silent,
 }
 
+impl std::fmt::Display for StopReason {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NoReady => f.write_str("the connector did not answer in time"),
+            Self::BrokeProtocol(what) => write!(f, "the connector misbehaved: {what}"),
+            Self::Ended => f.write_str("the connector stopped before finishing"),
+            Self::Silent => f.write_str("the connector stayed silent too long"),
+        }
+    }
+}
+
 /// What a session did.
 #[derive(Debug, Clone)]
 pub struct Report {

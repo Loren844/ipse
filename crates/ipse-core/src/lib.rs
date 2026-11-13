@@ -9,6 +9,7 @@
 pub mod connector;
 pub mod error;
 pub mod journal;
+pub mod materialize;
 pub mod slug;
 pub mod time;
 pub mod vault;

@@ -105,3 +105,56 @@ fn init_refuses_an_unknown_language() {
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("en or fr"));
 }
+
+#[test]
+fn import_fills_the_memory_with_contacts() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&[
+            "init",
+            vault,
+            "--name",
+            "Camille Durand",
+            "--language",
+            "fr"
+        ])
+        .status
+        .success()
+    );
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/contacts/apple-v4.vcf"
+    );
+
+    let out = ipse(&["import", fixture, "--vault", vault]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("2 people added, 0 updated."));
+    assert!(dir.path().join("people/ana-silva.md").is_file());
+    // Camille Durand from the contacts is not the owner: a second file, never a merge.
+    assert!(dir.path().join("people/camille-durand-2.md").is_file());
+
+    let again = ipse(&["import", fixture, "--vault", vault]);
+    assert!(String::from_utf8_lossy(&again.stdout).contains("already up to date (2 people)"));
+}
+
+#[test]
+fn import_says_what_it_can_read() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(ipse(&["init", vault, "--name", "X"]).status.success());
+    let out = ipse(&["import", "agenda.ics", "--vault", vault]);
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("(.vcf)"));
+
+    let out = ipse(&["import", "missing.vcf", "--vault", vault]);
+    assert!(String::from_utf8_lossy(&out.stderr).contains("is not a file"));
+
+    let empty = tempfile::tempdir().unwrap();
+    let out = ipse(&["import", "x.vcf", "--vault", empty.path().to_str().unwrap()]);
+    assert!(String::from_utf8_lossy(&out.stderr).contains("ipse init"));
+}
