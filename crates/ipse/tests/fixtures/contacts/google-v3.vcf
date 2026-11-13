@@ -1,0 +1,26 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Élodie Martin
+N:Martin;Élodie;;;
+NICKNAME:Lolo
+EMAIL;TYPE=INTERNET;TYPE=HOME:elodie.martin@example.org
+TEL;TYPE=CELL:06 12 34 56 78
+BDAY:1990-04-02
+ORG:Boulangerie du Coin
+NOTE:Rencontrée au club d\'escalade\, le mardi.
+UID:3f6c1a2e-0b5d-4e8f-9a17-2c4d6e8f0a1b
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Marc Leroy
+N:Leroy;Marc;;;
+EMAIL;TYPE=INTERNET:marc.leroy@example.org
+EMAIL;TYPE=INTERNET;TYPE=WORK:m.leroy@example.com
+TEL;TYPE=WORK:+33 1 23 45 67 89
+NOTE:Collègue depuis 2021. Très long commentaire qui doit être plié sur plusi
+ eurs lignes pour respecter la limite de soixante-quinze octets.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+NOTE:Fiche sans nom
+END:VCARD

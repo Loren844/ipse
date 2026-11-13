@@ -4,6 +4,7 @@
 #![allow(clippy::print_stdout)]
 
 mod cmd;
+mod connectors;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -41,9 +42,12 @@ enum Command {
     Client,
     /// Serve the memory to an AI over MCP (not yet available)
     Mcp,
-    /// Run a built-in connector; started by Ipse itself (not yet available)
+    /// Run a built-in connector; started by Ipse itself
     #[command(hide = true)]
-    Connector,
+    Connector {
+        /// The connector to run, like `contacts`
+        name: String,
+    },
 }
 
 fn main() -> ExitCode {
@@ -57,7 +61,7 @@ fn main() -> ExitCode {
         Command::Import => Err(Error::NotYetAvailable("`ipse import`")),
         Command::Client => Err(Error::NotYetAvailable("`ipse client`")),
         Command::Mcp => Err(Error::NotYetAvailable("`ipse mcp`")),
-        Command::Connector => Err(Error::NotYetAvailable("`ipse connector`")),
+        Command::Connector { name } => connectors::run(&name),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,

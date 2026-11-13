@@ -5,10 +5,12 @@
 //! message types and the line encoding, shared by the core and by connectors written
 //! in Rust. It does not depend on the core.
 
+mod manifest;
 mod message;
 mod record;
 mod secret;
 
+pub use manifest::{Access, FileAccess, Localized, Manifest, SyncSettings};
 pub use message::{ConnectorMessage, CoreMessage, DoneSummary, ErrorCode, Mode, NeedKind};
 pub use record::{Op, Record};
 pub use secret::Secret;

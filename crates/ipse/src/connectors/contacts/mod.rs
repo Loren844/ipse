@@ -1,0 +1,237 @@
+//! The contacts connector: imports vCard files (`.vcf`) the person picked.
+//!
+//! Rung 4 of decision 0008: contacts apps export vCard files; this connector reads them
+//! without any network access or account.
+
+mod vcard;
+
+use std::fs::File;
+use std::io::{BufRead, BufReader, Write};
+
+use ipse_core::journal::data_hash;
+use ipse_protocol::{
+    Access, DoneSummary, ErrorCode, FileAccess, Localized, MAX_BATCH_RECORDS, Manifest, Mode, Op,
+    PROTOCOL_VERSION, Record,
+};
+use jiff::Timestamp;
+use serde_json::{Map, Value, json};
+
+use super::session::{Session, SessionResult};
+use vcard::{Card, CardError, Cards};
+
+/// The connector's identifier.
+pub(crate) const ID: &str = "contacts";
+
+/// The record kind it sends.
+pub(crate) const KIND: &str = "contact.card";
+
+/// The built-in manifest (`docs/spec/connectors.md`, section 2).
+#[allow(dead_code)] // read by the connector host, #25
+pub(crate) fn manifest() -> Manifest {
+    Manifest {
+        protocol: PROTOCOL_VERSION,
+        id: ID.to_owned(),
+        name: Localized::ByLanguage(
+            [("en", "Contacts"), ("fr", "Contacts")]
+                .into_iter()
+                .map(|(l, t)| (l.to_owned(), t.to_owned()))
+                .collect(),
+        ),
+        summary: Localized::ByLanguage(
+            [
+                ("en", "The people you know, from a contacts file (.vcf)."),
+                (
+                    "fr",
+                    "Les personnes que vous connaissez, depuis un fichier de contacts (.vcf).",
+                ),
+            ]
+            .into_iter()
+            .map(|(l, t)| (l.to_owned(), t.to_owned()))
+            .collect(),
+        ),
+        version: env!("CARGO_PKG_VERSION").to_owned(),
+        command: vec!["ipse".into(), "connector".into(), ID.into()],
+        modes: vec![Mode::Import],
+        rung: 4,
+        kinds: vec![KIND.to_owned()],
+        category: "people".to_owned(),
+        access: Access {
+            network: Vec::new(),
+            files: FileAccess::Picked,
+            secrets: Vec::new(),
+        },
+        sync: None,
+    }
+}
+
+/// Runs one session: reads the picked files and sends their cards in batches.
+pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> {
+    let (mut session, hello) = Session::open(input, output, ID, env!("CARGO_PKG_VERSION"))?;
+    let french = hello.language == "fr";
+    if hello.mode != Mode::Import {
+        session.error(
+            ErrorCode::Unsupported,
+            say(
+                french,
+                "This connector only imports files.",
+                "Ce connecteur importe seulement des fichiers.",
+            ),
+        )?;
+        return session.finish();
+    }
+    session.wait_start()?;
+
+    let observed_at = Timestamp::now();
+    let mut batch = Vec::with_capacity(MAX_BATCH_RECORDS);
+    let mut sent = 0_u64;
+    let mut skipped = 0_u64;
+    for path in &hello.files {
+        let Ok(file) = File::open(path) else {
+            return bad_input(session, french);
+        };
+        for card in Cards::new(BufReader::new(file)) {
+            match card {
+                Ok(card) => {
+                    batch.push(record(card, observed_at));
+                    if batch.len() == MAX_BATCH_RECORDS {
+                        sent += send(&mut session, &mut batch)?;
+                    }
+                }
+                Err(CardError::Unreadable) => skipped += 1,
+                Err(CardError::Io) => return bad_input(session, french),
+            }
+        }
+    }
+    sent += send(&mut session, &mut batch)?;
+
+    if skipped > 0 {
+        let message = if french {
+            format!("{skipped} fiche(s) illisible(s) ignorée(s).")
+        } else {
+            format!("{skipped} unreadable card(s) skipped.")
+        };
+        session.progress(sent, Some(sent), Some(message))?;
+    }
+    session.done(DoneSummary {
+        upserts: sent,
+        ..DoneSummary::default()
+    })?;
+    session.finish()
+}
+
+fn send<R: BufRead, W: Write>(
+    session: &mut Session<R, W>,
+    batch: &mut Vec<Record>,
+) -> SessionResult<u64> {
+    if batch.is_empty() {
+        return Ok(0);
+    }
+    let records = std::mem::replace(batch, Vec::with_capacity(MAX_BATCH_RECORDS));
+    let count = records.len() as u64;
+    let rejected = session.batch(records, None)?;
+    Ok(count - rejected.len() as u64)
+}
+
+fn bad_input<R: BufRead, W: Write>(mut session: Session<R, W>, french: bool) -> SessionResult<()> {
+    session.error(
+        ErrorCode::BadInput,
+        say(
+            french,
+            "One of the picked files could not be read. Check that it is a contacts file (.vcf).",
+            "Un des fichiers choisis n'a pas pu être lu. Vérifiez que c'est un fichier de contacts (.vcf).",
+        ),
+    )?;
+    session.finish()
+}
+
+fn say(french: bool, en: &str, fr: &str) -> String {
+    if french { fr } else { en }.to_owned()
+}
+
+/// A card as a `contact.card` record. Its identifier is the card's `UID`, or a hash of
+/// its content when it has none, so that importing the same file twice gives the same
+/// identifiers.
+fn record(card: Card, observed_at: Timestamp) -> Record {
+    let data = data(&card);
+    let external_id = card.uid.unwrap_or_else(|| data_hash(&data));
+    Record {
+        kind: KIND.to_owned(),
+        op: Op::Upsert,
+        external_id: Some(external_id),
+        observed_at,
+        data: Some(data),
+    }
+}
+
+/// The `data` of a `contact.card` record. Empty fields are left out.
+fn data(card: &Card) -> Value {
+    let mut map = Map::new();
+    map.insert("full_name".into(), json!(card.full_name));
+    let optional = [
+        ("given_name", &card.given_name),
+        ("family_name", &card.family_name),
+        ("birthday", &card.birthday),
+        ("organization", &card.organization),
+        ("note", &card.note),
+    ];
+    for (key, value) in optional {
+        if let Some(value) = value {
+            map.insert(key.into(), json!(value));
+        }
+    }
+    let lists = [
+        ("nicknames", &card.nicknames),
+        ("emails", &card.emails),
+        ("phones", &card.phones),
+    ];
+    for (key, values) in lists {
+        if !values.is_empty() {
+            map.insert(key.into(), json!(values));
+        }
+    }
+    Value::Object(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn manifest_follows_the_spec() {
+        let m = manifest();
+        assert_eq!(
+            (m.id.as_str(), m.rung, m.category.as_str()),
+            ("contacts", 4, "people")
+        );
+        assert_eq!(m.access.files, FileAccess::Picked);
+        assert!(m.access.network.is_empty() && m.access.secrets.is_empty());
+        assert_eq!(m.modes, [Mode::Import]);
+        assert_eq!(m.kinds, [KIND]);
+    }
+
+    #[test]
+    fn data_leaves_out_empty_fields() {
+        let card = Card {
+            full_name: "Ana Silva".into(),
+            emails: vec!["ana@example.org".into()],
+            ..Card::default()
+        };
+        assert_eq!(
+            data(&card),
+            json!({"full_name": "Ana Silva", "emails": ["ana@example.org"]})
+        );
+    }
+
+    #[test]
+    fn id_without_uid_is_stable() {
+        let card = Card {
+            full_name: "Ana Silva".into(),
+            ..Card::default()
+        };
+        let now = Timestamp::now();
+        let a = record(card.clone(), now);
+        let b = record(card, now);
+        assert_eq!(a.external_id, b.external_id);
+        assert!(a.external_id.unwrap().starts_with("b3:"));
+    }
+}

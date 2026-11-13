@@ -378,6 +378,8 @@ dependencies = [
  "clap",
  "ipse-core",
  "ipse-protocol",
+ "jiff",
+ "serde_json",
  "tempfile",
 ]
 
