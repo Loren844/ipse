@@ -53,10 +53,6 @@ pub enum Error {
     /// A request Ipse cannot carry out as asked. The message says what to do instead.
     #[error("{0}")]
     Refused(String),
-
-    /// A feature that exists in the plan but not yet in this version.
-    #[error("{0} is not available yet.")]
-    NotYetAvailable(&'static str),
 }
 
 #[cfg(test)]

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 
 use super::clients::{Client, Clients};
-use crate::search::{Hit, SearchIndex};
+use crate::search::{Results, SearchIndex};
 use crate::vault::{FileType, Id, MemoryFile, Vault};
 use crate::{Error, Result};
 
@@ -51,6 +51,23 @@ impl Gateway {
         self.index = SearchIndex::load(self.vault.root())?;
         self.clients = Clients::load(self.vault.root())?;
         Ok(())
+    }
+
+    /// Reads the connected AIs again, checks `token`, then reads the entities again if
+    /// the vault changed since they were read. For a server that runs as long as the AI
+    /// app: rights apply from the next request, and nothing is read for a refused code.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when the code is missing or not valid; errors of
+    /// [`Gateway::open`] when the vault cannot be read.
+    pub fn fresh_access(&mut self, token: Option<&str>) -> Result<Access<'_>> {
+        self.clients = Clients::load(self.vault.root())?;
+        self.access(token)?;
+        if self.index.changed(self.vault.root())? {
+            self.index = SearchIndex::load(self.vault.root())?;
+        }
+        self.access(token)
     }
 
     /// The reads allowed by `token`. A missing or unknown code is refused before
@@ -140,8 +157,9 @@ impl<'g> Access<'g> {
     }
 
     /// Entities matching `query`, best first, among the categories this AI may read.
+    /// `limit` is clamped to 1–50.
     #[must_use]
-    pub fn search(&self, query: &str, limit: usize) -> Vec<Hit> {
+    pub fn search(&self, query: &str, limit: usize) -> Results {
         self.gateway.index.search_with(
             query,
             limit,

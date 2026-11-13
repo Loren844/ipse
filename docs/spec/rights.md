@@ -80,7 +80,7 @@ local = false                   # the person said this AI runs entirely on this 
 ## 3. Transport
 
 - Ipse is an MCP server built on `rmcp` (decision 0001).
-- **Local AI apps** start `ipse mcp` themselves, over standard input and output. The token is passed in the environment variable `IPSE_TOKEN` of that command, set in the AI app's configuration.
+- **Local AI apps** start `ipse mcp --vault <folder>` themselves, over standard input and output. The token is passed in the environment variable `IPSE_TOKEN` of that command, set in the AI app's configuration. The code is checked again on every call, so removing an AI or changing its rights applies from its next request.
 - **Online AIs** that cannot start a local program connect over Streamable HTTP on `127.0.0.1` only, with the token as a bearer token. Exposing Ipse beyond the computer is out of scope for 1.0.
 - A request without a valid token is refused before any data is read.
 
@@ -92,7 +92,7 @@ In milestone 1, the gateway is **read-only** and exposes these MCP tools. Every 
 | --- | --- | --- |
 | `about_me` | — | The owner's file: name, well-known attributes, facts. Requires `identity`. |
 | `search` | `query`, `limit` (default 10, max 50) | Matching entities, events and facts, best first, each with its `id`, type and a short excerpt. |
-| `get` | `id`, or `name` (matched against names and aliases) | One entity or event in full: front matter, facts, relations, notes. |
+| `get` | `id`, or `name` (matched against names and aliases, or a link target like `[[marie-dupont]]`) | One entity or event in full: front matter, facts, relations, notes. Several when several share the name (decision 0011), at most 10. |
 | `events` | `from`, `to` (dates), optional `with` (an entity id) | Events in that period, ordered by start, at most 200. |
 | `now` | optional `topics` | **Current** states only (vault spec, section 5.2), each with its `last_seen`. |
 | `states_history` | `topic`, `from`, `to` | States of that topic in a past period, including recent and past ones. The only way to get them. |
@@ -101,11 +101,25 @@ Rules every tool follows:
 
 - **Invisible means absent.** Hidden data is never returned, counted, or hinted at: no "3 results hidden", no different error.
 - **Lines about hidden files are left out.** A fact, a relation, a `located_in` or a line of notes that links to a file the client cannot read is not returned at all, nor used to match a search, so nothing shows that something is hidden. A link that points to no known file counts as hidden.
-- **No raw data.** The raw journal is never exposed as such. Processing tasks (section 4.1) show only the items they concern, normalized and filtered by category.
+- **No raw data.** The raw journal is never exposed as such. Processing tasks (section 4.2) show only the items they concern, normalized and filtered by category.
 - **Bounded answers.** Every list is capped as above and says when it was cut, so an AI asks for more instead of receiving a whole life at once.
 - **Times** are returned in RFC 3339 with the vault's time zone offset.
 
-### 4.1 Processing tools (milestone 2)
+### 4.1 Answers
+
+Every tool answers in JSON, both as text and as structured content:
+
+| Tool | Answer |
+| --- | --- |
+| `about_me` | `{"me": <entity>}`, or `{"me": null}` |
+| `search` | `{"results": [{"id", "type", "name", "excerpt"}], "more": <bool>}` |
+| `get` | `{"entries": [<entity>], "more": <bool>}` |
+
+- An entity has `id`, `type`, `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`, `facts`, `relations` (`[{"word", "target"}]`) and `notes`; empty fields are left out.
+- Nothing found and hidden look the same: an empty list, or `null`.
+- A refused call (no code, a wrong code, missing arguments) is a tool error with a plain message saying what to do, never a protocol error, so that the AI can tell the person.
+
+### 4.2 Processing tools (milestone 2)
 
 Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right on the categories involved; tasks touching other categories are invisible to that client.
 

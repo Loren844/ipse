@@ -23,24 +23,13 @@ fn version_prints_the_crate_version() {
 }
 
 #[test]
-fn help_lists_the_planned_commands() {
+fn help_lists_the_commands() {
     let out = ipse(&["--help"]);
     assert!(out.status.success());
     let help = String::from_utf8_lossy(&out.stdout);
     for command in ["init", "import", "client", "mcp"] {
         assert!(help.contains(command), "help does not list {command}");
     }
-    assert!(help.contains("not yet available"));
-}
-
-#[test]
-fn planned_commands_fail_with_a_plain_message() {
-    let out = ipse(&["mcp"]);
-    assert!(!out.status.success());
-    assert_eq!(
-        String::from_utf8_lossy(&out.stderr).trim(),
-        "`ipse mcp` is not available yet."
-    );
 }
 
 #[test]

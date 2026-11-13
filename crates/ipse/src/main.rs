@@ -5,12 +5,12 @@
 
 mod cmd;
 mod connectors;
+mod mcp;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
-use ipse_core::Error;
 
 /// Your memory, on your machine, for any AI.
 #[derive(Debug, Parser)]
@@ -49,8 +49,12 @@ enum Command {
         #[command(subcommand)]
         action: ClientAction,
     },
-    /// Serve the memory to an AI over MCP (not yet available)
-    Mcp,
+    /// Serve the memory to an AI app over MCP; the AI app starts it with an access code
+    Mcp {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Run a built-in connector; started by Ipse itself
     #[command(hide = true)]
     Connector {
@@ -99,7 +103,7 @@ fn main() -> ExitCode {
             ClientAction::List { vault } => cmd::client::list(vault),
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },
-        Command::Mcp => Err(Error::NotYetAvailable("`ipse mcp`")),
+        Command::Mcp { vault } => mcp::run(vault),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {
