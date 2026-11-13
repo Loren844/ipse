@@ -7,7 +7,7 @@ use std::path::Path;
 
 use ipse_core::journal::Journal;
 use ipse_core::materialize::{PeopleSummary, contacts_to_people};
-use ipse_core::vault::{Language, MemoryFile, Settings, Vault};
+use ipse_core::vault::{Language, MemoryFile, Settings, Source, Vault};
 use ipse_protocol::{Op, Record};
 use serde_json::{Value, json};
 
@@ -47,7 +47,11 @@ fn vault() -> (tempfile::TempDir, Vault) {
 fn import(vault: &Vault, records: &[Record]) -> PeopleSummary {
     let mut journal = Journal::new(vault.root());
     journal.append("contacts", records, None).unwrap();
-    contacts_to_people(vault, &journal, "contacts").unwrap()
+    let history = vault.history().unwrap();
+    let mut change = history.change(Source::Connector("contacts".into()));
+    let summary = contacts_to_people(vault, &journal, "contacts", &mut change).unwrap();
+    change.commit("Import contacts").unwrap();
+    summary
 }
 
 fn read(path: &Path) -> String {

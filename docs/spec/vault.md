@@ -280,9 +280,11 @@ watching = "30d"
 The vault is a git repository, invisible to the person: no git word appears in the interface (decision 0007).
 
 - Every change Ipse makes is **one commit**, whatever the number of files it touches (a rename with its link updates is one change).
-- Every commit carries a trailer saying where the change came from: `Ipse-Source: connector:calendar`, `Ipse-Source: proposal:<id>`, or `Ipse-Source: person`.
-- Changes the person makes in another editor are detected (file watching, then `git status` on start) and committed as `Ipse-Source: person`. **The person always wins**: Ipse never overwrites an edit it did not make; a connector update that conflicts becomes a proposal.
-- `journal/`, `.ipse/index/` and `.ipse/proposals/` are listed in the vault's `.gitignore`.
+- Every commit carries a trailer saying where the change came from: `Ipse-Source: connector:calendar`, `Ipse-Source: proposal:<id>`, `Ipse-Source: person`, or `Ipse-Source: ipse` for what Ipse does on its own (creating the memory, upgrading its format). Commits are made in pure Rust; the `git` program is not needed.
+- Changes the person makes in another editor are detected (file watching, then, before Ipse changes anything, a comparison of the folder with the last commit) and committed as `Ipse-Source: person`. **The person always wins**: Ipse never overwrites an edit it did not make; a connector update that conflicts becomes a proposal.
+- `ipse init` in a folder that already holds notes records them first, as the person's, then its own files as one change. A vault created before its history starts one, its files recorded as `ipse`.
+- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
+- After each commit the git index is rewritten, so that a person who opens the folder with git sees a clean state.
 - "Undo" in the interface reverts one change by creating a new commit; history is never rewritten.
 
 ## 10. Robustness

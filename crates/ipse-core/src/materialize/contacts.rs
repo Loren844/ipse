@@ -12,8 +12,8 @@ use serde_json::Value;
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
-    Birthday, Body, Common, DateTime, EntityFields, Fact, FileType, Language, MemoryFile, Vault,
-    body, naming,
+    Birthday, Body, Change, Common, DateTime, EntityFields, Fact, FileType, Language, MemoryFile,
+    Vault, body, naming,
 };
 
 /// The record kind this module reads.
@@ -42,6 +42,7 @@ pub fn contacts_to_people(
     vault: &Vault,
     journal: &Journal,
     instance: &str,
+    change: &mut Change<'_>,
 ) -> Result<PeopleSummary> {
     let latest = latest_cards(journal, instance)?;
     let existing = people_by_source(vault.root(), instance)?;
@@ -55,12 +56,13 @@ pub fn contacts_to_people(
         let source = format!("{instance}:{external_id}");
         if let Some(path) = existing.get(&source) {
             if update_person(path, &card, vault)? {
+                change.touched(path);
                 summary.updated += 1;
             } else {
                 summary.unchanged += 1;
             }
-        } else {
-            create_person(source, &card, vault)?;
+        } else if let Some(path) = create_person(source, &card, vault)? {
+            change.touched(&path);
             summary.added += 1;
         }
     }
@@ -84,11 +86,11 @@ fn update_person(path: &Path, card: &CardFields, vault: &Vault) -> Result<bool> 
     file.write()
 }
 
-/// Writes a new person file for a card seen for the first time.
-fn create_person(source: String, card: &CardFields, vault: &Vault) -> Result<()> {
+/// Writes a new person file for a card seen for the first time. Returns its path.
+fn create_person(source: String, card: &CardFields, vault: &Vault) -> Result<Option<PathBuf>> {
     let settings = vault.settings();
     let Some(mut common) = Common::new(FileType::Person, settings.time_zone()) else {
-        return Ok(());
+        return Ok(None);
     };
     common.sources = vec![source];
     let entity = card.apply_to(EntityFields::default());
@@ -100,7 +102,7 @@ fn create_person(source: String, card: &CardFields, vault: &Vault) -> Result<()>
     )?;
     let body = body::render(&card.body(settings.language()), settings.language());
     MemoryFile::new(&path, common, Some(entity), body).write()?;
-    Ok(())
+    Ok(Some(path))
 }
 
 /// The latest `data` of every card of `instance`, in the order the cards first appeared.

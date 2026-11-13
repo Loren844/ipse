@@ -53,6 +53,16 @@ pub enum Error {
     /// A request Ipse cannot carry out as asked. The message says what to do instead.
     #[error("{0}")]
     Refused(String),
+
+    /// The vault's history could not be read or updated. The files themselves are as
+    /// they are on disk; only the record of who changed them is missing.
+    #[error(
+        "Ipse could not {action} the history of this memory. Your files are as they are on disk; only the record of this change is missing."
+    )]
+    History {
+        /// What Ipse was doing, as a verb: "read", "update", "create".
+        action: &'static str,
+    },
 }
 
 #[cfg(test)]

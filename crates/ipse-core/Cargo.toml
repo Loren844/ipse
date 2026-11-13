@@ -12,6 +12,7 @@ authors.workspace = true
 blake3 = { workspace = true }
 ipse-protocol = { workspace = true }
 getrandom = { workspace = true }
+gix = { workspace = true }
 jiff = { workspace = true }
 saphyr-parser = { workspace = true }
 serde = { workspace = true }
