@@ -224,25 +224,98 @@ fn the_person_s_edits_win() {
     assert!(text.contains("start: 2026-11-14T20:30:00+01:00"));
     assert!(text.contains("Julie fête ses 40 ans."));
 
-    // A title the person changed is theirs: the next update leaves the file alone.
+    // A title the person changed is theirs; the calendar's other keys still update.
     std::fs::write(
         &path,
         text.replace("title: Dîner chez Julie", "title: Les 40 ans de Julie"),
     )
     .unwrap();
-    let before = std::fs::read_to_string(&path).unwrap();
     let mut even_later = later;
     even_later["start"] = json!("2026-11-14T21:00:00+01:00");
     let (summary, committed) = calendar(
         &vault,
         "calendar",
+        &[event("diner@example.org", even_later.clone())],
+    );
+    assert_eq!((summary.updated, summary.conflicts), (1, 0));
+    assert!(committed);
+    let now = read_event(dir.path(), DINNER);
+    assert_eq!(now.title, "Les 40 ans de Julie");
+    assert_eq!(now.start.to_string(), "2026-11-14T21:00:00+01:00");
+
+    // The calendar renames it too: the person's title stays, and it is reported.
+    even_later["title"] = json!("Anniversaire de Julie");
+    let (summary, _) = calendar(
+        &vault,
+        "calendar",
         &[event("diner@example.org", even_later)],
     );
     assert_eq!(summary.conflicts, 1);
-    assert!(!committed);
-    assert_eq!(std::fs::read_to_string(&path).unwrap(), before);
+    assert_eq!(read_event(dir.path(), DINNER).title, "Les 40 ans de Julie");
     let history = History::open(dir.path()).unwrap();
-    assert_eq!(history.entries(1).unwrap()[0].source, Some(Source::Person));
+    assert_eq!(history.entries(2).unwrap()[1].source, Some(Source::Person));
+}
+
+#[test]
+fn a_guest_linked_later_is_not_an_edit() {
+    let (dir, vault) = vault();
+    calendar(&vault, "calendar", &[event("diner@example.org", dinner())]);
+    assert!(
+        read_event(dir.path(), DINNER)
+            .participants
+            .contains(&LinkOrText::Text("Julie Dupont".into()))
+    );
+    contacts(
+        &vault,
+        &[record(
+            "contact.card",
+            "c-9",
+            Some(person("Julie Dupont", "julie@example.org")),
+        )],
+    );
+    let mut later = dinner();
+    later["start"] = json!("2026-11-14T20:30:00+01:00");
+    let (summary, _) = calendar(&vault, "calendar", &[event("diner@example.org", later)]);
+    assert_eq!((summary.updated, summary.conflicts), (1, 0));
+    assert!(
+        read_event(dir.path(), DINNER)
+            .participants
+            .contains(&LinkOrText::parse("[[julie-dupont]]"))
+    );
+}
+
+#[test]
+fn a_contact_the_person_renamed_keeps_its_name_and_gets_updates() {
+    let (dir, vault) = vault();
+    let maman = |phone: &str| json!({"full_name": "Maman", "phones": [phone]});
+    contacts(
+        &vault,
+        &[record("contact.card", "c-1", Some(maman("0611111111")))],
+    );
+    let path = dir.path().join("people/maman.md");
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace("name: Maman", "name: Marie Dupont")).unwrap();
+
+    let summary = contacts(
+        &vault,
+        &[record("contact.card", "c-1", Some(maman("0622222222")))],
+    );
+    assert_eq!((summary.updated, summary.conflicts), (1, 0));
+    let file = MemoryFile::read(&path).unwrap();
+    let entity = file.entity().unwrap();
+    assert_eq!(entity.name.as_deref(), Some("Marie Dupont"));
+    assert_eq!(
+        entity.aliases,
+        ["Maman"],
+        "the address book's name is still understood"
+    );
+    assert_eq!(entity.phones, ["0622222222"]);
+
+    let again = contacts(
+        &vault,
+        &[record("contact.card", "c-1", Some(maman("0622222222")))],
+    );
+    assert_eq!((again.updated, again.unchanged), (0, 1));
 }
 
 #[test]

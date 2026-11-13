@@ -2,11 +2,12 @@
 //! deterministically is written directly).
 //!
 //! The person always wins (`docs/spec/vault.md`, section 9). Ipse writes only the keys
-//! it takes from a source, and only while they are as it last wrote them: the journal
-//! keeps every version, and a small ledger remembers which one is in the vault. If the
-//! person changed one of those keys, the update is skipped and counted, to become a
-//! proposal in milestone 2; what they added (facts, notes, other keys) never stops an
-//! update. A file the person deleted is not created again.
+//! it takes from a source, and each only while it is as Ipse last wrote it: the journal
+//! keeps every version, and a small ledger remembers which one is in the vault. A key
+//! the person changed keeps their value while the others update; when the source
+//! changes it too, that is counted, to become a proposal in milestone 2. What they
+//! added (facts, notes, other keys) never stops an update. A file the person deleted is
+//! not created again.
 
 mod contacts;
 mod events;
@@ -24,12 +25,42 @@ use crate::vault::write_atomic;
 use crate::{Error, Result};
 
 /// What happened to one existing file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum Outcome {
-    Written,
-    Unchanged,
-    /// The person changed a key Ipse would write: the file is left as it is.
-    Conflict,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct Outcome {
+    /// The file was rewritten.
+    pub(crate) written: bool,
+    /// The source changed a key the person had changed: the person's value was kept.
+    pub(crate) conflict: bool,
+}
+
+/// Merges the keys Ipse fills from a source, one by one: a key the person did not
+/// change since Ipse last wrote it takes the source's new value; a key they changed
+/// keeps theirs.
+#[derive(Debug, Default)]
+pub(crate) struct Merge {
+    /// True when the source changed a key the person had changed.
+    pub(crate) conflict: bool,
+}
+
+impl Merge {
+    /// The value of one key: `new` from the source, unless the person changed it from
+    /// `applied`, the value Ipse last wrote (unknown when `None`).
+    pub(crate) fn key<T: PartialEq + Clone>(
+        &mut self,
+        current: &T,
+        applied: Option<&T>,
+        new: &T,
+    ) -> T {
+        match applied {
+            Some(applied) if applied != current => {
+                if new != applied && new != current {
+                    self.conflict = true;
+                }
+                current.clone()
+            }
+            _ => new.clone(),
+        }
+    }
 }
 
 /// Where Ipse remembers, per journal source, the last record it turned into files.

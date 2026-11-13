@@ -165,10 +165,11 @@ fn deleted_line(n: u64) -> String {
 
 fn conflicts_line(n: u64) -> String {
     if n == 1 {
-        "1 file you changed yourself was left as it is; the new version from the source was not applied.".to_owned()
+        "1 file: the source changed a detail you had changed yourself; your version was kept."
+            .to_owned()
     } else {
         format!(
-            "{n} files you changed yourself were left as they are; the new versions from the source were not applied."
+            "{n} files: the source changed details you had changed yourself; your versions were kept."
         )
     }
 }

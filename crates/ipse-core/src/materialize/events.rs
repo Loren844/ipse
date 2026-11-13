@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use jiff::Timestamp;
 use serde_json::Value;
 
-use super::{Ledger, Outcome, entity_files, versions};
+use super::{Ledger, Merge, Outcome, entity_files, versions};
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
@@ -77,14 +77,14 @@ pub fn calendar_to_events(
         let previous = previous.as_ref().map(|p| (p, versions.applied_removal));
         let Some(data) = &versions.latest else {
             if let Some(path) = path {
-                match cancel(path, previous, vault, now)? {
-                    Outcome::Written => {
-                        change.touched(path);
-                        written.push(path.clone());
-                        summary.cancelled += 1;
-                    }
-                    Outcome::Unchanged => {}
-                    Outcome::Conflict => summary.conflicts += 1,
+                let outcome = cancel(path, previous, vault, now)?;
+                if outcome.written {
+                    change.touched(path);
+                    written.push(path.clone());
+                    summary.cancelled += 1;
+                }
+                if outcome.conflict {
+                    summary.conflicts += 1;
                 }
             }
             continue;
@@ -98,14 +98,16 @@ pub fn calendar_to_events(
             continue;
         };
         if let Some(path) = path {
-            match update(path, &record, previous, &source, vault)? {
-                Outcome::Written => {
-                    change.touched(path);
-                    written.push(path.clone());
-                    summary.updated += 1;
-                }
-                Outcome::Unchanged => summary.unchanged += 1,
-                Outcome::Conflict => summary.conflicts += 1,
+            let outcome = update(path, &record, previous, &source, vault)?;
+            if outcome.written {
+                change.touched(path);
+                written.push(path.clone());
+                summary.updated += 1;
+            } else if !outcome.conflict {
+                summary.unchanged += 1;
+            }
+            if outcome.conflict {
+                summary.conflicts += 1;
             }
         } else if versions.materialized {
             // The person deleted the file Ipse made: it stays deleted.
@@ -123,20 +125,8 @@ pub fn calendar_to_events(
     Ok(summary)
 }
 
-/// True when the person changed a key Ipse writes since it last wrote it from
-/// `previous` (and whether that last record was a removal, which cancels).
-fn changed_by_person(current: &EventFields, previous: Option<(&EventRecord, bool)>) -> bool {
-    let Some((previous, removal)) = previous else {
-        return false;
-    };
-    let mut expected = previous.apply_to(current.clone());
-    if removal {
-        expected.status = current.status;
-    }
-    expected != *current
-}
-
-/// Marks a removed event cancelled when it has not happened yet.
+/// Marks a removed event cancelled when it has not happened yet, unless the person
+/// gave it a status of their own.
 fn cancel(
     path: &Path,
     previous: Option<(&EventRecord, bool)>,
@@ -145,20 +135,27 @@ fn cancel(
 ) -> Result<Outcome> {
     let mut file = MemoryFile::read(path)?;
     let Some(event) = file.event() else {
-        return Ok(Outcome::Unchanged);
+        return Ok(Outcome::default());
     };
     if event.status == Some(EventStatus::Cancelled) || !is_future(&event.start, now, vault) {
-        return Ok(Outcome::Unchanged);
+        return Ok(Outcome::default());
     }
-    if changed_by_person(event, previous) {
-        return Ok(Outcome::Conflict);
+    let applied = previous.map(|(p, removal)| p.status(removal, event.status));
+    if applied.is_some_and(|a| a != event.status) {
+        return Ok(Outcome {
+            written: false,
+            conflict: true,
+        });
     }
     if let Some(event) = file.event_mut() {
         event.status = Some(EventStatus::Cancelled);
     }
     file.common_mut().updated = crate::vault::DateTime::now(vault.settings().time_zone());
     file.write_unsynced()?;
-    Ok(Outcome::Written)
+    Ok(Outcome {
+        written: true,
+        conflict: false,
+    })
 }
 
 fn is_future(start: &EventTime, now: Timestamp, vault: &Vault) -> bool {
@@ -168,8 +165,8 @@ fn is_future(start: &EventTime, now: Timestamp, vault: &Vault) -> bool {
     }
 }
 
-/// Refreshes the keys taken from the calendar and adds `source` if missing, unless the
-/// person changed one of those keys since Ipse last wrote them.
+/// Refreshes the keys taken from the calendar, one by one (a key the person changed
+/// keeps their value), and adds `source` if missing.
 fn update(
     path: &Path,
     record: &EventRecord,
@@ -179,15 +176,15 @@ fn update(
 ) -> Result<Outcome> {
     let mut file = MemoryFile::read(path)?;
     let Some(current) = file.event().cloned() else {
-        return Ok(Outcome::Unchanged);
+        return Ok(Outcome::default());
     };
-    let wanted = record.apply_to(current.clone());
+    let (wanted, conflict) = record.merge(&current, previous);
     let has_source = file.common().sources.iter().any(|s| s == source);
     if wanted == current && has_source {
-        return Ok(Outcome::Unchanged);
-    }
-    if wanted != current && changed_by_person(&current, previous) {
-        return Ok(Outcome::Conflict);
+        return Ok(Outcome {
+            written: false,
+            conflict,
+        });
     }
     if let Some(event) = file.event_mut() {
         *event = wanted;
@@ -198,7 +195,10 @@ fn update(
     }
     common.updated = crate::vault::DateTime::now(vault.settings().time_zone());
     file.write_unsynced()?;
-    Ok(Outcome::Written)
+    Ok(Outcome {
+        written: true,
+        conflict,
+    })
 }
 
 /// Writes a new event file. Returns its path.
@@ -207,7 +207,7 @@ fn create(record: &EventRecord, source: String, vault: &Vault) -> Result<PathBuf
     let mut common = Common::new(FileType::Event, settings.time_zone())
         .ok_or_else(|| crate::Error::Refused("cannot create an event file".to_owned()))?;
     common.sources = vec![source];
-    let event = record.apply_to(EventFields::new(record.title.clone(), record.start));
+    let event = record.fields();
     let path = naming::event_path(vault.root(), &record.title, &record.start, &common.id)?;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|source| crate::Error::Io {
@@ -310,6 +310,8 @@ struct EventRecord {
     end: Option<EventTime>,
     location: Option<String>,
     participants: Vec<LinkOrText>,
+    /// The same guests as plain text, as written before anyone was linked.
+    guests: Vec<LinkOrText>,
     cancelled: bool,
     description: Option<String>,
 }
@@ -325,18 +327,23 @@ impl EventRecord {
         };
         let start = EventTime::parse(&text("start")?)?;
         let mut participants: Vec<LinkOrText> = Vec::new();
-        let guests = data.get("organizer").into_iter().chain(
+        let mut guests: Vec<LinkOrText> = Vec::new();
+        let all = data.get("organizer").into_iter().chain(
             data.get("attendees")
                 .and_then(Value::as_array)
                 .into_iter()
                 .flatten(),
         );
-        for guest in guests {
+        for guest in all {
             let field = |key: &str| guest.get(key).and_then(Value::as_str);
             if let Some(p) = people.guest(field("name"), field("email"))
                 && !participants.contains(&p)
             {
+                let text = field("name")
+                    .or(field("email"))
+                    .map_or_else(|| p.clone(), |t| LinkOrText::Text(t.trim().to_owned()));
                 participants.push(p);
+                guests.push(text);
             }
         }
         Some(Self {
@@ -345,29 +352,70 @@ impl EventRecord {
             end: text("end").as_deref().and_then(EventTime::parse),
             location: text("location"),
             participants,
+            guests,
             cancelled: text("status").as_deref() == Some("cancelled"),
             description: text("description"),
         })
     }
 
-    /// `event` with the keys taken from the calendar replaced; other keys kept. A place
-    /// the person linked to a file is kept while the calendar gives only an address.
-    fn apply_to(&self, mut event: EventFields) -> EventFields {
-        event.title.clone_from(&self.title);
-        event.start = self.start;
+    /// A new event's keys.
+    fn fields(&self) -> EventFields {
+        let mut event = EventFields::new(self.title.clone(), self.start);
         event.end = self.end;
-        let linked = event.place.as_ref().is_some_and(|p| p.link().is_some());
-        if !linked {
-            event.place = self.location.clone().map(LinkOrText::Text);
-        }
+        event.place = self.location.clone().map(LinkOrText::Text);
         event.participants.clone_from(&self.participants);
-        event.status = if self.cancelled {
-            Some(EventStatus::Cancelled)
-        } else if event.status == Some(EventStatus::Cancelled) {
-            None
-        } else {
-            event.status
-        };
+        event.status = self.status(false, None);
         event
+    }
+
+    /// The status Ipse writes: cancelled when the calendar says so or the event was
+    /// removed; otherwise none. After a removal, `current` may be either, depending on
+    /// whether the event had happened.
+    fn status(&self, removal: bool, current: Option<EventStatus>) -> Option<EventStatus> {
+        if self.cancelled {
+            Some(EventStatus::Cancelled)
+        } else if removal {
+            current.filter(|s| *s == EventStatus::Cancelled)
+        } else {
+            None
+        }
+    }
+
+    /// `current` with the keys taken from the calendar merged in, one by one (see
+    /// [`Merge`]), and whether the calendar changed a key the person had changed. A
+    /// place the person linked to a file stays.
+    fn merge(&self, current: &EventFields, previous: Option<(&Self, bool)>) -> (EventFields, bool) {
+        let mut merge = Merge::default();
+        let prev = previous.map(|(p, _)| p);
+        let mut out = current.clone();
+        out.title = merge.key(&current.title, prev.map(|p| &p.title), &self.title);
+        out.start = merge.key(&current.start, prev.map(|p| &p.start), &self.start);
+        out.end = merge.key(&current.end, prev.map(|p| &p.end), &self.end);
+        if current.place.as_ref().and_then(LinkOrText::link).is_none() {
+            let text = |l: &Option<String>| l.clone().map(LinkOrText::Text);
+            out.place = merge.key(
+                &current.place,
+                prev.map(|p| text(&p.location)).as_ref(),
+                &text(&self.location),
+            );
+        }
+        // A guest written as text, then linked once their contact was imported, is not
+        // a change by the person.
+        let untouched = |p: &Self| {
+            current.participants.len() == p.participants.len()
+                && current
+                    .participants
+                    .iter()
+                    .zip(p.participants.iter().zip(&p.guests))
+                    .all(|(c, (linked, text))| c == linked || c == text)
+        };
+        if prev.is_none_or(untouched) {
+            out.participants.clone_from(&self.participants);
+        } else if !untouched(self) {
+            merge.conflict = true;
+        }
+        let applied = previous.map(|(p, removal)| p.status(removal, current.status));
+        out.status = merge.key(&current.status, applied.as_ref(), &self.status(false, None));
+        (out, merge.conflict)
     }
 }
