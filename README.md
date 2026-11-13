@@ -28,8 +28,8 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 ## Roadmap
 
 1. **Core without interface** — vault format, raw journal, index and graph, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
-2. **Review and proposals** — daily summary, review inbox, proposals with diff and undo.
-3. **Desktop app** — graph view, editing, connector and rights management (Windows, macOS, Linux).
+2. **Review and proposals** — the interface starts, in the browser (`ipse ui`): daily summary, review inbox, proposals with diff and undo.
+3. **Desktop app** — the same interface as an app for Windows, macOS and Linux: installer, updates, graph view, editing, connector and rights management.
 4. **Widening** — more connectors (location history first), weekly to yearly summaries, AI writes.
 5. **Mobile** — sync, quick capture, questions of the day.
 
