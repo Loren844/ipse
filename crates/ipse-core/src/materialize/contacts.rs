@@ -9,11 +9,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+use super::{Ledger, Outcome, versions};
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
     Birthday, Body, Change, Common, DateTime, EntityFields, Fact, FileType, Language, MemoryFile,
-    Vault, body, naming,
+    Vault, body, naming, sync_files,
 };
 
 /// The record kind this module reads.
@@ -30,6 +31,11 @@ pub struct PeopleSummary {
     pub unchanged: u64,
     /// Records without a name, ignored.
     pub skipped: u64,
+    /// People whose name, emails, phones or birthday the person changed, left as they
+    /// are although the card changed.
+    pub conflicts: u64,
+    /// People files the person deleted, not created again.
+    pub deleted: u64,
 }
 
 /// Creates or updates one `people/` file per contact from `instance`'s records.
@@ -44,46 +50,73 @@ pub fn contacts_to_people(
     instance: &str,
     change: &mut Change<'_>,
 ) -> Result<PeopleSummary> {
-    let latest = latest_cards(journal, instance)?;
+    let ledger = Ledger::read(vault.root())?;
+    let (items, last) = versions(journal, instance, KIND, ledger.applied(instance))?;
     let existing = people_by_source(vault.root(), instance)?;
     let mut summary = PeopleSummary::default();
+    let mut written = Vec::new();
 
-    for (external_id, data) in latest {
-        let Some(card) = CardFields::from_data(&data) else {
+    for (external_id, versions) in items {
+        // A contact removed from the address book leaves its person file alone.
+        let Some(data) = &versions.latest else {
+            continue;
+        };
+        let Some(card) = CardFields::from_data(data) else {
             summary.skipped += 1;
             continue;
         };
         let source = format!("{instance}:{external_id}");
         if let Some(path) = existing.get(&source) {
-            if update_person(path, &card, vault)? {
-                change.touched(path);
-                summary.updated += 1;
-            } else {
-                summary.unchanged += 1;
+            let previous = versions.applied.as_ref().and_then(CardFields::from_data);
+            match update_person(path, &card, previous.as_ref(), vault)? {
+                Outcome::Written => {
+                    change.touched(path);
+                    written.push(path.clone());
+                    summary.updated += 1;
+                }
+                Outcome::Unchanged => summary.unchanged += 1,
+                Outcome::Conflict => summary.conflicts += 1,
             }
+        } else if versions.materialized {
+            // The person deleted the file Ipse made: it stays deleted.
+            summary.deleted += 1;
         } else if let Some(path) = create_person(source, &card, vault)? {
             change.touched(&path);
+            written.push(path.clone());
             summary.added += 1;
         }
     }
+    // Made durable before the ledger says they are in the vault.
+    sync_files(&written)?;
+    ledger.save(instance, last)?;
     Ok(summary)
 }
 
-/// Refreshes the keys taken from the card. Returns whether the file changed.
-fn update_person(path: &Path, card: &CardFields, vault: &Vault) -> Result<bool> {
+/// Refreshes the keys taken from the card, unless the person changed one of them since
+/// Ipse last wrote them from `previous`.
+fn update_person(
+    path: &Path,
+    card: &CardFields,
+    previous: Option<&CardFields>,
+    vault: &Vault,
+) -> Result<Outcome> {
     let mut file = MemoryFile::read(path)?;
     let Some(current) = file.entity().cloned() else {
-        return Ok(false);
+        return Ok(Outcome::Unchanged);
     };
     let wanted = card.apply_to(current.clone());
     if wanted == current {
-        return Ok(false);
+        return Ok(Outcome::Unchanged);
+    }
+    if previous.is_some_and(|p| p.apply_to(current.clone()) != current) {
+        return Ok(Outcome::Conflict);
     }
     if let Some(entity) = file.entity_mut() {
         *entity = wanted;
     }
     file.common_mut().updated = DateTime::now(vault.settings().time_zone());
-    file.write()
+    file.write_unsynced()?;
+    Ok(Outcome::Written)
 }
 
 /// Writes a new person file for a card seen for the first time. Returns its path.
@@ -101,27 +134,8 @@ fn create_person(source: String, card: &CardFields, vault: &Vault) -> Result<Opt
         &common.id,
     )?;
     let body = body::render(&card.body(settings.language()), settings.language());
-    MemoryFile::new(&path, common, Some(entity), body).write()?;
+    MemoryFile::new(&path, common, Some(entity), body).write_unsynced()?;
     Ok(Some(path))
-}
-
-/// The latest `data` of every card of `instance`, in the order the cards first appeared.
-fn latest_cards(journal: &Journal, instance: &str) -> Result<Vec<(String, Value)>> {
-    let mut order: Vec<String> = Vec::new();
-    let mut latest: HashMap<String, Value> = HashMap::new();
-    for record in journal.read(instance, Some(&[KIND]))? {
-        let record = record?;
-        let (Some(id), Some(data)) = (record.external_id, record.data) else {
-            continue;
-        };
-        if latest.insert(id.clone(), data).is_none() {
-            order.push(id);
-        }
-    }
-    Ok(order
-        .into_iter()
-        .filter_map(|id| latest.remove(&id).map(|data| (id, data)))
-        .collect())
 }
 
 /// People files whose `sources` name a card of `instance`, by source.

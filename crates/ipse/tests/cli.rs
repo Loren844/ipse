@@ -132,13 +132,94 @@ fn import_fills_the_memory_with_contacts() {
 }
 
 #[test]
+fn import_a_calendar_after_the_contacts() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    let ok = |args: &[&str]| {
+        let out = ipse(args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    ok(&[
+        "init",
+        vault,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    let fixtures = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
+    ok(&[
+        "import",
+        &format!("{fixtures}/contacts/google-v3.vcf"),
+        "--vault",
+        vault,
+    ]);
+    let printed = ok(&[
+        "import",
+        &format!("{fixtures}/calendar/google.ics"),
+        "--vault",
+        vault,
+    ]);
+    assert!(
+        printed.contains("1 unreadable event(s) skipped."),
+        "{printed}"
+    );
+    assert!(printed.contains("events added, 0 updated."), "{printed}");
+
+    let dinner = std::fs::read_to_string(
+        dir.path()
+            .join("events/2026/2026-11-14-diner-chez-julie.md"),
+    )
+    .unwrap();
+    assert!(
+        dinner.contains("\"[[marc-leroy]]\""),
+        "linked by email: {dinner}"
+    );
+    assert!(dinner.contains("  - Julie Dupont\n"), "no file: plain text");
+    assert!(dinner.contains("Apporter le dessert."));
+    assert!(
+        dir.path()
+            .join("events/2026/2026-12-24-noel-chez-les-parents.md")
+            .is_file()
+    );
+    assert!(
+        dir.path()
+            .join("events/2026/2026-11-18-yoga-decale-au-mercredi.md")
+            .is_file(),
+        "a moved occurrence"
+    );
+
+    let again = ok(&[
+        "import",
+        &format!("{fixtures}/calendar/google.ics"),
+        "--vault",
+        vault,
+    ]);
+    assert!(
+        again.contains("Every event was already up to date"),
+        "{again}"
+    );
+}
+
+#[test]
 fn import_says_what_it_can_read() {
     let dir = tempfile::tempdir().unwrap();
     let vault = dir.path().to_str().unwrap();
     assert!(ipse(&["init", vault, "--name", "X"]).status.success());
-    let out = ipse(&["import", "agenda.ics", "--vault", vault]);
+    let out = ipse(&["import", "notes.txt", "--vault", vault]);
     assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("(.vcf)"));
+    let message = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        message.contains("(.vcf)") && message.contains("(.ics)"),
+        "{message}"
+    );
 
     let out = ipse(&["import", "missing.vcf", "--vault", vault]);
     assert!(String::from_utf8_lossy(&out.stderr).contains("is not a file"));

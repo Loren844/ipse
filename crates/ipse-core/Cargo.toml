@@ -38,6 +38,10 @@ harness = false
 name = "search"
 harness = false
 
+[[bench]]
+name = "materialize"
+harness = false
+
 [lints]
 workspace = true
 
