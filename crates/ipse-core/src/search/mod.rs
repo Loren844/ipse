@@ -11,7 +11,9 @@
 mod fold;
 
 use std::borrow::Cow;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use crate::vault::{Category, FileType, Id, MemoryFile};
 use crate::{Error, Result};
@@ -93,11 +95,74 @@ pub struct Hit {
     pub score: u32,
 }
 
+/// The results of one search.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Results {
+    /// The best matches, best first.
+    pub hits: Vec<Hit>,
+    /// True when more entities matched than the limit allowed.
+    pub more: bool,
+}
+
 /// The vault's entities, ready to be searched.
 #[derive(Debug, Clone, Default)]
 pub struct SearchIndex {
     documents: Vec<Document>,
     skipped: u64,
+    files: Fingerprint,
+}
+
+/// A cheap summary of the entity files' names, sizes and modification times, to tell
+/// whether the vault changed since it was read without reading it again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+struct Fingerprint {
+    count: u64,
+    sum: u64,
+}
+
+impl Fingerprint {
+    /// Adds one file. Files are summed, so the order they are listed in does not matter.
+    fn add(&mut self, folder: &str, entry: &std::fs::DirEntry) {
+        let mut hasher = DefaultHasher::new();
+        folder.hash(&mut hasher);
+        entry.file_name().hash(&mut hasher);
+        if let Ok(meta) = entry.metadata() {
+            meta.len().hash(&mut hasher);
+            meta.modified()
+                .ok()
+                .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+                .hash(&mut hasher);
+        }
+        self.count += 1;
+        self.sum = self.sum.wrapping_add(hasher.finish());
+    }
+}
+
+/// The entity files of the vault in `root`, by folder. A missing folder has none.
+fn entity_files(root: &Path, mut each: impl FnMut(&str, &std::fs::DirEntry)) -> Result<()> {
+    for file_type in FileType::ALL.into_iter().filter(|t| t.is_entity()) {
+        let folder = file_type.folder();
+        let dir = root.join(folder);
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(Error::Io {
+                    action: "read",
+                    path: dir,
+                    source,
+                });
+            }
+        };
+        for entry in entries.flatten() {
+            let is_note = entry.path().extension().is_some_and(|e| e == "md")
+                && !entry.file_name().to_string_lossy().starts_with('.');
+            if is_note {
+                each(folder, &entry);
+            }
+        }
+    }
+    Ok(())
 }
 
 impl SearchIndex {
@@ -109,36 +174,31 @@ impl SearchIndex {
     /// [`Error::Io`] when an entity folder exists but cannot be listed.
     pub fn load(root: &Path) -> Result<Self> {
         let mut index = Self::default();
-        for file_type in FileType::ALL.into_iter().filter(|t| t.is_entity()) {
-            let dir = root.join(file_type.folder());
-            let entries = match std::fs::read_dir(&dir) {
-                Ok(entries) => entries,
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
-                Err(source) => {
-                    return Err(Error::Io {
-                        action: "read",
-                        path: dir,
-                        source,
-                    });
-                }
-            };
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let is_note = path.extension().is_some_and(|e| e == "md")
-                    && !entry.file_name().to_string_lossy().starts_with('.');
-                if !is_note {
-                    continue;
-                }
-                match MemoryFile::read(&path)
-                    .ok()
-                    .and_then(|f| document(root, &path, &f))
-                {
-                    Some(document) => index.documents.push(document),
-                    None => index.skipped += 1,
-                }
+        entity_files(root, |folder, entry| {
+            // Noted before reading, so that a change made while reading shows next time.
+            index.files.add(folder, entry);
+            let path = entry.path();
+            match MemoryFile::read(&path)
+                .ok()
+                .and_then(|f| document(root, &path, &f))
+            {
+                Some(document) => index.documents.push(document),
+                None => index.skipped += 1,
             }
-        }
+        })?;
         Ok(index)
+    }
+
+    /// True when an entity file of the vault in `root` was added, removed, renamed or
+    /// modified since this index was read. Only lists the folders: no file is read.
+    ///
+    /// # Errors
+    ///
+    /// As [`SearchIndex::load`].
+    pub fn changed(&self, root: &Path) -> Result<bool> {
+        let mut now = Fingerprint::default();
+        entity_files(root, |folder, entry| now.add(folder, entry))?;
+        Ok(now != self.files)
     }
 
     /// How many entities are searchable.
@@ -184,18 +244,25 @@ impl SearchIndex {
             .collect()
     }
 
-    /// The entities whose name or alias is `name`, ignoring case and accents, among the
-    /// allowed categories.
+    /// The entities whose name or alias is `name`, ignoring case and accents, or whose
+    /// file stem is `name`, as in a `[[link]]`, among the allowed categories.
     #[must_use]
     pub fn named(&self, name: &str, allowed: impl Fn(&Category) -> bool) -> Vec<&Path> {
         let wanted: Vec<String> = fold(name).split_whitespace().map(str::to_owned).collect();
         if wanted.is_empty() {
             return Vec::new();
         }
+        let stem = name.trim();
         self.documents
             .iter()
             .filter(|d| allowed(&d.category))
-            .filter(|d| d.name.words == wanted || d.aliases.iter().any(|a| a.words == wanted))
+            .filter(|d| {
+                d.name.words == wanted
+                    || d.aliases.iter().any(|a| a.words == wanted)
+                    || d.path
+                        .file_stem()
+                        .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(stem))
+            })
             .map(|d| d.path.as_path())
             .collect()
     }
@@ -209,10 +276,10 @@ impl SearchIndex {
         limit: usize,
         allowed: impl Fn(&Category) -> bool,
     ) -> Vec<Hit> {
-        self.search_with(query, limit, allowed, str::to_owned)
+        self.search_with(query, limit, allowed, str::to_owned).hits
     }
 
-    /// As [`SearchIndex::search`], but texts holding `[[links]]` are first passed
+    /// As [`SearchIndex::search`], saying whether results were cut, but texts holding `[[links]]` are first passed
     /// through `rewrite` (which leaves out lines linking to hidden files) and matched as
     /// rewritten. Such a line can then neither match nor show in an excerpt.
     #[must_use]
@@ -222,11 +289,11 @@ impl SearchIndex {
         limit: usize,
         allowed: impl Fn(&Category) -> bool,
         rewrite: impl Fn(&str) -> String,
-    ) -> Vec<Hit> {
+    ) -> Results {
         let folded = fold(query);
         let tokens: Vec<&str> = folded.split_whitespace().collect();
         if tokens.is_empty() {
-            return Vec::new();
+            return Results::default();
         }
         let mut hits: Vec<Hit> = self
             .documents
@@ -235,8 +302,10 @@ impl SearchIndex {
             .filter_map(|d| score(d, &tokens, &rewrite))
             .collect();
         hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.name.cmp(&b.name)));
-        hits.truncate(limit.clamp(1, MAX_LIMIT));
-        hits
+        let limit = limit.clamp(1, MAX_LIMIT);
+        let more = hits.len() > limit;
+        hits.truncate(limit);
+        Results { hits, more }
     }
 }
 

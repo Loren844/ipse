@@ -33,6 +33,10 @@ harness = false
 name = "vault"
 harness = false
 
+[[bench]]
+name = "search"
+harness = false
+
 [lints]
 workspace = true
 

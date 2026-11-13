@@ -144,11 +144,11 @@ fn a_denied_category_returns_nothing() {
     let access = gateway.access(Some(&f.token)).unwrap();
 
     for query in ["lea", "secret", "hopital", "léa secret"] {
-        assert!(access.search(query, 10).is_empty(), "{query}");
+        assert!(access.search(query, 10).hits.is_empty(), "{query}");
     }
     assert!(access.get(&f.lea).is_none());
     assert!(access.get_by_name("Léa Secret").is_empty());
-    assert_eq!(names(&access.search("marie", 10)), ["Marie Dupont"]);
+    assert_eq!(names(&access.search("marie", 10).hits), ["Marie Dupont"]);
 }
 
 #[test]
@@ -185,11 +185,11 @@ fn lines_about_hidden_files_are_left_out() {
         assert!(!json.contains(leak), "{leak} in {json}");
     }
 
-    assert!(access.search("cousine", 10).is_empty());
-    assert!(access.search("vacances", 10).is_empty());
-    assert_eq!(names(&access.search("voisine", 10)), ["Marie Dupont"]);
+    assert!(access.search("cousine", 10).hits.is_empty());
+    assert!(access.search("vacances", 10).hits.is_empty());
+    assert_eq!(names(&access.search("voisine", 10).hits), ["Marie Dupont"]);
     assert_eq!(
-        access.search("jazz", 10)[0].excerpt,
+        access.search("jazz", 10).hits[0].excerpt,
         "Rencontrée au club.\nAime le jazz."
     );
 }
@@ -199,7 +199,7 @@ fn unknown_categories_are_treated_as_private() {
     let f = fixture();
     let gateway = Gateway::open(&f.root).unwrap();
     let access = gateway.access(Some(&f.token)).unwrap();
-    assert!(access.search("martin", 10).is_empty());
+    assert!(access.search("martin", 10).hits.is_empty());
 
     // Opening `private` to this AI opens unknown categories too.
     let clients = f.root.join(".ipse/clients.toml");
@@ -211,7 +211,7 @@ fn unknown_categories_are_treated_as_private() {
     .unwrap();
     let gateway = Gateway::open(&f.root).unwrap();
     let access = gateway.access(Some(&f.token)).unwrap();
-    assert_eq!(names(&access.search("martin", 10)), ["Prof Martin"]);
+    assert_eq!(names(&access.search("martin", 10).hits), ["Prof Martin"]);
 }
 
 #[test]
@@ -254,4 +254,48 @@ fn the_category_is_checked_on_the_file_as_it_is_now() {
         access.get_by_name("Marie Dupont").is_empty(),
         "index not refreshed, file re-checked"
     );
+}
+
+#[test]
+fn fresh_access_sees_new_rights_and_new_files() {
+    let f = fixture();
+    let mut gateway = Gateway::open(&f.root).unwrap();
+    assert!(
+        gateway
+            .fresh_access(Some(&f.token))
+            .unwrap()
+            .search("zoe", 10)
+            .hits
+            .is_empty()
+    );
+
+    write(
+        &f.root,
+        &Person {
+            file_type: FileType::Person,
+            category: "people",
+            name: "Zoé Bernard",
+            facts: &[],
+            relations: &[],
+        },
+    );
+    let access = gateway.fresh_access(Some(&f.token)).unwrap();
+    assert_eq!(names(&access.search("zoe", 10).hits), ["Zoé Bernard"]);
+
+    let clients = f.root.join(".ipse/clients.toml");
+    let text = std::fs::read_to_string(&clients).unwrap();
+    std::fs::write(&clients, text.replace("\"people\", ", "")).unwrap();
+    let access = gateway.fresh_access(Some(&f.token)).unwrap();
+    assert!(
+        access.search("zoe", 10).hits.is_empty(),
+        "rights apply at once"
+    );
+
+    let mut clients = Clients::load(&f.root).unwrap();
+    let id = clients.list()[0].id.clone();
+    clients.remove(&id).unwrap();
+    assert!(matches!(
+        gateway.fresh_access(Some(&f.token)),
+        Err(Error::Refused(_))
+    ));
 }

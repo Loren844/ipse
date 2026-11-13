@@ -219,6 +219,43 @@ fn the_limit_is_respected_and_capped() {
     assert_eq!(index.search("marie", 3, all).len(), 3);
     assert_eq!(index.search("marie", 1000, all).len(), MAX_LIMIT);
     assert_eq!(index.search("marie", 0, all).len(), 1);
+
+    let id = |_: &str| String::new();
+    assert!(index.search_with("marie", 59, all, id).more);
+    assert!(!index.search_with("marie 1", 50, all, id).more, "11 match");
+    let both = |c: &Category| c.as_str() == "people";
+    let cut = index.search_with("marie", 50, both, id);
+    assert_eq!((cut.hits.len(), cut.more), (MAX_LIMIT, true));
+}
+
+#[test]
+fn changes_to_entity_files_are_noticed() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    let stem = entity(root, FileType::Person, "people", "Marie", &[], &[], None);
+    let index = SearchIndex::load(root).unwrap();
+    assert!(!index.changed(root).unwrap());
+
+    std::fs::write(root.join("notes.md"), "not an entity").unwrap();
+    std::fs::write(root.join("people/.draft.md"), "hidden file").unwrap();
+    assert!(!index.changed(root).unwrap(), "other files do not count");
+
+    let path = root.join("people").join(format!("{stem}.md"));
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(&path, text.replace("Marie", "Mariette")).unwrap();
+    assert!(index.changed(root).unwrap(), "modified");
+
+    let index = SearchIndex::load(root).unwrap();
+    entity(root, FileType::Place, "places", "Lyon", &[], &[], None);
+    assert!(index.changed(root).unwrap(), "added");
+
+    let index = SearchIndex::load(root).unwrap();
+    std::fs::rename(&path, root.join("people/marie-2.md")).unwrap();
+    assert!(index.changed(root).unwrap(), "renamed");
+
+    let index = SearchIndex::load(root).unwrap();
+    std::fs::remove_file(root.join("people/marie-2.md")).unwrap();
+    assert!(index.changed(root).unwrap(), "removed");
 }
 
 #[test]
