@@ -16,4 +16,4 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0008](0008-automation-within-the-rules.md) | Automatic, within the rules | Accepted |
 | [0009](0009-encryption.md) | Encryption: disk and keychain | Accepted |
 | [0010](0010-the-person-s-ai-does-the-work.md) | The person's own AI does the work | Accepted |
-| [0011](0011-no-silent-merge.md) | People are never merged silently | Accepted |
+| [0011](0011-no-silent-merge.md) | People and events are never merged silently | Accepted |
