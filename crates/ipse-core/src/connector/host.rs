@@ -43,7 +43,8 @@ pub struct Launch {
     pub command: Vec<String>,
     /// The instance, which is also the journal source: `contacts`, `contacts-2`.
     pub instance: String,
-    /// The vault's language, for messages shown to the person.
+    /// The language the person reads messages in: the interface's, `en` for the
+    /// command line. Not necessarily the vault's.
     pub language: String,
     /// The vault's IANA time zone.
     pub time_zone: String,

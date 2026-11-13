@@ -46,7 +46,7 @@ secrets = ["oauth"]                      # secrets the core keeps in the keychai
 default_every = "15m"                    # for mode "sync"
 ```
 
-`summary` and `name` exist in the languages the connector supports (`summary.fr`, `summary.en`); the core picks the vault's language, then English.
+`summary` and `name` exist in the languages the connector supports (`summary.fr`, `summary.en`); the core picks the interface's language, then English.
 
 ## 3. Modes
 
@@ -87,6 +87,7 @@ core                                   connector
 {"type":"hello","protocol":1,"instance":"calendar-2","mode":"sync","language":"fr","time_zone":"Europe/Paris","cursor":{"sync_token":"CPDAlvWDx4wCEPDAlvWDx4wCGAU="},"config":{"calendar_id":"primary"},"secrets":{"oauth":"<token>"},"files":[]}
 ```
 
+- `language` is the language the person reads messages in: the interface's language (`en` for the command line), not necessarily the vault's.
 - `cursor` is the value the connector returned last time (`journal.md`, section 6), or `null` on the first run.
 - `config` holds the instance's settings, as the connector declared them.
 - `secrets` are read by the core from the system keychain for this session only. A connector **must not** write them anywhere.

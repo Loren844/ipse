@@ -38,7 +38,8 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
             "contacts".to_owned(),
         ],
         "contacts",
-        settings.language().code(),
+        // The command line speaks English, whatever the vault's language.
+        "en",
         settings.time_zone_name(),
     );
     launch.files = vec![file];
