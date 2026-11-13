@@ -198,3 +198,47 @@ fn an_empty_file_sends_nothing_but_done() {
     let messages = session(&[path], 0, "en");
     assert_eq!(types(&messages), ["ready", "done"]);
 }
+
+#[test]
+fn the_core_runs_it_and_fills_the_journal() {
+    use ipse_core::connector::{Launch, Outcome, run_import};
+    use ipse_core::journal::Journal;
+
+    let vault = tempfile::tempdir().unwrap();
+    let mut journal = Journal::new(vault.path());
+    let mut launch = Launch::new(
+        vec![
+            env!("CARGO_BIN_EXE_ipse").into(),
+            "connector".into(),
+            "contacts".into(),
+        ],
+        "contacts",
+        "fr",
+        "Europe/Paris",
+    );
+    launch.files = vec![fixture("google-v3.vcf"), fixture("apple-v4.vcf")];
+    launch.kinds = Some(vec!["contact.card".into()]);
+
+    let report = run_import(&mut journal, &launch).unwrap();
+    assert!(
+        matches!(report.outcome, Outcome::Done(s) if s.upserts == 4),
+        "{report:?}"
+    );
+    assert_eq!((report.written, report.rejected), (4, 0));
+    assert_eq!(report.progress, ["1 fiche(s) illisible(s) ignorée(s)."]);
+
+    let names: Vec<String> = journal
+        .read("contacts", Some(&["contact.card"]))
+        .unwrap()
+        .map(|r| {
+            r.unwrap().data.unwrap()["full_name"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(
+        names,
+        ["Élodie Martin", "Marc Leroy", "Ana Silva", "Camille Durand"]
+    );
+}
