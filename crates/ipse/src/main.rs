@@ -36,8 +36,14 @@ enum Command {
         #[arg(long)]
         time_zone: Option<String>,
     },
-    /// Import a file: contacts (.vcf), calendar (.ics) (not yet available)
-    Import,
+    /// Import a file into the memory: contacts (.vcf)
+    Import {
+        /// The file to import
+        file: PathBuf,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Connect, list or remove an AI (not yet available)
     Client,
     /// Serve the memory to an AI over MCP (not yet available)
@@ -58,7 +64,7 @@ fn main() -> ExitCode {
             language,
             time_zone,
         } => cmd::init::run(folder, name, language.as_deref(), time_zone.as_deref()),
-        Command::Import => Err(Error::NotYetAvailable("`ipse import`")),
+        Command::Import { file, vault } => cmd::import::run(&file, vault),
         Command::Client => Err(Error::NotYetAvailable("`ipse client`")),
         Command::Mcp => Err(Error::NotYetAvailable("`ipse mcp`")),
         Command::Connector { name } => connectors::run(&name),
