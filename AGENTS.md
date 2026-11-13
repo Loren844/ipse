@@ -49,6 +49,8 @@ The code aims for the best possible performance, guided by measurement.
 - Edition 2024, formatting by `rustfmt` defaults, lints from the workspace `Cargo.toml`.
 - Small modules with one job each. File and function names say what they do.
 - Code, comments and commit messages in English.
+- The command line speaks English, whatever the vault's language; the app will offer a choice of languages. Words Ipse writes into vault files (section headings, hints) follow the vault's language.
+- The command line speaks English, whatever the vault's language; the app will offer a choice of languages. Words Ipse writes into vault files (section headings, hints) follow the vault's language.
 
 ### Dependencies
 

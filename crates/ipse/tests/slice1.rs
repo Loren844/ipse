@@ -91,6 +91,10 @@ async fn ask_your_ai_who_someone_is() {
     // 2. Import the contacts exported from the phone.
     let printed = ipse(&["import", contacts.to_str().unwrap(), "--vault", vault_arg]);
     assert!(printed.contains("2 people added"), "{printed}");
+    assert!(
+        printed.contains("1 unreadable card(s) skipped."),
+        "the command line speaks English in a French memory: {printed}"
+    );
 
     // 3. Connect two AIs. The second one is then denied `people`, as the person could
     //    choose on the connection screen.
