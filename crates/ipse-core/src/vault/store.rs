@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use super::atomic::write_atomic;
 use super::fields::{Category, Common, EntityFields, FileType};
 use super::file::MemoryFile;
+use super::history::{History, Source};
 use super::naming;
 use super::settings::Settings;
 use crate::{Error, Result};
@@ -43,10 +44,14 @@ impl Vault {
     /// Creates a vault in `root`, which may be empty or already hold notes (they are
     /// left untouched), and the owner's own file named after `owner_name`.
     ///
+    /// The history starts with the notes already there, recorded as the person's, then
+    /// Ipse's own files as one change.
+    ///
     /// # Errors
     ///
     /// [`Error::Refused`] when `root` already holds a vault or the name is empty;
-    /// [`Error::Io`] when a folder or file cannot be created.
+    /// [`Error::Io`] when a folder or file cannot be created; [`Error::History`] when
+    /// the history cannot be created.
     pub fn init(root: &Path, owner_name: &str, settings: Settings) -> Result<Self> {
         let owner_name = owner_name.trim();
         if owner_name.is_empty() {
@@ -60,6 +65,30 @@ impl Vault {
                 "{} already holds an Ipse memory. Open it instead of creating a new one.",
                 root.display()
             )));
+        }
+
+        std::fs::create_dir_all(root).map_err(|source| Error::Io {
+            action: "create",
+            path: root.to_owned(),
+            source,
+        })?;
+        let had_notes = std::fs::read_dir(root)
+            .map_err(|source| Error::Io {
+                action: "read",
+                path: root.to_owned(),
+                source,
+            })?
+            .next()
+            .is_some();
+        let history = History::open(root)?;
+        if had_notes {
+            // Already a git folder: only what was not recorded yet.
+            let summary = if history.is_empty() {
+                "Notes already in this folder"
+            } else {
+                "Changes made outside Ipse"
+            };
+            history.record(Source::Person, summary, &[".gitignore"])?;
         }
 
         for folder in FOLDERS {
@@ -87,6 +116,12 @@ impl Vault {
 
         // Written last: a folder is a vault only once everything else is in place.
         write_atomic(&settings_path, settings.render().as_bytes())?;
+
+        let mut change = history.change(Source::Ipse);
+        for path in [&owner, &settings_path, &root.join(".gitignore")] {
+            change.touched(path);
+        }
+        change.commit("Create this memory")?;
 
         Ok(Self {
             root: root.to_owned(),
@@ -116,6 +151,23 @@ impl Vault {
             settings,
             owner,
         })
+    }
+
+    /// Opens the vault's history, after recording what changed outside Ipse since the
+    /// last change, so that the person's edits are kept and known as theirs. A vault
+    /// created before its history starts one, its files recorded as Ipse's.
+    ///
+    /// # Errors
+    ///
+    /// As [`History::open`] and [`History::record_outside_edits`].
+    pub fn history(&self) -> Result<History> {
+        let history = History::open(&self.root)?;
+        if history.is_empty() {
+            history.record(Source::Ipse, "Start the history of this memory", &[])?;
+        } else {
+            history.record_outside_edits()?;
+        }
+        Ok(history)
     }
 
     /// The vault's folder.

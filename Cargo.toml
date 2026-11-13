@@ -16,6 +16,8 @@ ipse-core = { path = "crates/ipse-core" }
 ipse-protocol = { path = "crates/ipse-protocol" }
 clap = { version = "4.6", features = ["derive"] }
 getrandom = "0.4"
+# Git in pure Rust, for the vault's history (docs/spec/vault.md, section 9).
+gix = { version = "0.90", default-features = false, features = ["excludes", "index", "sha1"] }
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 jiff = { version = "0.2", features = ["serde"] }
 rmcp = { version = "3.10", default-features = false, features = ["server", "macros", "transport-io"] }

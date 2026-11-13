@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use ipse_core::connector::{Launch, Outcome, run_import};
 use ipse_core::journal::Journal;
 use ipse_core::materialize::{PeopleSummary, contacts_to_people};
-use ipse_core::vault::Vault;
+use ipse_core::vault::{Source, Vault};
 use ipse_core::{Error, Result};
 
 /// Imports `file` into the memory in `vault` (the current folder by default).
@@ -62,7 +62,10 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         println!("{line}");
     }
 
-    let summary = contacts_to_people(&vault, &journal, "contacts")?;
+    let history = vault.history()?;
+    let mut change = history.change(Source::Connector("contacts".to_owned()));
+    let summary = contacts_to_people(&vault, &journal, "contacts", &mut change)?;
+    change.commit("Import contacts")?;
     println!("{}", summary_line(summary));
     Ok(())
 }
