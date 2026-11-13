@@ -17,5 +17,8 @@ clap = { workspace = true }
 ipse-core = { workspace = true }
 ipse-protocol = { workspace = true }
 
+[dev-dependencies]
+tempfile = { workspace = true }
+
 [lints]
 workspace = true

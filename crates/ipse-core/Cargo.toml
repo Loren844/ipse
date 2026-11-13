@@ -11,9 +11,12 @@ authors.workspace = true
 [dependencies]
 jiff = { workspace = true }
 saphyr-parser = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+sys-locale = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
+toml = { workspace = true }
 ulid = { workspace = true }
 
 [dev-dependencies]
