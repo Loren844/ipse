@@ -4,7 +4,8 @@
 //! Rules every read follows:
 //! - the access code is checked before anything is read for the request;
 //! - a file outside the client's categories is never returned, counted or hinted at;
-//! - a link to such a file is replaced by `[masqué]` or `[hidden]`, without its target;
+//! - a fact, relation or line of notes that links to such a file is left out entirely,
+//!   so that nothing shows that something is hidden;
 //! - the category is checked again on the file as it is when read, not only in the index.
 
 use std::path::{Path, PathBuf};
@@ -13,7 +14,7 @@ use serde::Serialize;
 
 use super::clients::{Client, Clients};
 use crate::search::{Hit, SearchIndex};
-use crate::vault::{FileType, Id, Language, MemoryFile, Vault};
+use crate::vault::{FileType, Id, MemoryFile, Vault};
 use crate::{Error, Result};
 
 /// What an AI can ask for, opened on one vault.
@@ -108,16 +109,16 @@ pub struct Entry {
     /// Postal address.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
-    /// The place it is in, as a link, or masked.
+    /// The place it is in, as a link; left out when that place is hidden.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub located_in: Option<String>,
-    /// Facts, links inside masked when hidden.
+    /// Facts; those linking to a hidden file are left out.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub facts: Vec<String>,
-    /// Relations, targets masked when hidden.
+    /// Relations; those pointing to a hidden file are left out.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub relations: Vec<RelationOut>,
-    /// Notes, links inside masked when hidden.
+    /// Notes; lines linking to a hidden file are left out.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
 }
@@ -127,7 +128,7 @@ pub struct Entry {
 pub struct RelationOut {
     /// The relation word: `mère`, `works at`.
     pub word: String,
-    /// `[[target]]`, or the masked label.
+    /// `[[target]]`.
     pub target: String,
 }
 
@@ -145,7 +146,7 @@ impl<'g> Access<'g> {
             query,
             limit,
             |c| self.client.reads(c.as_str()),
-            |text| self.mask(text),
+            |text| self.strip(text),
         )
     }
 
@@ -204,48 +205,64 @@ impl<'g> Access<'g> {
             located_in: entity
                 .located_in
                 .as_ref()
-                .map(|l| self.mask(&l.to_string())),
-            facts: sections.facts.iter().map(|f| self.mask(&f.text)).collect(),
+                .filter(|l| self.follows(&l.target))
+                .map(ToString::to_string),
+            facts: sections
+                .facts
+                .iter()
+                .filter(|f| !self.hides(&f.text))
+                .map(|f| f.text.clone())
+                .collect(),
             relations: sections
                 .relations
                 .iter()
+                .filter(|r| self.follows(&r.link.target))
                 .map(|r| RelationOut {
                     word: r.word.clone(),
-                    target: self.mask(&r.link.to_string()),
+                    target: r.link.to_string(),
                 })
                 .collect(),
-            notes: sections.notes.as_deref().map(|n| self.mask(n)),
+            notes: sections
+                .notes
+                .as_deref()
+                .map(|n| self.strip(n))
+                .filter(|n| !n.trim().is_empty()),
         })
     }
 
-    /// `text` with every `[[link]]` this AI may not follow replaced by the masked label.
-    /// A link is kept only when it points to known entities that are all readable.
-    fn mask(&self, text: &str) -> String {
-        let label = match self.gateway.vault.settings().language() {
-            Language::Fr => "[masqué]",
-            _ => "[hidden]",
-        };
+    /// `text` without the lines that link to anything this AI may not read. A fact is
+    /// one line: it is left out entirely.
+    fn strip(&self, text: &str) -> String {
         let mut out = String::with_capacity(text.len());
+        for line in text.split_inclusive('\n') {
+            if !self.hides(line) {
+                out.push_str(line);
+            }
+        }
+        out.trim_end_matches('\n').to_owned()
+    }
+
+    /// True when `text` holds a `[[link]]` this AI may not follow.
+    fn hides(&self, text: &str) -> bool {
         let mut rest = text;
         while let Some(open) = rest.find("[[") {
-            let Some(close) = rest[open..].find("]]").map(|c| open + c + 2) else {
-                break;
+            let Some(close) = rest[open..].find("]]").map(|c| open + c) else {
+                return false;
             };
-            out.push_str(&rest[..open]);
-            let link = &rest[open..close];
-            let target = link[2..link.len() - 2]
-                .split('|')
-                .next()
-                .unwrap_or_default()
-                .trim();
-            let categories = self.gateway.index.categories_of(target);
-            let readable =
-                !categories.is_empty() && categories.iter().all(|c| self.client.reads(c.as_str()));
-            out.push_str(if readable { link } else { label });
-            rest = &rest[close..];
+            let target = rest[open + 2..close].split('|').next().unwrap_or_default();
+            if !self.follows(target.trim()) {
+                return true;
+            }
+            rest = &rest[close + 2..];
         }
-        out.push_str(rest);
-        out
+        false
+    }
+
+    /// True when a link to `target` points to known entities this AI may all read. A
+    /// link to nothing known counts as hidden.
+    fn follows(&self, target: &str) -> bool {
+        let categories = self.gateway.index.categories_of(target);
+        !categories.is_empty() && categories.iter().all(|c| self.client.reads(c.as_str()))
     }
 }
 

@@ -152,23 +152,46 @@ fn a_denied_category_returns_nothing() {
 }
 
 #[test]
-fn links_to_hidden_files_are_masked() {
+fn lines_about_hidden_files_are_left_out() {
     let f = fixture();
+    let text = std::fs::read_to_string(&f.marie).unwrap();
+    let notes = "\n## Notes\n\nRencontrée au club.\nPartie en vacances avec [[lea-secret]].\nAime le jazz.\n";
+    std::fs::write(&f.marie, text + notes).unwrap();
+
     let gateway = Gateway::open(&f.root).unwrap();
     let access = gateway.access(Some(&f.token)).unwrap();
     let marie = access.get_by_name("marie dupont").remove(0);
 
+    assert_eq!(marie.facts, ["Voisine de [[paul-durand|Paul]]."]);
+    let relations: Vec<_> = marie
+        .relations
+        .iter()
+        .map(|r| (r.word.as_str(), r.target.as_str()))
+        .collect();
     assert_eq!(
-        marie.facts,
-        ["Cousine de [masqué].", "Voisine de [[paul-durand|Paul]]."]
+        relations,
+        [("ami", "[[paul-durand]]")],
+        "hidden and unknown targets left out"
     );
-    let targets: Vec<_> = marie.relations.iter().map(|r| r.target.as_str()).collect();
-    assert_eq!(targets, ["[masqué]", "[[paul-durand]]", "[masqué]"]);
-    let json = serde_json::to_string(&marie).unwrap();
-    assert!(!json.contains("lea") && !json.contains("Léa"), "{json}");
+    assert_eq!(
+        marie.notes.as_deref(),
+        Some("Rencontrée au club.\nAime le jazz.")
+    );
 
-    let hit = &access.search("cousine", 10)[0];
-    assert_eq!(hit.excerpt, "Cousine de [masqué].");
+    let json = serde_json::to_string(&marie).unwrap();
+    for leak in [
+        "lea", "Léa", "Cousine", "sœur", "vacances", "masqu", "hidden",
+    ] {
+        assert!(!json.contains(leak), "{leak} in {json}");
+    }
+
+    assert!(access.search("cousine", 10).is_empty());
+    assert!(access.search("vacances", 10).is_empty());
+    assert_eq!(names(&access.search("voisine", 10)), ["Marie Dupont"]);
+    assert_eq!(
+        access.search("jazz", 10)[0].excerpt,
+        "Rencontrée au club.\nAime le jazz."
+    );
 }
 
 #[test]

@@ -213,9 +213,8 @@ impl SearchIndex {
     }
 
     /// As [`SearchIndex::search`], but texts holding `[[links]]` are first passed
-    /// through `rewrite` (which masks hidden links) and matched as rewritten. A word
-    /// that only appears inside a hidden link can then neither match nor show in an
-    /// excerpt.
+    /// through `rewrite` (which leaves out lines linking to hidden files) and matched as
+    /// rewritten. Such a line can then neither match nor show in an excerpt.
     #[must_use]
     pub fn search_with(
         &self,
