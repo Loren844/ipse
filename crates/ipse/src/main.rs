@@ -1,5 +1,11 @@
 //! The `ipse` program: command line, MCP server and first-party connectors.
 
+// A command-line program talks to the person on standard output.
+#![allow(clippy::print_stdout)]
+
+mod cmd;
+
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
@@ -15,8 +21,20 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Create a new memory in a folder (not yet available)
-    Init,
+    /// Create a new memory in a folder
+    Init {
+        /// Folder to create the memory in (default: the current folder)
+        folder: Option<PathBuf>,
+        /// Your name, for your own file (asked if not given)
+        #[arg(long)]
+        name: Option<String>,
+        /// Language of the words Ipse writes in files: en or fr (default: the computer's)
+        #[arg(long)]
+        language: Option<String>,
+        /// Time zone, like Europe/Paris (default: the computer's)
+        #[arg(long)]
+        time_zone: Option<String>,
+    },
     /// Import a file: contacts (.vcf), calendar (.ics) (not yet available)
     Import,
     /// Connect, list or remove an AI (not yet available)
@@ -28,21 +46,19 @@ enum Command {
     Connector,
 }
 
-impl Command {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Init => "`ipse init`",
-            Self::Import => "`ipse import`",
-            Self::Client => "`ipse client`",
-            Self::Mcp => "`ipse mcp`",
-            Self::Connector => "`ipse connector`",
-        }
-    }
-}
-
 fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let result: Result<(), Error> = Err(Error::NotYetAvailable(cli.command.name()));
+    let result = match Cli::parse().command {
+        Command::Init {
+            folder,
+            name,
+            language,
+            time_zone,
+        } => cmd::init::run(folder, name, language.as_deref(), time_zone.as_deref()),
+        Command::Import => Err(Error::NotYetAvailable("`ipse import`")),
+        Command::Client => Err(Error::NotYetAvailable("`ipse client`")),
+        Command::Mcp => Err(Error::NotYetAvailable("`ipse mcp`")),
+        Command::Connector => Err(Error::NotYetAvailable("`ipse connector`")),
+    };
     match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(err) => {
