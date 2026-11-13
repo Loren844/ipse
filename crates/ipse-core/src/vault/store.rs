@@ -82,7 +82,8 @@ impl Vault {
             owner: true,
             ..EntityFields::default()
         };
-        MemoryFile::new(&owner, common, Some(entity), "").write()?;
+        let hint = super::body::owner_hint(settings.language());
+        MemoryFile::new(&owner, common, Some(entity), hint).write()?;
 
         // Written last: a folder is a vault only once everything else is in place.
         write_atomic(&settings_path, settings.render().as_bytes())?;
@@ -219,6 +220,10 @@ mod tests {
             created.ends_with("+01:00") || created.ends_with("+02:00"),
             "dates use the vault's time zone: {created}"
         );
+
+        let text = std::fs::read_to_string(vault.owner_file()).unwrap();
+        assert!(text.ends_with("---\n\n## Faits\n\n<!-- Écrivez ici ce que votre IA doit savoir sur vous, une ligne par fait, par exemple : - Allergique aux noix. -->\n"), "{text}");
+        assert!(owner.sections().facts.is_empty(), "the hint is not a fact");
 
         let opened = Vault::open(dir.path()).unwrap();
         assert_eq!(opened.owner_file(), vault.owner_file());

@@ -136,10 +136,21 @@ pub fn parse(body: &str) -> Body {
     let mut out = Body::default();
     let mut section: Option<Section> = None;
     let mut fence: Option<&str> = None;
+    let mut in_comment = false;
     let mut notes = String::new();
 
     for line in body.lines() {
         let trimmed = line.trim_start();
+        // HTML comments (`<!-- … -->`) are hints for the reader: never facts or relations.
+        if in_comment || trimmed.starts_with("<!--") {
+            let closes = trimmed.contains("-->")
+                && (in_comment || trimmed.find("-->") > trimmed.find("<!--"));
+            in_comment = !closes;
+            if section == Some(Section::Notes) {
+                push_line(&mut notes, line);
+            }
+            continue;
+        }
         if let Some(open) = fence {
             if trimmed.starts_with(open) {
                 fence = None;
@@ -283,6 +294,25 @@ pub fn render(body: &Body, language: Language) -> String {
     out
 }
 
+/// The body of the owner's new file: an empty facts section with a hint, so that the
+/// person sees where to write.
+#[must_use]
+pub fn owner_hint(language: Language) -> String {
+    let hint = match language {
+        Language::Fr => {
+            "<!-- Écrivez ici ce que votre IA doit savoir sur vous, une ligne par fait, par exemple : - Allergique aux noix. -->"
+        }
+        _ => {
+            "<!-- Write here what your AI should know about you, one line per fact, for example: - Allergic to nuts. -->"
+        }
+    };
+    let mut out = String::new();
+    open_section(&mut out, Section::Facts, language);
+    out.push_str(hint);
+    out.push('\n');
+    out
+}
+
 fn open_section(out: &mut String, section: Section, language: Language) {
     out.push_str("\n## ");
     out.push_str(section.heading(language));
@@ -378,6 +408,15 @@ Rencontrée au club.
         let body = parse("## Faits\n\n- Aime le thé. ^mon-bloc\n");
         assert_eq!(body.facts[0].text, "Aime le thé. ^mon-bloc");
         assert_eq!(body.facts[0].id, None);
+    }
+
+    #[test]
+    fn html_comments_are_never_read_as_facts() {
+        let body = parse(
+            "## Faits\n\n<!-- Par exemple : - Allergique aux noix. -->\n<!--\n- caché\n-->\n- Vrai fait.\n",
+        );
+        let texts: Vec<_> = body.facts.iter().map(|f| f.text.as_str()).collect();
+        assert_eq!(texts, ["Vrai fait."]);
     }
 
     #[test]
