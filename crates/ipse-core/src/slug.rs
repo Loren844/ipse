@@ -59,7 +59,7 @@ pub fn to_file_stem(name: &str) -> Option<String> {
 }
 
 /// ASCII replacement for a non-ASCII Latin letter; an empty string means "separator".
-fn fold_accent(c: char) -> &'static str {
+pub(crate) fn fold_accent(c: char) -> &'static str {
     match c {
         'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'À' | 'Á' | 'Â' | 'Ã' | 'Ä' | 'Å' => "a",
         'æ' | 'Æ' => "ae",
