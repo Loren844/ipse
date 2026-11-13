@@ -10,6 +10,7 @@ pub mod connector;
 pub mod error;
 pub mod journal;
 pub mod materialize;
+pub mod rights;
 pub mod search;
 pub mod slug;
 pub mod time;

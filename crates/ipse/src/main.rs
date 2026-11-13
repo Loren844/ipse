@@ -44,8 +44,11 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
-    /// Connect, list or remove an AI (not yet available)
-    Client,
+    /// Connect, list or remove an AI
+    Client {
+        #[command(subcommand)]
+        action: ClientAction,
+    },
     /// Serve the memory to an AI over MCP (not yet available)
     Mcp,
     /// Run a built-in connector; started by Ipse itself
@@ -53,6 +56,32 @@ enum Command {
     Connector {
         /// The connector to run, like `contacts`
         name: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ClientAction {
+    /// Connect an AI and show its access code, once
+    Add {
+        /// A name for this AI, like "Claude"
+        name: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the connected AIs
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Disconnect an AI: its access code stops working
+    Remove {
+        /// The AI's id, as `ipse client list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
     },
 }
 
@@ -65,7 +94,11 @@ fn main() -> ExitCode {
             time_zone,
         } => cmd::init::run(folder, name, language.as_deref(), time_zone.as_deref()),
         Command::Import { file, vault } => cmd::import::run(&file, vault),
-        Command::Client => Err(Error::NotYetAvailable("`ipse client`")),
+        Command::Client { action } => match action {
+            ClientAction::Add { name, vault } => cmd::client::add(&name, vault),
+            ClientAction::List { vault } => cmd::client::list(vault),
+            ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
+        },
         Command::Mcp => Err(Error::NotYetAvailable("`ipse mcp`")),
         Command::Connector { name } => connectors::run(&name),
     };

@@ -10,6 +10,7 @@
 
 mod fold;
 
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use crate::vault::{Category, FileType, Id, MemoryFile};
@@ -168,6 +169,21 @@ impl SearchIndex {
             .map(|d| d.path.as_path())
     }
 
+    /// The categories of the entities whose file stem is `stem`, ignoring case. Several
+    /// folders may hold the same stem.
+    #[must_use]
+    pub fn categories_of(&self, stem: &str) -> Vec<&Category> {
+        self.documents
+            .iter()
+            .filter(|d| {
+                d.path
+                    .file_stem()
+                    .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(stem))
+            })
+            .map(|d| &d.category)
+            .collect()
+    }
+
     /// The entities whose name or alias is `name`, ignoring case and accents, among the
     /// allowed categories.
     #[must_use]
@@ -193,6 +209,20 @@ impl SearchIndex {
         limit: usize,
         allowed: impl Fn(&Category) -> bool,
     ) -> Vec<Hit> {
+        self.search_with(query, limit, allowed, str::to_owned)
+    }
+
+    /// As [`SearchIndex::search`], but texts holding `[[links]]` are first passed
+    /// through `rewrite` (which leaves out lines linking to hidden files) and matched as
+    /// rewritten. Such a line can then neither match nor show in an excerpt.
+    #[must_use]
+    pub fn search_with(
+        &self,
+        query: &str,
+        limit: usize,
+        allowed: impl Fn(&Category) -> bool,
+        rewrite: impl Fn(&str) -> String,
+    ) -> Vec<Hit> {
         let folded = fold(query);
         let tokens: Vec<&str> = folded.split_whitespace().collect();
         if tokens.is_empty() {
@@ -202,7 +232,7 @@ impl SearchIndex {
             .documents
             .iter()
             .filter(|d| allowed(&d.category))
-            .filter_map(|d| score(d, &tokens))
+            .filter_map(|d| score(d, &tokens, &rewrite))
             .collect();
         hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.name.cmp(&b.name)));
         hits.truncate(limit.clamp(1, MAX_LIMIT));
@@ -231,18 +261,30 @@ fn document(root: &Path, path: &Path, file: &MemoryFile) -> Option<Document> {
     })
 }
 
+/// A field as matched: as loaded, or rewritten when it holds links.
+fn view<'f>(field: &'f Field, rewrite: &dyn Fn(&str) -> String) -> Cow<'f, Field> {
+    if field.text.contains("[[") {
+        Cow::Owned(Field::new(rewrite(&field.text)))
+    } else {
+        Cow::Borrowed(field)
+    }
+}
+
 /// A hit when every token matches somewhere; its score and best excerpt otherwise.
-fn score(document: &Document, tokens: &[&str]) -> Option<Hit> {
+fn score(document: &Document, tokens: &[&str], rewrite: &dyn Fn(&str) -> String) -> Option<Hit> {
+    let name = view(&document.name, rewrite);
+    let fields: Vec<(Cow<'_, Field>, (u32, u32))> = document
+        .aliases
+        .iter()
+        .map(|f| (view(f, rewrite), ALIAS))
+        .chain(document.facts.iter().map(|f| (view(f, rewrite), FACT)))
+        .chain(document.notes.iter().map(|f| (view(f, rewrite), NOTES)))
+        .collect();
     let mut total = 0;
     let mut excerpt: Option<(u32, String)> = None;
     for token in tokens {
-        let mut best: (u32, Option<&Field>) = (document.name.score(token, NAME), None);
-        let candidates = document
-            .aliases
-            .iter()
-            .map(|f| (f, ALIAS))
-            .chain(document.facts.iter().map(|f| (f, FACT)))
-            .chain(document.notes.iter().map(|f| (f, NOTES)));
+        let mut best: (u32, Option<&Field>) = (name.score(token, NAME), None);
+        let candidates = fields.iter().map(|(f, w)| (f.as_ref(), *w));
         for (field, weights) in candidates {
             let s = field.score(token, weights);
             if s > best.0 {
@@ -253,7 +295,7 @@ fn score(document: &Document, tokens: &[&str]) -> Option<Hit> {
             return None;
         }
         total += best.0;
-        let text = best.1.map_or(&document.name.text, |f| &f.text);
+        let text = best.1.map_or(&name.text, |f| &f.text);
         if excerpt.as_ref().is_none_or(|(s, _)| best.0 > *s) {
             excerpt = Some((best.0, shorten(text, token)));
         }

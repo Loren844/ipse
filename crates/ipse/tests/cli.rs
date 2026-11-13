@@ -158,3 +158,48 @@ fn import_says_what_it_can_read() {
     let out = ipse(&["import", "x.vcf", "--vault", empty.path().to_str().unwrap()]);
     assert!(String::from_utf8_lossy(&out.stderr).contains("ipse init"));
 }
+
+#[test]
+fn client_add_list_remove() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&["init", vault, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+
+    let out = ipse(&["client", "list", "--vault", vault]);
+    assert!(String::from_utf8_lossy(&out.stdout).contains("No AI is connected yet"));
+
+    let out = ipse(&["client", "add", "Claude", "--vault", vault]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(said.contains("Claude can now read your memory: identity, people"));
+    assert!(said.contains("Sensitive categories stay closed: location, home, health, private."));
+    let token = said
+        .split_whitespace()
+        .find(|w| w.starts_with("ipse_"))
+        .unwrap()
+        .to_owned();
+    let stored = std::fs::read_to_string(dir.path().join(".ipse/clients.toml")).unwrap();
+    assert!(!stored.contains(&token), "the code is shown, never stored");
+
+    let out = ipse(&["client", "list", "--vault", vault]);
+    let listed = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(listed.contains("Claude (claude)"), "{listed}");
+    assert!(!listed.contains(&token));
+
+    assert!(
+        ipse(&["client", "remove", "claude", "--vault", vault])
+            .status
+            .success()
+    );
+    let again = ipse(&["client", "remove", "claude", "--vault", vault]);
+    assert!(!again.status.success());
+    assert!(String::from_utf8_lossy(&again.stderr).contains("No connected AI is called claude"));
+}

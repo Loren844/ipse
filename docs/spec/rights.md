@@ -100,7 +100,7 @@ In milestone 1, the gateway is **read-only** and exposes these MCP tools. Every 
 Rules every tool follows:
 
 - **Invisible means absent.** Hidden data is never returned, counted, or hinted at: no "3 results hidden", no different error.
-- **Links to hidden files are masked.** A wikilink to a file the client cannot read is returned as `[masqué]` (in the vault's language), without its id or display text.
+- **Lines about hidden files are left out.** A fact, a relation, a `located_in` or a line of notes that links to a file the client cannot read is not returned at all, nor used to match a search, so nothing shows that something is hidden. A link that points to no known file counts as hidden.
 - **No raw data.** The raw journal is never exposed as such. Processing tasks (section 4.1) show only the items they concern, normalized and filtered by category.
 - **Bounded answers.** Every list is capped as above and says when it was cut, so an AI asks for more instead of receiving a whole life at once.
 - **Times** are returned in RFC 3339 with the vault's time zone offset.
@@ -135,4 +135,4 @@ Every request is logged in `.ipse/access/<YYYY-MM>.jsonl`, one line per call:
 ## 6. What is checked where
 
 - Category filtering happens in the **query layer of the core**, the same code every tool and every future interface goes through. A tool cannot return data without passing through it.
-- Tests for each tool **must** cover: a denied category returns nothing; a link to a denied file is masked; an unknown category is treated as `private`; a missing or wrong token is refused before any read.
+- Tests for each tool **must** cover: a denied category returns nothing; a fact or relation linking to a denied file is left out; an unknown category is treated as `private`; a missing or wrong token is refused before any read.
