@@ -119,3 +119,76 @@ fn non_utf8_file_is_reported() {
     let err = MemoryFile::read(&path).unwrap_err();
     assert!(err.to_string().contains("not UTF-8"));
 }
+
+/// The spec's body snippets: Markdown code blocks starting with a `## ` heading.
+fn spec_snippets() -> Vec<String> {
+    let mut snippets = Vec::new();
+    let mut current: Option<String> = None;
+    for line in SPEC.lines() {
+        match (line, &mut current) {
+            ("```markdown", None) => current = Some(String::new()),
+            ("```", Some(text)) => {
+                if text.starts_with("## ") {
+                    snippets.push(std::mem::take(text));
+                }
+                current = None;
+            }
+            (line, Some(text)) => {
+                text.push_str(line);
+                text.push('\n');
+            }
+            _ => {}
+        }
+    }
+    snippets
+}
+
+#[test]
+fn spec_facts_and_relations_are_read() {
+    let snippets = spec_snippets();
+    let all: String = snippets.concat();
+    let body = ipse_core::vault::body::parse(&all);
+    assert_eq!(body.facts.len(), 3, "the spec shows three facts");
+    assert_eq!(body.facts.iter().filter(|f| f.id.is_some()).count(), 2);
+    let targets: Vec<_> = body
+        .relations
+        .iter()
+        .map(|r| r.link.target.as_str())
+        .collect();
+    assert_eq!(targets, ["marie-dupont", "hopital-pasteur", "lyon"]);
+}
+
+#[test]
+fn new_entity_with_sections_reads_back() {
+    use ipse_core::vault::{Body, Fact, Language, Relation, WikiLink, body};
+
+    let vault = tempfile::tempdir().unwrap();
+    let common = Common::new(FileType::Person, &TimeZone::UTC).unwrap();
+    let sections = Body {
+        facts: vec![Fact {
+            text: "Works as a nurse.".into(),
+            id: None,
+        }],
+        relations: vec![Relation {
+            word: "mother".into(),
+            link: WikiLink::parse("[[marie-dupont]]").unwrap(),
+        }],
+        notes: None,
+    };
+    let path = vault.path().join("people/zoe-bernard.md");
+    let file = MemoryFile::new(
+        &path,
+        common,
+        Some(EntityFields {
+            name: Some("Zoé Bernard".into()),
+            ..EntityFields::default()
+        }),
+        body::render(&sections, Language::En),
+    );
+    assert!(file.write().unwrap());
+
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(text.contains("name: Zoé Bernard\n---\n\n## Facts\n\n- Works as a nurse.\n\n## Relations\n\n- mother: [[marie-dupont]]\n"));
+    assert!(!text.contains("## Notes"), "empty sections are left out");
+    assert_eq!(MemoryFile::read(&path).unwrap().sections(), sections);
+}

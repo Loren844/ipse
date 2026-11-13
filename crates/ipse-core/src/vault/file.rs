@@ -220,6 +220,12 @@ impl MemoryFile {
         &self.body
     }
 
+    /// The facts, relations and notes of the body. Parsed on each call.
+    #[must_use]
+    pub fn sections(&self) -> super::body::Body {
+        super::body::parse(&self.body)
+    }
+
     /// Replaces everything after the front matter.
     pub fn set_body(&mut self, body: impl Into<String>) {
         self.body = body.into();
