@@ -220,7 +220,7 @@ fn the_limit_is_respected_and_capped() {
     assert_eq!(index.search("marie", 1000, all).len(), MAX_LIMIT);
     assert_eq!(index.search("marie", 0, all).len(), 1);
 
-    let id = |_: &str| String::new();
+    let id = |_: &str| None;
     assert!(index.search_with("marie", 59, all, id).more);
     assert!(!index.search_with("marie 1", 50, all, id).more, "11 match");
     let both = |c: &Category| c.as_str() == "people";

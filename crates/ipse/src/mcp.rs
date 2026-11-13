@@ -10,8 +10,9 @@ use std::path::PathBuf;
 use std::sync::{Mutex, PoisonError};
 
 use ipse_core::Error as IpseError;
-use ipse_core::rights::{Access, Gateway};
+use ipse_core::rights::{Access, Gateway, MAX_EVENTS, MAX_STATES};
 use ipse_core::search::{DEFAULT_LIMIT, MAX_LIMIT};
+use ipse_core::vault::EventTime;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
@@ -26,10 +27,12 @@ const TOKEN_VAR: &str = "IPSE_TOKEN";
 const MAX_NAMED: usize = 10;
 
 const INSTRUCTIONS: &str = "Ipse holds the memory of the person you are talking with: the \
-people, places and things in their life, imported from their apps or written by them. Use it \
-when they mention someone or something you do not know. Call `about_me` to know who they are, \
-`search` to find an entity by words, then `get` to read it in full. You only see what the \
-person allowed you to see.";
+people, places, events and things in their life, imported from their apps or written by them. \
+Call `about_me` to know who they are. When they mention someone or something you do not know, \
+`search` it, then `get` it in full. For their agenda (\"what do I have tomorrow?\", \"when did \
+I last see Marie?\"), use `events`. For what is going on in their life right now (music, \
+series, books), use `now`; `states_history` is only for questions about a past period. You only \
+see what the person allowed you to see.";
 
 /// Serves the memory in `vault` (default: the current folder) until the AI app closes
 /// the connection.
@@ -108,13 +111,53 @@ struct GetRequest {
     name: Option<String>,
 }
 
+/// Arguments of `events`.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct EventsRequest {
+    /// First day of the period, like "2026-11-14", or a date and time with its offset.
+    from: String,
+    /// Last day of the period, included, like "2026-11-20".
+    to: String,
+    /// Only the events this person (or entity) takes part in: an id from `search`.
+    #[serde(default)]
+    with: Option<String>,
+    /// How many events at most: 200 when not given, 200 at most.
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
+/// Arguments of `now`.
+#[derive(Debug, Default, Deserialize, schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct NowRequest {
+    /// Topics to look at, like `["music", "watching"]`; every topic when not given.
+    #[serde(default)]
+    topics: Vec<String>,
+}
+
+/// Arguments of `states_history`.
+#[derive(Debug, Deserialize, schemars::JsonSchema)]
+#[schemars(crate = "rmcp::schemars")]
+struct StatesHistoryRequest {
+    /// The topic: "music", "watching", "reading", "location", "home"…
+    topic: String,
+    /// First day of the period, like "2026-06-01".
+    from: String,
+    /// Last day of the period, included, like "2026-08-31".
+    to: String,
+    /// How many states at most: 200 when not given, 200 at most.
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
 #[tool_router]
 impl Server {
     fn new(gateway: Gateway, token: Option<String>) -> Self {
         Self {
             gateway: Mutex::new(gateway),
             token,
-            tool_router: Self::tool_router(),
+            tool_router: Self::tool_router() + Self::time_router(),
         }
     }
 
@@ -186,6 +229,70 @@ get {\"id\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"}, get {\"name\": \"Marie Dupont\"}."
             _ => refusal("Give either an `id` or a `name`, like get {\"name\": \"Marie Dupont\"}."),
         }
     }
+}
+
+#[tool_router(router = time_router)]
+impl Server {
+    #[tool(
+        description = "The person's events in a period, ordered by start: title, start, end, place, \
+participants (links to people, or names) and notes. Days count whole: from and to are included. \
+Give `with` (an id from `search`) for the events someone takes part in. At most 200; `more` is \
+true when there were more. Examples: events {\"from\": \"2026-11-14\", \"to\": \"2026-11-14\"} \
+for \"what do I have tomorrow?\"; events {\"from\": \"2025-11-14\", \"to\": \"2026-11-14\", \
+\"with\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"} for \"when did I last see Marie?\"."
+    )]
+    fn events(&self, Parameters(request): Parameters<EventsRequest>) -> CallToolResult {
+        let Some((from, to)) = period(&request.from, &request.to) else {
+            return refusal(PERIOD);
+        };
+        let limit = request.limit.unwrap_or(MAX_EVENTS);
+        self.read(|access| {
+            let found = access.events(&from, &to, request.with.as_deref(), limit);
+            json!({ "events": found.events, "more": found.more })
+        })
+    }
+
+    #[tool(
+        description = "What is going on in the person's life right now: the music they listen to, \
+the series they watch, the books they read, where they are… Only states that are current, each \
+with when it was last seen. Example: now {} or now {\"topics\": [\"music\"]}."
+    )]
+    fn now(&self, Parameters(request): Parameters<NowRequest>) -> CallToolResult {
+        self.read(|access| {
+            let found = access.now(&request.topics);
+            json!({ "states": found.states, "more": found.more })
+        })
+    }
+
+    #[tool(
+        description = "What the person listened to, watched, read… during a past period, each state \
+with its status: current, recent or past. Use it only when they ask about a period (\"what was I \
+listening to last summer?\"); for now, use `now`. Example: states_history {\"topic\": \"music\", \
+\"from\": \"2026-06-01\", \"to\": \"2026-08-31\"}."
+    )]
+    fn states_history(
+        &self,
+        Parameters(request): Parameters<StatesHistoryRequest>,
+    ) -> CallToolResult {
+        let Some((from, to)) = period(&request.from, &request.to) else {
+            return refusal(PERIOD);
+        };
+        let limit = request.limit.unwrap_or(MAX_STATES);
+        self.read(|access| {
+            let found = access.states_history(&request.topic, &from, &to, limit);
+            json!({ "states": found.states, "more": found.more })
+        })
+    }
+}
+
+const PERIOD: &str = "Give `from` and `to` as days like \"2026-11-14\" (or a date and time \
+with its offset), `from` not after `to`.";
+
+/// `from` and `to` as event times, `from` not after `to`.
+fn period(from: &str, to: &str) -> Option<(EventTime, EventTime)> {
+    let from = EventTime::parse(from.trim())?;
+    let to = EventTime::parse(to.trim())?;
+    (from.date() <= to.date()).then_some((from, to))
 }
 
 #[tool_handler(router = self.tool_router)]

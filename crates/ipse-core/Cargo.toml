@@ -42,6 +42,10 @@ harness = false
 name = "materialize"
 harness = false
 
+[[bench]]
+name = "tools"
+harness = false
+
 [lints]
 workspace = true
 
