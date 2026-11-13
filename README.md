@@ -4,7 +4,7 @@
 
 Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, memories, habits, and the data already sitting in their services — into a local graph they can see, correct and control. Any AI, local or online, can then plug into it with the rights the person chooses, and act as a truly personal assistant without being told everything again.
 
-> **Status: not usable yet.** The project is at its very beginning: the specification is being written and the first milestone is being cut into issues. Watch the repository to follow along.
+> **Status: early.** A first slice works from the command line: import your contacts, connect your AI app, and ask it who someone is. [Getting started](docs/guide/getting-started.md) shows how. The rest of the first milestone (calendar, the other MCP tools) is under way.
 
 ## What it will do
 
@@ -40,6 +40,7 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 | `crates/ipse` | The `ipse` program: command line, MCP server, built-in connectors. |
 | `crates/ipse-core` | The core library: vault, journal, index, rights. |
 | `crates/ipse-protocol` | Messages of the connector protocol, shared by the core and connectors. |
+| `docs/guide` | How to use Ipse, starting with [Getting started](docs/guide/getting-started.md). |
 | `docs/spec` | The specification: vault, journal, connectors, rights. |
 | `docs/decisions` | Architecture decisions, one dated file each. |
 | `AGENTS.md` | Rules every contributor and coding agent follows. |
@@ -48,6 +49,8 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 ## Building from source
 
 Requires [Rust](https://rustup.rs) (the exact version is pinned in `rust-toolchain.toml` and installed automatically).
+
+To use Ipse, follow [Getting started](docs/guide/getting-started.md). To work on it:
 
 ```sh
 cargo test --workspace     # run the tests
