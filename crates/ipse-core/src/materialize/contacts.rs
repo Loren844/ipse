@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::{Ledger, Outcome, versions};
+use super::{Ledger, Merge, Outcome, versions};
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
@@ -68,14 +68,16 @@ pub fn contacts_to_people(
         let source = format!("{instance}:{external_id}");
         if let Some(path) = existing.get(&source) {
             let previous = versions.applied.as_ref().and_then(CardFields::from_data);
-            match update_person(path, &card, previous.as_ref(), vault)? {
-                Outcome::Written => {
-                    change.touched(path);
-                    written.push(path.clone());
-                    summary.updated += 1;
-                }
-                Outcome::Unchanged => summary.unchanged += 1,
-                Outcome::Conflict => summary.conflicts += 1,
+            let outcome = update_person(path, &card, previous.as_ref(), vault)?;
+            if outcome.written {
+                change.touched(path);
+                written.push(path.clone());
+                summary.updated += 1;
+            } else if !outcome.conflict {
+                summary.unchanged += 1;
+            }
+            if outcome.conflict {
+                summary.conflicts += 1;
             }
         } else if versions.materialized {
             // The person deleted the file Ipse made: it stays deleted.
@@ -92,8 +94,8 @@ pub fn contacts_to_people(
     Ok(summary)
 }
 
-/// Refreshes the keys taken from the card, unless the person changed one of them since
-/// Ipse last wrote them from `previous`.
+/// Refreshes the keys taken from the card, one by one: a key the person changed since
+/// Ipse last wrote it from `previous` keeps the person's value.
 fn update_person(
     path: &Path,
     card: &CardFields,
@@ -102,21 +104,24 @@ fn update_person(
 ) -> Result<Outcome> {
     let mut file = MemoryFile::read(path)?;
     let Some(current) = file.entity().cloned() else {
-        return Ok(Outcome::Unchanged);
+        return Ok(Outcome::default());
     };
-    let wanted = card.apply_to(current.clone());
+    let (wanted, conflict) = card.merge(&current, previous);
     if wanted == current {
-        return Ok(Outcome::Unchanged);
-    }
-    if previous.is_some_and(|p| p.apply_to(current.clone()) != current) {
-        return Ok(Outcome::Conflict);
+        return Ok(Outcome {
+            written: false,
+            conflict,
+        });
     }
     if let Some(entity) = file.entity_mut() {
         *entity = wanted;
     }
     file.common_mut().updated = DateTime::now(vault.settings().time_zone());
     file.write_unsynced()?;
-    Ok(Outcome::Written)
+    Ok(Outcome {
+        written: true,
+        conflict,
+    })
 }
 
 /// Writes a new person file for a card seen for the first time. Returns its path.
@@ -227,6 +232,54 @@ impl CardFields {
         entity.phones.clone_from(&self.phones);
         entity.birthday = self.birthday;
         entity
+    }
+
+    /// `current` with the keys taken from the card merged in, one by one (see
+    /// [`Merge`]), and whether the card changed a key the person had changed.
+    ///
+    /// A name the person gave is theirs: the card's name, often a nickname such as
+    /// "Maman", then becomes one of the person's other names, so that it is still
+    /// understood.
+    fn merge(&self, current: &EntityFields, previous: Option<&CardFields>) -> (EntityFields, bool) {
+        let mut merge = Merge::default();
+        let mut out = current.clone();
+        let card_name = Some(self.name.clone());
+        let previous_name = previous.map(|p| Some(p.name.clone()));
+        let renamed = previous_name.as_ref().is_some_and(|p| *p != current.name);
+        out.name = if renamed {
+            current.name.clone()
+        } else {
+            card_name.clone()
+        };
+
+        // The card's names Ipse adds as other names are left out of the comparison.
+        let names: Vec<&str> = [Some(self.name.as_str()), previous.map(|p| p.name.as_str())]
+            .into_iter()
+            .flatten()
+            .collect();
+        let without_names = |list: &[String]| -> Vec<String> {
+            list.iter()
+                .filter(|a| !names.contains(&a.as_str()))
+                .cloned()
+                .collect()
+        };
+        let mut aliases = merge.key(
+            &without_names(&current.aliases),
+            previous.map(|p| without_names(&p.nicknames)).as_ref(),
+            &without_names(&self.nicknames),
+        );
+        if renamed && !aliases.contains(&self.name) {
+            aliases.push(self.name.clone());
+        }
+        out.aliases = aliases;
+        out.emails = merge.key(&current.emails, previous.map(|p| &p.emails), &self.emails);
+        out.phones = merge.key(&current.phones, previous.map(|p| &p.phones), &self.phones);
+        out.birthday = merge.key(
+            &current.birthday,
+            previous.map(|p| &p.birthday),
+            &self.birthday,
+        );
+        (out, merge.conflict)
     }
 
     /// The body of a new person file. Written once: later imports leave the body alone.
