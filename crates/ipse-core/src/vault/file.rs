@@ -7,10 +7,12 @@ use saphyr_parser::ScalarStyle;
 
 use super::atomic::write_atomic;
 use super::emit::{self, Out};
+use super::event::{EventFields, EventStatus, EventTime};
 use super::fields::{
     Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, WikiLink,
 };
 use super::front::{self, RawEntry};
+use super::state::{StateLogFields, Topic};
 use super::yaml::{self, Node};
 use crate::{Error, Result};
 
@@ -23,6 +25,18 @@ const NOT_UTF8: &str = "the file is not UTF-8 text";
 const CANNOT_REWRITE: &str = "Ipse cannot update this file without changing its layout: \
      write each key at the start of its own line, without quotes around the key";
 
+/// The keys Ipse reads and writes, by type of file.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct Keys {
+    pub(crate) common: Common,
+    /// For entities.
+    pub(crate) entity: Option<EntityFields>,
+    /// For events.
+    pub(crate) event: Option<EventFields>,
+    /// For state logs.
+    pub(crate) state_log: Option<StateLogFields>,
+}
+
 /// What the owned keys were before Ipse changed them.
 #[derive(Debug, Clone)]
 enum Baseline {
@@ -30,9 +44,9 @@ enum Baseline {
     New,
     /// Read from disk and not changed since: the front matter is written as read.
     Unchanged,
-    /// Read from disk, then changed through `common_mut` or `entity_mut`: the values as
+    /// Read from disk, then changed through one of the `_mut` methods: the values as
     /// read, kept on the first change so that reading stays allocation-light.
-    Changed(Box<(Common, Option<EntityFields>)>),
+    Changed(Box<Keys>),
 }
 
 /// One memory file of the vault: typed front-matter keys, every other key as written,
@@ -51,13 +65,14 @@ pub struct MemoryFile {
     /// The closing line as written, `---\n` for a new file.
     closing: String,
     body: String,
-    common: Common,
-    entity: Option<EntityFields>,
+    keys: Keys,
     baseline: Baseline,
 }
 
 impl MemoryFile {
-    /// A new file, not yet on disk. `entity` is used only for entity types.
+    /// A new file, not yet on disk. `entity` is used only for entity types; for an
+    /// event or a state log, use [`MemoryFile::new_event`] or
+    /// [`MemoryFile::new_state_log`].
     #[must_use]
     pub fn new(
         path: impl Into<PathBuf>,
@@ -70,15 +85,69 @@ impl MemoryFile {
         } else {
             None
         };
+        Self::with_keys(
+            path.into(),
+            Keys {
+                common,
+                entity,
+                event: None,
+                state_log: None,
+            },
+            body.into(),
+        )
+    }
+
+    /// A new event file, not yet on disk. `common.file_type` should be
+    /// [`FileType::Event`].
+    #[must_use]
+    pub fn new_event(
+        path: impl Into<PathBuf>,
+        common: Common,
+        event: EventFields,
+        body: impl Into<String>,
+    ) -> Self {
+        Self::with_keys(
+            path.into(),
+            Keys {
+                common,
+                entity: None,
+                event: Some(event),
+                state_log: None,
+            },
+            body.into(),
+        )
+    }
+
+    /// A new state log, not yet on disk. `common.file_type` should be
+    /// [`FileType::StateLog`]; the body holds the table.
+    #[must_use]
+    pub fn new_state_log(
+        path: impl Into<PathBuf>,
+        common: Common,
+        state_log: StateLogFields,
+        body: impl Into<String>,
+    ) -> Self {
+        Self::with_keys(
+            path.into(),
+            Keys {
+                common,
+                entity: None,
+                event: None,
+                state_log: Some(state_log),
+            },
+            body.into(),
+        )
+    }
+
+    fn with_keys(path: PathBuf, keys: Keys, body: String) -> Self {
         Self {
-            path: path.into(),
+            path,
             entries: Vec::new(),
             trailer: String::new(),
             unsplittable: None,
             closing: "---\n".to_owned(),
-            body: body.into(),
-            common,
-            entity,
+            body,
+            keys,
             baseline: Baseline::New,
         }
     }
@@ -155,6 +224,16 @@ impl MemoryFile {
         } else {
             None
         };
+        let event = if common.file_type == FileType::Event {
+            Some(reader.event()?)
+        } else {
+            None
+        };
+        let state_log = if common.file_type == FileType::StateLog {
+            Some(reader.state_log()?)
+        } else {
+            None
+        };
 
         let raw = front::split(front_text);
         let splits_cleanly = raw.entries.len() == keys.len()
@@ -172,8 +251,12 @@ impl MemoryFile {
             unsplittable,
             closing: closing.to_owned(),
             body: body.to_owned(),
-            common,
-            entity,
+            keys: Keys {
+                common,
+                entity,
+                event,
+                state_log,
+            },
             baseline: Baseline::Unchanged,
         })
     }
@@ -187,30 +270,48 @@ impl MemoryFile {
     /// The keys every memory file has.
     #[must_use]
     pub fn common(&self) -> &Common {
-        &self.common
+        &self.keys.common
     }
 
     /// The keys every memory file has, to change them.
     pub fn common_mut(&mut self) -> &mut Common {
         self.keep_baseline();
-        &mut self.common
+        &mut self.keys.common
     }
 
     /// The entity keys, for entity types only.
     #[must_use]
     pub fn entity(&self) -> Option<&EntityFields> {
-        self.entity.as_ref()
+        self.keys.entity.as_ref()
     }
 
     /// The entity keys, to change them. `None` for events, state logs and summaries.
     pub fn entity_mut(&mut self) -> Option<&mut EntityFields> {
         self.keep_baseline();
-        self.entity.as_mut()
+        self.keys.entity.as_mut()
+    }
+
+    /// The event keys, for events only.
+    #[must_use]
+    pub fn event(&self) -> Option<&EventFields> {
+        self.keys.event.as_ref()
+    }
+
+    /// The event keys, to change them. `None` for other types.
+    pub fn event_mut(&mut self) -> Option<&mut EventFields> {
+        self.keep_baseline();
+        self.keys.event.as_mut()
+    }
+
+    /// The state log keys, for state logs only.
+    #[must_use]
+    pub fn state_log(&self) -> Option<&StateLogFields> {
+        self.keys.state_log.as_ref()
     }
 
     fn keep_baseline(&mut self) {
         if matches!(self.baseline, Baseline::Unchanged) {
-            self.baseline = Baseline::Changed(Box::new((self.common.clone(), self.entity.clone())));
+            self.baseline = Baseline::Changed(Box::new(self.keys.clone()));
         }
     }
 
@@ -243,11 +344,8 @@ impl MemoryFile {
     pub fn render(&self) -> Result<String> {
         let (now, old) = match &self.baseline {
             Baseline::Unchanged => (Vec::new(), None),
-            Baseline::New => (emit::canonical(&self.common, self.entity.as_ref()), None),
-            Baseline::Changed(old) => (
-                emit::canonical(&self.common, self.entity.as_ref()),
-                Some(emit::canonical(&old.0, old.1.as_ref())),
-            ),
+            Baseline::New => (emit::canonical(&self.keys), None),
+            Baseline::Changed(old) => (emit::canonical(&self.keys), Some(emit::canonical(old))),
         };
         let changed = |key: &str, value: &Option<Out>| match &old {
             None => matches!(self.baseline, Baseline::New),
@@ -318,7 +416,7 @@ impl MemoryFile {
         }
 
         let back = Self::parse(&self.path, &text)?;
-        if back.common != self.common || back.entity != self.entity || back.body != self.body {
+        if back.keys != self.keys || back.body != self.body {
             return Err(invalid(
                 &self.path,
                 None,
@@ -375,6 +473,14 @@ fn is_known_key(key: &str) -> bool {
             | "address"
             | "geo"
             | "located_in"
+            | "title"
+            | "start"
+            | "end"
+            | "place"
+            | "participants"
+            | "status"
+            | "topic"
+            | "year"
     )
 }
 
@@ -426,6 +532,90 @@ impl<'n> Reader<'_, 'n> {
             geo: self.geo()?,
             located_in: self.link("located_in")?,
         })
+    }
+
+    fn event(&self) -> Result<EventFields> {
+        let title = self.required("title")?;
+        let title = self.text_of("title", title)?.to_owned();
+        let start = self
+            .event_time("start")?
+            .ok_or_else(|| invalid(self.path, None, "the `start` key is missing"))?;
+        let status = match self.get("status") {
+            None => None,
+            Some(node) => Some(node.as_text().and_then(EventStatus::parse).ok_or_else(|| {
+                self.wrong(node, "`status` must be one of: planned, done, cancelled")
+            })?),
+        };
+        Ok(EventFields {
+            title,
+            start,
+            end: self.event_time("end")?,
+            place: self.link("place")?,
+            participants: self.links("participants")?,
+            status,
+        })
+    }
+
+    fn state_log(&self) -> Result<StateLogFields> {
+        let topic = self.required("topic")?;
+        let topic = Topic::new(self.text_of("topic", topic)?).ok_or_else(|| {
+            self.wrong(
+                topic,
+                "`topic` must use lowercase letters, digits and dashes",
+            )
+        })?;
+        let year = self.required("year")?;
+        let year = year
+            .as_text()
+            .filter(|t| t.len() == 4)
+            .and_then(|t| t.parse::<i16>().ok())
+            .ok_or_else(|| self.wrong(year, "`year` must be a year like 2026"))?;
+        Ok(StateLogFields { topic, year })
+    }
+
+    fn event_time(&self, key: &str) -> Result<Option<EventTime>> {
+        let Some(node) = self.get(key) else {
+            return Ok(None);
+        };
+        node.as_text()
+            .and_then(EventTime::parse)
+            .map(Some)
+            .ok_or_else(|| {
+                self.wrong(
+                    node,
+                    format!(
+                        "`{key}` must be a date like 2026-11-14, or a date and time with its offset like 2026-11-14T20:00:00+01:00"
+                    ),
+                )
+            })
+    }
+
+    /// A list of wikilinks, each written `"[[marc]]"` or `[[marc]]`.
+    fn links(&self, key: &str) -> Result<Vec<WikiLink>> {
+        let Some(node) = self.get(key) else {
+            return Ok(Vec::new());
+        };
+        let wrong = || {
+            self.wrong(
+                node,
+                format!("`{key}` must be a list of links like \"[[marc-leroy]]\""),
+            )
+        };
+        match node {
+            Node::Seq { items, .. } => {
+                // `[[a]]` alone, unquoted, is read by YAML as one list in a list.
+                if let Some(link) = as_link(node).filter(|_| items.len() == 1) {
+                    return Ok(vec![link]);
+                }
+                items
+                    .iter()
+                    .filter(|item| !item.is_null())
+                    .map(|item| as_link(item).ok_or_else(wrong))
+                    .collect()
+            }
+            Node::Scalar { .. } => as_link(node).map(|l| vec![l]).ok_or_else(wrong),
+            Node::Map { .. } => Err(wrong()),
+        }
     }
 
     /// The value of `key`, unless absent or null.
@@ -539,25 +729,31 @@ impl<'n> Reader<'_, 'n> {
         let Some(node) = self.get(key) else {
             return Ok(None);
         };
-        let link = match node {
-            Node::Scalar { text, .. } => WikiLink::parse(text),
-            Node::Seq { items, .. } => match items.as_slice() {
-                [Node::Seq { items, .. }] => match items.as_slice() {
-                    [
-                        Node::Scalar {
-                            text,
-                            style: ScalarStyle::Plain,
-                            ..
-                        },
-                    ] => WikiLink::parse(&format!("[[{text}]]")),
-                    _ => None,
-                },
+        as_link(node)
+            .map(Some)
+            .ok_or_else(|| self.wrong(node, format!("`{key}` must be a link like \"[[lyon]]\"")))
+    }
+}
+
+/// A wikilink node: `"[[lyon]]"`, or `[[lyon]]` without quotes, which YAML reads as a
+/// list inside a list.
+fn as_link(node: &Node<'_>) -> Option<WikiLink> {
+    match node {
+        Node::Scalar { text, .. } => WikiLink::parse(text),
+        Node::Seq { items, .. } => match items.as_slice() {
+            [Node::Seq { items, .. }] => match items.as_slice() {
+                [
+                    Node::Scalar {
+                        text,
+                        style: ScalarStyle::Plain,
+                        ..
+                    },
+                ] => WikiLink::parse(&format!("[[{text}]]")),
                 _ => None,
             },
-            Node::Map { .. } => None,
-        };
-        link.map(Some)
-            .ok_or_else(|| self.wrong(node, format!("`{key}` must be a link like \"[[lyon]]\"")))
+            _ => None,
+        },
+        Node::Map { .. } => None,
     }
 }
 
@@ -694,12 +890,200 @@ type: event
 category: agenda
 created: 2026-11-12T19:30:00+01:00
 updated: 2026-11-12T19:30:00+01:00
+title: Dîner
+start: 2026-11-14
 name: [this is not checked for events]
 ---
 ";
         let file = parse(text).unwrap();
         assert!(file.entity().is_none());
         assert_eq!(file.render().unwrap(), text);
+    }
+
+    const EVENT: &str = "---
+id: 01jcx8m2p4q6r8t0v2w4y6z8a0
+type: event
+category: agenda
+created: 2026-11-12T19:30:00+01:00
+updated: 2026-11-12T19:30:00+01:00
+sources: [calendar:5f2a9c1e@google.com]
+title: Dîner chez Julie
+start: 2026-11-14T20:00:00+01:00
+end: 2026-11-14T23:00:00+01:00
+place: \"[[chez-julie]]\"
+participants: [\"[[julie-dupont]]\", \"[[marc-leroy]]\"]
+---
+
+## Notes
+
+Apporter le dessert.
+";
+
+    #[test]
+    fn events_as_in_the_spec() {
+        let file = MemoryFile::parse("events/2026/2026-11-14-diner-chez-julie.md", EVENT).unwrap();
+        let event = file.event().unwrap();
+        assert_eq!(event.title, "Dîner chez Julie");
+        assert_eq!(event.start.to_string(), "2026-11-14T20:00:00+01:00");
+        assert_eq!(event.end.unwrap().to_string(), "2026-11-14T23:00:00+01:00");
+        assert_eq!(event.place.as_ref().unwrap().target, "chez-julie");
+        let who: Vec<&str> = event
+            .participants
+            .iter()
+            .map(|l| l.target.as_str())
+            .collect();
+        assert_eq!(who, ["julie-dupont", "marc-leroy"]);
+        assert_eq!(event.status, None);
+        assert_eq!(
+            file.render().unwrap(),
+            EVENT,
+            "unchanged when read and written"
+        );
+
+        let mut file = file;
+        file.event_mut().unwrap().status = Some(EventStatus::Cancelled);
+        let text = file.render().unwrap();
+        assert!(
+            text.contains(
+                "participants: [\"[[julie-dupont]]\", \"[[marc-leroy]]\"]\nstatus: cancelled\n---"
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn new_events_and_all_day_events() {
+        let dir = tempfile::tempdir().unwrap();
+        let tz = jiff::tz::TimeZone::get("Europe/Paris").unwrap();
+        let common = Common::new(FileType::Event, &tz).unwrap();
+        let mut event = EventFields::new("Noël", EventTime::parse("2026-12-24").unwrap());
+        event.end = EventTime::parse("2026-12-27");
+        event.participants = vec![WikiLink::parse("[[marie-dupont]]").unwrap()];
+        let path = dir.path().join("noel.md");
+        assert!(
+            MemoryFile::new_event(&path, common, event.clone(), "")
+                .write()
+                .unwrap()
+        );
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("\ntitle: Noël\nstart: 2026-12-24\nend: 2026-12-27\nparticipants:\n  - \"[[marie-dupont]]\"\n"), "{text}");
+        let back = MemoryFile::read(&path).unwrap();
+        assert_eq!(back.event(), Some(&event));
+        assert!(back.event().unwrap().start.is_day());
+    }
+
+    #[test]
+    fn unquoted_links_in_events() {
+        let text = EVENT
+            .replace("place: \"[[chez-julie]]\"", "place: [[chez-julie]]")
+            .replace(
+                "participants: [\"[[julie-dupont]]\", \"[[marc-leroy]]\"]",
+                "participants: [[julie-dupont]]",
+            );
+        let file = MemoryFile::parse("e.md", &text).unwrap();
+        let event = file.event().unwrap();
+        assert_eq!(event.place.as_ref().unwrap().target, "chez-julie");
+        assert_eq!(event.participants.len(), 1);
+        assert_eq!(event.participants[0].target, "julie-dupont");
+    }
+
+    #[test]
+    fn wrong_event_keys_are_named() {
+        for (from, to, expected) in [
+            ("title: Dîner chez Julie\n", "", "`title` key is missing"),
+            (
+                "start: 2026-11-14T20:00:00+01:00\n",
+                "",
+                "`start` key is missing",
+            ),
+            (
+                "start: 2026-11-14T20:00:00+01:00",
+                "start: 2026-11-14T20:00:00",
+                "`start` must be a date",
+            ),
+            (
+                "end: 2026-11-14T23:00:00+01:00",
+                "end: demain",
+                "`end` must be a date",
+            ),
+            (
+                "sources:",
+                "status: annulé\nsources:",
+                "`status` must be one of",
+            ),
+            (
+                "place: \"[[chez-julie]]\"",
+                "place: chez Julie",
+                "`place` must be a link",
+            ),
+            (
+                "participants: [",
+                "participants: [Julie, ",
+                "`participants` must be a list of links",
+            ),
+        ] {
+            let text = EVENT.replace(from, to);
+            let (_, problem) = problem(&text);
+            assert!(problem.contains(expected), "{expected}: {problem}");
+            assert!(
+                !problem.contains("Julie") && !problem.contains("demain"),
+                "{problem}"
+            );
+        }
+    }
+
+    #[test]
+    fn state_logs() {
+        let text = "---
+id: 01jcx9a1b2c3d4e5f6g7h8j9k0
+type: state-log
+category: media
+created: 2026-01-03T10:00:00+01:00
+updated: 2026-11-12T18:42:00+01:00
+topic: music
+year: 2026
+---
+
+| Subject | First seen | Last seen | Count | Source |
+| --- | --- | --- | --- | --- |
+| [[nina-simone]] | 2026-10-20 | 2026-11-12 | 64 | device |
+";
+        let file = MemoryFile::parse("states/music/2026.md", text).unwrap();
+        let log = file.state_log().unwrap();
+        assert_eq!((log.topic.as_str(), log.year), ("music", 2026));
+        assert_eq!(
+            super::super::state::parse_table(file.body()).unwrap().len(),
+            1
+        );
+        assert_eq!(file.render().unwrap(), text);
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("2027.md");
+        let mut common = Common::new(FileType::Event, &jiff::tz::TimeZone::UTC).unwrap();
+        common.file_type = FileType::StateLog;
+        common.category = Category::new("home").unwrap();
+        let fields = StateLogFields {
+            topic: Topic::new("home").unwrap(),
+            year: 2027,
+        };
+        MemoryFile::new_state_log(&path, common, fields.clone(), "")
+            .write()
+            .unwrap();
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .contains("\ntopic: home\nyear: 2027\n")
+        );
+        assert_eq!(MemoryFile::read(&path).unwrap().state_log(), Some(&fields));
+
+        for (from, to, expected) in [
+            ("topic: music", "topic: Music", "`topic` must use"),
+            ("year: 2026", "year: 26", "`year` must be a year"),
+            ("year: 2026\n", "", "`year` key is missing"),
+        ] {
+            let (_, problem) = problem(&text.replace(from, to));
+            assert!(problem.contains(expected), "{expected}: {problem}");
+        }
     }
 
     #[test]

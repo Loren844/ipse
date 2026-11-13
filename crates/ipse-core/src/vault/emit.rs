@@ -6,15 +6,16 @@
 
 use std::fmt::Write as _;
 
-use super::fields::{Common, EntityFields};
+use super::file::Keys;
 
 /// A value Ipse owns, ready to be written.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Out {
     /// Text, quoted when needed.
     Text(String),
-    /// A validated date or date-time, always written plain like the spec's examples.
-    Date(String),
+    /// A validated date, date-time or number, always written plain like the spec's
+    /// examples.
+    Plain(String),
     Bool(bool),
     List(Vec<String>),
     Pair(f64, f64),
@@ -22,23 +23,21 @@ pub(crate) enum Out {
 
 /// The keys Ipse owns for this file, in the order a new file lists them. `None` means
 /// the key is absent.
-pub(crate) fn canonical(
-    common: &Common,
-    entity: Option<&EntityFields>,
-) -> Vec<(&'static str, Option<Out>)> {
-    let mut keys = vec![
+pub(crate) fn canonical(keys: &Keys) -> Vec<(&'static str, Option<Out>)> {
+    let common = &keys.common;
+    let mut out = vec![
         ("id", Some(Out::Text(common.id.to_string()))),
         (
             "type",
             Some(Out::Text(common.file_type.as_str().to_owned())),
         ),
         ("category", Some(Out::Text(common.category.to_string()))),
-        ("created", Some(Out::Date(common.created.to_string()))),
-        ("updated", Some(Out::Date(common.updated.to_string()))),
+        ("created", Some(Out::Plain(common.created.to_string()))),
+        ("updated", Some(Out::Plain(common.updated.to_string()))),
         ("sources", list(&common.sources)),
     ];
-    if let Some(e) = entity {
-        keys.extend([
+    if let Some(e) = &keys.entity {
+        out.extend([
             ("name", e.name.clone().map(Out::Text)),
             ("aliases", list(&e.aliases)),
             ("owner", e.owner.then_some(Out::Bool(true))),
@@ -46,7 +45,7 @@ pub(crate) fn canonical(
                 "birthday",
                 e.birthday.map(|b| {
                     if b.year().is_some() {
-                        Out::Date(b.to_string())
+                        Out::Plain(b.to_string())
                     } else {
                         Out::Text(b.to_string())
                     }
@@ -62,7 +61,31 @@ pub(crate) fn canonical(
             ),
         ]);
     }
-    keys
+    if let Some(e) = &keys.event {
+        out.extend([
+            ("title", Some(Out::Text(e.title.clone()))),
+            ("start", Some(Out::Plain(e.start.to_string()))),
+            ("end", e.end.map(|t| Out::Plain(t.to_string()))),
+            ("place", e.place.as_ref().map(|l| Out::Text(l.to_string()))),
+            (
+                "participants",
+                list(
+                    &e.participants
+                        .iter()
+                        .map(ToString::to_string)
+                        .collect::<Vec<_>>(),
+                ),
+            ),
+            ("status", e.status.map(|s| Out::Text(s.as_str().to_owned()))),
+        ]);
+    }
+    if let Some(s) = &keys.state_log {
+        out.extend([
+            ("topic", Some(Out::Text(s.topic.to_string()))),
+            ("year", Some(Out::Plain(format!("{:04}", s.year)))),
+        ]);
+    }
+    out
 }
 
 fn list(items: &[String]) -> Option<Out> {
@@ -73,7 +96,7 @@ fn list(items: &[String]) -> Option<Out> {
 pub(crate) fn entry(key: &str, value: &Out) -> String {
     match value {
         Out::Text(text) => format!("{key}: {}\n", scalar(text)),
-        Out::Date(text) => format!("{key}: {text}\n"),
+        Out::Plain(text) => format!("{key}: {text}\n"),
         Out::Bool(b) => format!("{key}: {b}\n"),
         Out::Pair(a, b) => format!("{key}: [{a}, {b}]\n"),
         Out::List(items) if items.is_empty() => format!("{key}: []\n"),
