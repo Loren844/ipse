@@ -1,6 +1,5 @@
 //! Writing a file so that a crash leaves either the old or the new version, never a mix.
 
-use std::collections::BTreeSet;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
