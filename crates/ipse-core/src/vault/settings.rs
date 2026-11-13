@@ -4,9 +4,11 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 use jiff::tz::TimeZone;
+use jiff::{SignedDuration, Span, SpanRelativeTo};
 use serde::Deserialize;
 
 use super::lang::Language;
+use super::state::Topic;
 use crate::{Error, Result};
 
 /// Version of the vault format this Ipse reads and writes.
@@ -18,6 +20,8 @@ pub struct Settings {
     language: Language,
     time_zone_name: String,
     time_zone: TimeZone,
+    /// State windows set by the person, by topic.
+    freshness: BTreeMap<String, SignedDuration>,
 }
 
 #[derive(Deserialize)]
@@ -25,9 +29,7 @@ struct Raw {
     format: Option<i64>,
     language: Option<String>,
     time_zone: Option<String>,
-    // Read now so that a malformed table is reported; used by the states (#9).
     #[serde(default)]
-    #[allow(dead_code)]
     freshness: BTreeMap<String, String>,
 }
 
@@ -41,6 +43,7 @@ impl Settings {
             language,
             time_zone_name: time_zone_name.to_owned(),
             time_zone,
+            freshness: BTreeMap::new(),
         })
     }
 
@@ -58,6 +61,7 @@ impl Settings {
                 language,
                 time_zone_name: "UTC".to_owned(),
                 time_zone: TimeZone::UTC,
+                freshness: BTreeMap::new(),
             })
     }
 
@@ -117,12 +121,28 @@ impl Settings {
                 .ok_or_else(|| invalid(None, "`language` must be one of: en, fr"))?,
         };
         let time_zone_name = raw.time_zone.unwrap_or_else(|| "UTC".to_owned());
-        Self::new(language, &time_zone_name).ok_or_else(|| {
+        let mut settings = Self::new(language, &time_zone_name).ok_or_else(|| {
             invalid(
                 None,
                 "`time_zone` must be a time zone name like Europe/Paris",
             )
-        })
+        })?;
+        for (topic, text) in raw.freshness {
+            if Topic::new(&topic).is_none() {
+                return Err(invalid(
+                    None,
+                    "a topic in `[freshness]` must use lowercase letters, digits and dashes",
+                ));
+            }
+            let window = duration(&text).ok_or_else(|| {
+                invalid(
+                    None,
+                    &format!("`freshness.{topic}` must be a duration like \"21d\" or \"15m\""),
+                )
+            })?;
+            settings.freshness.insert(topic, window);
+        }
+        Ok(settings)
     }
 
     /// The text of the settings file.
@@ -154,6 +174,24 @@ impl Settings {
     pub fn time_zone_name(&self) -> &str {
         &self.time_zone_name
     }
+
+    /// How long a state of `topic` stays current: the person's setting, else the spec's
+    /// default. `None` for a topic with neither.
+    #[must_use]
+    pub fn window(&self, topic: &Topic) -> Option<SignedDuration> {
+        self.freshness
+            .get(topic.as_str())
+            .copied()
+            .or_else(|| topic.default_window())
+    }
+}
+
+/// `21d`, `15m`, `1h30m`, `2 weeks`: a positive duration, days counting 24 hours.
+fn duration(text: &str) -> Option<SignedDuration> {
+    let span: Span = text.trim().parse().ok()?;
+    span.to_duration(SpanRelativeTo::days_are_24_hours())
+        .ok()
+        .filter(SignedDuration::is_positive)
 }
 
 fn line_at(text: &str, offset: usize) -> u32 {
@@ -226,6 +264,37 @@ mod tests {
         let settings = parse("format = 1\n[categories.studies]\nname = \"Études\"\n").unwrap();
         assert_eq!(settings.language(), Language::En);
         assert_eq!(settings.time_zone_name(), "UTC");
+    }
+
+    #[test]
+    fn freshness_windows() {
+        let settings = parse(
+            "format = 1\n[freshness]\nmusic = \"14d\"\nhome = \"1h30m\"\npodcasts = \"2 weeks\"\n",
+        )
+        .unwrap();
+        let window = |t: &str| settings.window(&Topic::new(t).unwrap());
+        assert_eq!(window("music"), Some(SignedDuration::from_hours(14 * 24)));
+        assert_eq!(window("home"), Some(SignedDuration::from_mins(90)));
+        assert_eq!(
+            window("podcasts"),
+            Some(SignedDuration::from_hours(14 * 24))
+        );
+        assert_eq!(
+            window("watching"),
+            Some(SignedDuration::from_hours(30 * 24)),
+            "default"
+        );
+        assert_eq!(window("unknown"), None);
+
+        for bad in [
+            "music = \"soon\"",
+            "music = \"-3d\"",
+            "music = \"0m\"",
+            "Music = \"3d\"",
+        ] {
+            let err = parse(&format!("format = 1\n[freshness]\n{bad}\n")).unwrap_err();
+            assert!(err.to_string().contains("freshness"), "{bad}: {err}");
+        }
     }
 
     #[test]

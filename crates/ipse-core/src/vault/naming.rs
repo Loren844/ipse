@@ -2,7 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
+use super::event::EventTime;
 use super::fields::{FileType, Id};
+use super::state::Topic;
 use crate::slug::to_file_stem;
 use crate::{Error, Result};
 
@@ -27,6 +29,31 @@ pub fn entity_path(
         .and_then(to_file_stem)
         .unwrap_or_else(|| id.to_string());
     free_path(&vault.join(file_type.folder()), &stem)
+}
+
+/// The path of a new event file: `events/<YYYY>/<YYYY-MM-DD>-<stem>.md`, the date being
+/// the start's day in the event's own offset, the stem made from `title` (or the `id`),
+/// with `-2`, `-3`… when taken.
+///
+/// # Errors
+///
+/// As [`entity_path`].
+pub fn event_path(vault: &Path, title: &str, start: &EventTime, id: &Id) -> Result<PathBuf> {
+    let day = start.date();
+    let stem = to_file_stem(title).unwrap_or_else(|| id.to_string());
+    let dir = vault
+        .join(FileType::Event.folder())
+        .join(format!("{:04}", day.year()));
+    free_path(&dir, &format!("{day}-{stem}"))
+}
+
+/// The path of the state log of `topic` for `year`: `states/<topic>/<YYYY>.md`.
+#[must_use]
+pub fn state_log_path(vault: &Path, topic: &Topic, year: i16) -> PathBuf {
+    vault
+        .join(FileType::StateLog.folder())
+        .join(topic.as_str())
+        .join(format!("{year:04}.md"))
 }
 
 /// `dir/stem.md`, or the first free `dir/stem-N.md`.
@@ -80,6 +107,30 @@ mod tests {
         std::fs::write(&second, "").unwrap();
         let third = entity_path(vault.path(), FileType::Person, Some("marie dupont"), &id).unwrap();
         assert_eq!(third, vault.path().join("people/marie-dupont-3.md"));
+    }
+
+    #[test]
+    fn event_and_state_paths() {
+        let vault = tempfile::tempdir().unwrap();
+        let id = Id::generate();
+        let start = EventTime::parse("2026-11-14T23:30:00-05:00").unwrap();
+        assert_eq!(
+            event_path(vault.path(), "Dîner chez Julie", &start, &id).unwrap(),
+            vault
+                .path()
+                .join("events/2026/2026-11-14-diner-chez-julie.md"),
+            "the start's day in its own offset"
+        );
+        let day = EventTime::parse("2027-01-01").unwrap();
+        assert_eq!(
+            event_path(vault.path(), "", &day, &id).unwrap(),
+            vault.path().join(format!("events/2027/2027-01-01-{id}.md"))
+        );
+        let music = Topic::new("music").unwrap();
+        assert_eq!(
+            state_log_path(vault.path(), &music, 2026),
+            vault.path().join("states/music/2026.md")
+        );
     }
 
     #[test]

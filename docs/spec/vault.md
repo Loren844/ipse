@@ -214,6 +214,7 @@ year: 2026
 - One row per subject. A subject is a wikilink when an entity exists (an artist under `people/` or `organizations/`, a series under `works/`), plain text otherwise.
 - `First seen` and `Last seen` are dates in the vault's time zone (or datetimes for topics whose window is under a day, such as `home`).
 - `Count` is how many raw observations support the row.
+- Cells are trimmed. A row with another number of columns, or a value of the wrong form, is reported with its line and never guessed. A `|` inside plain text is written `\|`.
 - Rows are ordered by `Last seen`, most recent first. Ipse rewrites the table from the raw journal; a person may delete a row, and Ipse then ignores those observations for that row.
 
 ### 5.2 Freshness
@@ -226,6 +227,8 @@ status = current   if age ≤ window(topic)
          recent    if age ≤ 3 × window(topic)
          past      otherwise
 ```
+
+When `last_seen` is a date, its age is counted in whole days in the vault's time zone: seen today is 0 days old, yesterday 1 day (24 hours). A state seen in the future is current.
 
 Default windows, which the person may change in `.ipse/vault.toml`:
 
