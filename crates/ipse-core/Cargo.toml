@@ -10,13 +10,21 @@ authors.workspace = true
 
 [dependencies]
 jiff = { workspace = true }
+saphyr-parser = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
 thiserror = { workspace = true }
+ulid = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 
 [[bench]]
 name = "slug"
+harness = false
+
+[[bench]]
+name = "vault"
 harness = false
 
 [lints]

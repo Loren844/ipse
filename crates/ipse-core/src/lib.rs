@@ -9,5 +9,6 @@
 pub mod error;
 pub mod slug;
 pub mod time;
+pub mod vault;
 
 pub use error::{Error, Result};
