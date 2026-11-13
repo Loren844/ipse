@@ -11,11 +11,12 @@
 mod fold;
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
-use crate::vault::{Category, FileType, Id, MemoryFile};
+use crate::vault::{Category, EventFields, EventTime, FileType, Id, MemoryFile};
 use crate::{Error, Result};
 
 pub use fold::fold;
@@ -46,6 +47,30 @@ struct Document {
     aliases: Vec<Field>,
     facts: Vec<Field>,
     notes: Option<Field>,
+    /// For an event: when, and who.
+    event: Option<EventSpan>,
+}
+
+/// When an event happens and the people it links to.
+#[derive(Debug, Clone)]
+struct EventSpan {
+    start: EventTime,
+    end: Option<EventTime>,
+    /// File stems of the participants that are links.
+    participants: Vec<String>,
+}
+
+/// An event of the index, for listing events by period.
+#[derive(Debug, Clone, Copy)]
+pub struct EventRef<'i> {
+    /// Its file, relative to the vault's folder.
+    pub path: &'i Path,
+    /// When it starts.
+    pub start: &'i EventTime,
+    /// When it ends, exclusive, if known.
+    pub end: Option<&'i EventTime>,
+    /// File stems of the participants that are links.
+    pub participants: &'i [String],
 }
 
 /// A text and its folded words, computed once when the vault is read.
@@ -108,8 +133,14 @@ pub struct Results {
 #[derive(Debug, Clone, Default)]
 pub struct SearchIndex {
     documents: Vec<Document>,
+    /// Documents by file stem in ASCII lower case, to follow links: several folders may
+    /// hold the same stem.
+    by_stem: HashMap<String, Vec<usize>>,
+    /// Documents by id.
+    by_id: HashMap<Id, usize>,
     skipped: u64,
     files: Fingerprint,
+    folders: u64,
 }
 
 /// A cheap summary of the entity files' names, sizes and modification times, to tell
@@ -138,10 +169,50 @@ impl Fingerprint {
     }
 }
 
-/// The entity files of the vault in `root`, by folder. A missing folder has none.
+/// A summary of the folders' modification times: adding, removing or renaming a file
+/// (an atomic write included) changes it; editing a file in place does not.
+fn folders_fingerprint(root: &Path) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    let mut folders = folders(root);
+    folders.push(FileType::Event.folder().to_owned());
+    for folder in folders {
+        folder.hash(&mut hasher);
+        std::fs::metadata(root.join(&folder))
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok())
+            .hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
+/// The folders holding entities and events: `people`, `events/2026`…
+fn folders(root: &Path) -> Vec<String> {
+    let mut folders: Vec<String> = FileType::ALL
+        .into_iter()
+        .filter(|t| t.is_entity())
+        .map(|t| t.folder().to_owned())
+        .collect();
+    // Events are one folder per year.
+    if let Ok(years) = std::fs::read_dir(root.join(FileType::Event.folder())) {
+        let mut years: Vec<String> = years
+            .flatten()
+            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|name| !name.starts_with('.'))
+            .map(|name| format!("{}/{name}", FileType::Event.folder()))
+            .collect();
+        years.sort();
+        folders.extend(years);
+    }
+    folders
+}
+
+/// The entity and event files of the vault in `root`, by folder: `people`,
+/// `events/2026`… A missing folder has none.
 fn entity_files(root: &Path, mut each: impl FnMut(&str, &std::fs::DirEntry)) -> Result<()> {
-    for file_type in FileType::ALL.into_iter().filter(|t| t.is_entity()) {
-        let folder = file_type.folder();
+    for folder in &folders(root) {
+        let folder = folder.as_str();
         let dir = root.join(folder);
         let entries = match std::fs::read_dir(&dir) {
             Ok(entries) => entries,
@@ -173,7 +244,10 @@ impl SearchIndex {
     ///
     /// [`Error::Io`] when an entity folder exists but cannot be listed.
     pub fn load(root: &Path) -> Result<Self> {
-        let mut index = Self::default();
+        let mut index = Self {
+            folders: folders_fingerprint(root),
+            ..Self::default()
+        };
         entity_files(root, |folder, entry| {
             // Noted before reading, so that a change made while reading shows next time.
             index.files.add(folder, entry);
@@ -186,11 +260,29 @@ impl SearchIndex {
                 None => index.skipped += 1,
             }
         })?;
+        index.by_stem.reserve(index.documents.len());
+        index.by_id.reserve(index.documents.len());
+        for (i, d) in index.documents.iter().enumerate() {
+            if let Some(stem) = d.path.file_stem() {
+                let stem = stem.to_string_lossy().to_ascii_lowercase();
+                index.by_stem.entry(stem).or_default().push(i);
+            }
+            index.by_id.insert(d.id.clone(), i);
+        }
         Ok(index)
     }
 
-    /// True when an entity file of the vault in `root` was added, removed, renamed or
-    /// modified since this index was read. Only lists the folders: no file is read.
+    /// True when a file was added, removed or renamed in an entity or event folder since
+    /// this index was read. Much cheaper than [`SearchIndex::changed`]: only the
+    /// folders are looked at, not the files; a file edited in place is not seen.
+    #[must_use]
+    pub fn folders_changed(&self, root: &Path) -> bool {
+        folders_fingerprint(root) != self.folders
+    }
+
+    /// True when an entity or event file of the vault in `root` was added, removed,
+    /// renamed or modified since this index was read. Lists the folders and looks at
+    /// each file's size and date: no file is read.
     ///
     /// # Errors
     ///
@@ -223,25 +315,18 @@ impl SearchIndex {
     /// allowed.
     #[must_use]
     pub fn path_of(&self, id: &Id, allowed: impl Fn(&Category) -> bool) -> Option<&Path> {
-        self.documents
-            .iter()
-            .find(|d| allowed(&d.category) && &d.id == id)
-            .map(|d| d.path.as_path())
+        let d = &self.documents[*self.by_id.get(id)?];
+        allowed(&d.category).then_some(d.path.as_path())
     }
 
     /// The categories of the entities whose file stem is `stem`, ignoring case. Several
     /// folders may hold the same stem.
     #[must_use]
     pub fn categories_of(&self, stem: &str) -> Vec<&Category> {
-        self.documents
-            .iter()
-            .filter(|d| {
-                d.path
-                    .file_stem()
-                    .is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(stem))
-            })
-            .map(|d| &d.category)
-            .collect()
+        self.by_stem
+            .get(&stem.to_ascii_lowercase())
+            .map(|found| found.iter().map(|&i| &self.documents[i].category).collect())
+            .unwrap_or_default()
     }
 
     /// The entities whose name or alias is `name`, ignoring case and accents, or whose
@@ -267,6 +352,32 @@ impl SearchIndex {
             .collect()
     }
 
+    /// The events of the allowed categories that `keep` accepts, ordered by start.
+    #[must_use]
+    pub fn events(
+        &self,
+        allowed: impl Fn(&Category) -> bool,
+        keep: impl Fn(&EventRef<'_>) -> bool,
+    ) -> Vec<EventRef<'_>> {
+        let mut events: Vec<EventRef<'_>> = self
+            .documents
+            .iter()
+            .filter(|d| allowed(&d.category))
+            .filter_map(|d| {
+                let span = d.event.as_ref()?;
+                Some(EventRef {
+                    path: &d.path,
+                    start: &span.start,
+                    end: span.end.as_ref(),
+                    participants: &span.participants,
+                })
+            })
+            .filter(|e| keep(e))
+            .collect();
+        events.sort_by_key(|e| sort_key(e.start));
+        events
+    }
+
     /// The entities matching every word of `query`, best first, among the allowed
     /// categories only. `limit` is clamped to 1–50.
     #[must_use]
@@ -276,7 +387,7 @@ impl SearchIndex {
         limit: usize,
         allowed: impl Fn(&Category) -> bool,
     ) -> Vec<Hit> {
-        self.search_with(query, limit, allowed, str::to_owned).hits
+        self.search_with(query, limit, allowed, |_| None).hits
     }
 
     /// As [`SearchIndex::search`], saying whether results were cut, but texts holding `[[links]]` are first passed
@@ -288,7 +399,7 @@ impl SearchIndex {
         query: &str,
         limit: usize,
         allowed: impl Fn(&Category) -> bool,
-        rewrite: impl Fn(&str) -> String,
+        rewrite: impl Fn(&str) -> Option<String>,
     ) -> Results {
         let folded = fold(query);
         let tokens: Vec<&str> = folded.split_whitespace().collect();
@@ -311,6 +422,9 @@ impl SearchIndex {
 
 fn document(root: &Path, path: &Path, file: &MemoryFile) -> Option<Document> {
     let common = file.common();
+    if let Some(event) = file.event() {
+        return Some(event_document(root, path, file, event));
+    }
     let entity = file.entity()?;
     let sections = file.sections();
     let stem = path.file_stem()?.to_string_lossy().into_owned();
@@ -327,20 +441,67 @@ fn document(root: &Path, path: &Path, file: &MemoryFile) -> Option<Document> {
             .map(|f| Field::new(f.text))
             .collect(),
         notes: sections.notes.map(Field::new),
+        event: None,
     })
 }
 
-/// A field as matched: as loaded, or rewritten when it holds links.
-fn view<'f>(field: &'f Field, rewrite: &dyn Fn(&str) -> String) -> Cow<'f, Field> {
-    if field.text.contains("[[") {
-        Cow::Owned(Field::new(rewrite(&field.text)))
-    } else {
-        Cow::Borrowed(field)
+/// An event as a document: its title as name; its place and participants searchable
+/// like facts, so that "dinner Julie" finds it.
+fn event_document(root: &Path, path: &Path, file: &MemoryFile, event: &EventFields) -> Document {
+    let common = file.common();
+    let facts = event
+        .place
+        .iter()
+        .chain(&event.participants)
+        .map(|p| Field::new(p.to_string()))
+        .collect();
+    Document {
+        id: common.id.clone(),
+        file_type: common.file_type,
+        category: common.category.clone(),
+        path: path.strip_prefix(root).unwrap_or(path).to_owned(),
+        name: Field::new(event.title.clone()),
+        aliases: Vec::new(),
+        facts,
+        notes: file.sections().notes.map(Field::new),
+        event: Some(EventSpan {
+            start: event.start,
+            end: event.end,
+            participants: event
+                .participants
+                .iter()
+                .filter_map(|p| p.link().map(|l| l.target.clone()))
+                .collect(),
+        }),
     }
 }
 
+/// Orders days and moments together: a day counts from its first second in UTC.
+fn sort_key(time: &EventTime) -> jiff::Timestamp {
+    match time {
+        EventTime::Day(day) => day
+            .to_zoned(jiff::tz::TimeZone::UTC)
+            .map_or(jiff::Timestamp::MIN, |z| z.timestamp()),
+        EventTime::At(at) => at.timestamp(),
+    }
+}
+
+/// A field as matched: as loaded, or rewritten when it links to something hidden.
+fn view<'f>(field: &'f Field, rewrite: &dyn Fn(&str) -> Option<String>) -> Cow<'f, Field> {
+    if field.text.contains("[[")
+        && let Some(text) = rewrite(&field.text)
+    {
+        return Cow::Owned(Field::new(text));
+    }
+    Cow::Borrowed(field)
+}
+
 /// A hit when every token matches somewhere; its score and best excerpt otherwise.
-fn score(document: &Document, tokens: &[&str], rewrite: &dyn Fn(&str) -> String) -> Option<Hit> {
+fn score(
+    document: &Document,
+    tokens: &[&str],
+    rewrite: &dyn Fn(&str) -> Option<String>,
+) -> Option<Hit> {
     let name = view(&document.name, rewrite);
     let fields: Vec<(Cow<'_, Field>, (u32, u32))> = document
         .aliases

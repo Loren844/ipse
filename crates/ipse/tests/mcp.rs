@@ -10,8 +10,9 @@ use std::process::Stdio;
 use ipse_core::rights::Clients;
 use ipse_core::time::TimeZone;
 use ipse_core::vault::{
-    Body, Category, Common, DateTime, EntityFields, Fact, FileType, Language, MemoryFile, Relation,
-    Settings, Vault, WikiLink, body, naming,
+    Body, Category, Common, DateTime, EntityFields, EventFields, EventTime, Fact, FileType,
+    Language, LinkOrText, MemoryFile, Relation, Settings, StateLogFields, Topic, Vault, WikiLink,
+    body, naming,
 };
 use rmcp::RoleClient;
 use rmcp::ServiceExt;
@@ -92,6 +93,20 @@ fn fixture() -> Fixture {
     );
     person(&root, "people", "Paul Durand", &["Joue du piano."], &[]);
     person(&root, "health", "Léa Secret", &["Suivie à l'hôpital."], &[]);
+    let tomorrow = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date()
+        .tomorrow()
+        .unwrap();
+    event(
+        &root,
+        "agenda",
+        "Dîner du samedi",
+        &tomorrow.to_string(),
+        &["[[paul-durand]]", "[[lea-secret]]", "Zoé"],
+    );
+    event(&root, "health", "Prise de sang", &tomorrow.to_string(), &[]);
+    music(&root, &tomorrow.yesterday().unwrap().to_string());
 
     let mut clients = Clients::load(&root).unwrap();
     let now = || DateTime::now(&TimeZone::UTC);
@@ -114,6 +129,33 @@ fn fixture() -> Fixture {
         marie,
         _dir: dir,
     }
+}
+
+fn event(root: &Path, category: &str, title: &str, day: &str, who: &[&str]) {
+    let mut common = Common::new(FileType::Event, &TimeZone::UTC).unwrap();
+    common.category = Category::new(category).unwrap();
+    let start = EventTime::parse(day).unwrap();
+    let mut fields = EventFields::new(title, start);
+    fields.participants = who.iter().map(|w| LinkOrText::parse(w)).collect();
+    let path = naming::event_path(root, title, &start, &common.id).unwrap();
+    MemoryFile::new_event(&path, common, fields, "")
+        .write()
+        .unwrap();
+}
+
+fn music(root: &Path, today: &str) {
+    let mut common = Common::new(FileType::Event, &TimeZone::UTC).unwrap();
+    common.file_type = FileType::StateLog;
+    common.category = Category::new("media").unwrap();
+    let topic = Topic::new("music").unwrap();
+    let year: i16 = today[..4].parse().unwrap();
+    let path = naming::state_log_path(root, &topic, year);
+    let body = format!(
+        "\n| Subject | First seen | Last seen | Count | Source |\n| --- | --- | --- | --- | --- |\n| Nina Simone | {today} | {today} | 12 | device |\n"
+    );
+    MemoryFile::new_state_log(&path, common, StateLogFields { topic, year }, body)
+        .write()
+        .unwrap();
 }
 
 /// Starts `ipse mcp` on `root` the way an AI app does.
@@ -168,7 +210,7 @@ fn names(results: &Value, key: &str) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn the_three_tools_explain_themselves() {
+async fn the_six_tools_explain_themselves() {
     let f = fixture();
     let ai = connect(&f.root, Some(&f.allowed)).await;
     let info = ai.peer_info().unwrap();
@@ -178,7 +220,17 @@ async fn the_three_tools_explain_themselves() {
     let mut tools = ai.list_all_tools().await.unwrap();
     tools.sort_by(|a, b| a.name.cmp(&b.name));
     let listed: Vec<&str> = tools.iter().map(|t| t.name.as_ref()).collect();
-    assert_eq!(listed, ["about_me", "get", "search"]);
+    assert_eq!(
+        listed,
+        [
+            "about_me",
+            "events",
+            "get",
+            "now",
+            "search",
+            "states_history"
+        ]
+    );
     for tool in &tools {
         let description = tool.description.as_deref().unwrap();
         assert!(description.contains("Example"), "{}", tool.name);
@@ -326,4 +378,58 @@ async fn a_folder_that_is_not_a_memory_stops_at_once() {
     assert!(!out.status.success());
     assert!(out.stdout.is_empty(), "nothing but MCP on standard output");
     assert!(!String::from_utf8_lossy(&out.stderr).trim().is_empty());
+}
+
+#[tokio::test]
+async fn the_agenda_and_what_is_going_on_now() {
+    let f = fixture();
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    let today = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date();
+    let week = json!({ "from": today.to_string(), "to": today.checked_add(jiff::ToSpan::days(7)).unwrap().to_string() });
+
+    let found = read(&ai, "events", week.clone()).await;
+    assert_eq!(
+        names(&found, "events"),
+        ["Dîner du samedi"],
+        "the blood test is health"
+    );
+    assert_eq!(found["events"][0]["type"], "event");
+    assert_eq!(
+        found["events"][0]["participants"],
+        json!(["[[paul-durand]]", "Zoé"])
+    );
+    assert_eq!(found["more"], false);
+
+    let paul = read(&ai, "search", json!({ "query": "piano" })).await;
+    let mut with_paul = week.clone();
+    with_paul["with"] = paul["results"][0]["id"].clone();
+    assert_eq!(
+        names(&read(&ai, "events", with_paul).await, "events"),
+        ["Dîner du samedi"]
+    );
+    let mut with_marie = week.clone();
+    with_marie["with"] = json!(f.marie);
+    let none = read(&ai, "events", with_marie).await;
+    assert!(none["events"].as_array().unwrap().is_empty());
+
+    let now = read(&ai, "now", json!({})).await;
+    assert_eq!(now["states"][0]["subject"], "Nina Simone");
+    assert!(now["states"][0].get("status").is_none());
+
+    for bad in [
+        json!({ "from": "demain", "to": "2026-11-20" }),
+        json!({ "from": "2026-11-20", "to": "2026-11-14" }),
+    ] {
+        let message = refused(&ai, "events", bad).await;
+        assert!(message.contains("2026-11-14"), "{message}");
+    }
+    ai.cancel().await.unwrap();
+
+    // An AI denied `people` still sees the agenda, but not who is in it.
+    let ai = connect(&f.root, Some(&f.denied)).await;
+    let found = read(&ai, "events", week).await;
+    assert_eq!(found["events"][0]["participants"], json!(["Zoé"]));
+    ai.cancel().await.unwrap();
 }

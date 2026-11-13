@@ -113,9 +113,14 @@ Every tool answers in JSON, both as text and as structured content:
 | --- | --- |
 | `about_me` | `{"me": <entity>}`, or `{"me": null}` |
 | `search` | `{"results": [{"id", "type", "name", "excerpt"}], "more": <bool>}` |
-| `get` | `{"entries": [<entity>], "more": <bool>}` |
+| `get` | `{"entries": [<entity or event>], "more": <bool>}` |
+| `events` | `{"events": [<event>], "more": <bool>}`, ordered by start |
+| `now` | `{"states": [{"topic", "subject", "first_seen", "last_seen", "count", "source"}], "more": <bool>}`, current states only, most recent first |
+| `states_history` | the same, each state with its `status`: `current`, `recent` or `past` |
 
 - An entity has `id`, `type`, `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`, `facts`, `relations` (`[{"word", "target"}]`) and `notes`; empty fields are left out.
+- An event has `id`, `type: event`, `name` (its title), `start`, `end`, `place`, `participants`, `status` and `notes`. A participant or a place that links to a hidden file is left out; plain-text ones stay.
+- `from` and `to` are days (`2026-11-14`, both included, whole days in the vault's time zone) or date-times with their offset. `with` is an entity id; an unknown or hidden one gives no event, like an empty period.
 - Nothing found and hidden look the same: an empty list, or `null`.
 - A refused call (no code, a wrong code, missing arguments) is a tool error with a plain message saying what to do, never a protocol error, so that the AI can tell the person.
 

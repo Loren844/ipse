@@ -7,7 +7,10 @@
 mod access;
 mod clients;
 
-pub use access::{Access, Entry, Gateway, RelationOut};
+pub use access::{
+    Access, Entry, Events, FULL_CHECK_EVERY, Gateway, MAX_EVENTS, MAX_STATES, RelationOut,
+    StateOut, States,
+};
 pub use clients::{Client, Clients, Token};
 
 /// The categories of rights format 1, and whether each is sensitive.
