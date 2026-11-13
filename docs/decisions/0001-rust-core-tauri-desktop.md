@@ -1,6 +1,6 @@
 # 0001 — Rust core, Tauri desktop, performance first
 
-- **Status:** Accepted
+- **Status:** Accepted; refined by 0012 (the interface is served locally first)
 - **Date:** 2026-11-12
 
 ## Context
