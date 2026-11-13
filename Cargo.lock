@@ -389,6 +389,7 @@ version = "0.0.1"
 dependencies = [
  "blake3",
  "criterion",
+ "getrandom",
  "ipse-protocol",
  "jiff",
  "saphyr-parser",
