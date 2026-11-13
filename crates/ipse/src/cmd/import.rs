@@ -1,25 +1,57 @@
 //! `ipse import`: bring a file into the memory.
 
+use std::fmt::Write as _;
 use std::path::PathBuf;
 
 use ipse_core::connector::{Launch, Outcome, run_import};
 use ipse_core::journal::Journal;
-use ipse_core::materialize::{PeopleSummary, contacts_to_people};
+use ipse_core::materialize::{
+    EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people,
+};
 use ipse_core::vault::{Source, Vault};
 use ipse_core::{Error, Result};
+
+/// What a file holds, from its extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    Contacts,
+    Calendar,
+}
+
+impl Kind {
+    fn of(file: &std::path::Path) -> Option<Self> {
+        let extension = file.extension()?.to_str()?.to_ascii_lowercase();
+        match extension.as_str() {
+            "vcf" | "vcard" => Some(Self::Contacts),
+            "ics" | "ical" | "ifb" => Some(Self::Calendar),
+            _ => None,
+        }
+    }
+
+    /// The built-in connector, which is also the journal source.
+    fn connector(self) -> &'static str {
+        match self {
+            Self::Contacts => "contacts",
+            Self::Calendar => "calendar",
+        }
+    }
+
+    fn record_kind(self) -> &'static str {
+        match self {
+            Self::Contacts => "contact.card",
+            Self::Calendar => "calendar.event",
+        }
+    }
+}
 
 /// Imports `file` into the memory in `vault` (the current folder by default).
 pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     let vault = Vault::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
-    let is_vcf = file
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| e.eq_ignore_ascii_case("vcf"));
-    if !is_vcf {
-        return Err(Error::Refused(
-            "Ipse can import contacts files (.vcf) for now.".to_owned(),
-        ));
-    }
+    let kind = Kind::of(file).ok_or_else(|| {
+        Error::Refused(
+            "Ipse can import contacts files (.vcf) and calendar files (.ics) for now.".to_owned(),
+        )
+    })?;
     let file = std::fs::canonicalize(file)
         .ok()
         .filter(|p| p.is_file())
@@ -31,19 +63,20 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     })?;
 
     let settings = vault.settings();
+    let instance = kind.connector();
     let mut launch = Launch::new(
         vec![
             exe.to_string_lossy().into_owned(),
             "connector".to_owned(),
-            "contacts".to_owned(),
+            instance.to_owned(),
         ],
-        "contacts",
+        instance,
         // The command line speaks English, whatever the vault's language.
         "en",
         settings.time_zone_name(),
     );
     launch.files = vec![file];
-    launch.kinds = Some(vec!["contact.card".to_owned()]);
+    launch.kinds = Some(vec![kind.record_kind().to_owned()]);
 
     let mut journal = Journal::new(vault.root());
     let report = run_import(&mut journal, &launch)?;
@@ -62,12 +95,82 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         println!("{line}");
     }
 
+    // The person's own edits are recorded first, so that the import never hides them.
     let history = vault.history()?;
-    let mut change = history.change(Source::Connector("contacts".to_owned()));
-    let summary = contacts_to_people(&vault, &journal, "contacts", &mut change)?;
-    change.commit("Import contacts")?;
-    println!("{}", summary_line(summary));
+    let mut change = history.change(Source::Connector(instance.to_owned()));
+    let (line, conflicts, deleted) = match kind {
+        Kind::Contacts => {
+            let summary = contacts_to_people(&vault, &journal, instance, &mut change)?;
+            (summary_line(summary), summary.conflicts, summary.deleted)
+        }
+        Kind::Calendar => {
+            let summary = calendar_to_events(
+                &vault,
+                &journal,
+                instance,
+                &mut change,
+                jiff::Timestamp::now(),
+            )?;
+            (events_line(summary), summary.conflicts, summary.deleted)
+        }
+    };
+    let summary = match kind {
+        Kind::Contacts => "Import contacts",
+        Kind::Calendar => "Import calendar",
+    };
+    change.commit(summary)?;
+    println!("{line}");
+    if conflicts > 0 {
+        println!("{}", conflicts_line(conflicts));
+    }
+    if deleted > 0 {
+        println!("{}", deleted_line(deleted));
+    }
     Ok(())
+}
+
+fn events_line(s: EventsSummary) -> String {
+    let events = |n: u64| if n == 1 { "event" } else { "events" };
+    let mut line = if s.added == 0 && s.updated == 0 && s.cancelled == 0 {
+        format!(
+            "Every event was already up to date ({} {}).",
+            s.unchanged,
+            events(s.unchanged)
+        )
+    } else {
+        format!(
+            "{} {} added, {} updated.",
+            s.added,
+            events(s.added),
+            s.updated
+        )
+    };
+    if s.cancelled > 0 {
+        let _ = write!(
+            line,
+            " {} removed from the calendar, marked cancelled.",
+            s.cancelled
+        );
+    }
+    line
+}
+
+fn deleted_line(n: u64) -> String {
+    if n == 1 {
+        "1 file you deleted was not created again.".to_owned()
+    } else {
+        format!("{n} files you deleted were not created again.")
+    }
+}
+
+fn conflicts_line(n: u64) -> String {
+    if n == 1 {
+        "1 file you changed yourself was left as it is; the new version from the source was not applied.".to_owned()
+    } else {
+        format!(
+            "{n} files you changed yourself were left as they are; the new versions from the source were not applied."
+        )
+    }
 }
 
 fn summary_line(s: PeopleSummary) -> String {
@@ -99,6 +202,8 @@ mod tests {
             updated,
             unchanged,
             skipped: 0,
+            conflicts: 0,
+            deleted: 0,
         };
         assert_eq!(summary_line(s(4, 0, 0)), "4 people added, 0 updated.");
         assert_eq!(summary_line(s(1, 2, 3)), "1 person added, 2 updated.");

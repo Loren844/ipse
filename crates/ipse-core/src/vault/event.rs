@@ -5,7 +5,7 @@ use std::fmt;
 use jiff::civil::Date;
 use jiff::tz::TimeZone;
 
-use super::fields::{DateTime, WikiLink};
+use super::fields::{DateTime, LinkOrText};
 
 /// When an event starts or ends: a whole day (`2026-11-14`), or a date and time with
 /// its offset (`2026-11-14T20:00:00+01:00`).
@@ -104,10 +104,11 @@ pub struct EventFields {
     pub start: EventTime,
     /// When it ends, exclusive. Absent for a point in time ("film seen").
     pub end: Option<EventTime>,
-    /// Where it happens.
-    pub place: Option<WikiLink>,
-    /// Who takes part, without the vault's owner, who is implied.
-    pub participants: Vec<WikiLink>,
+    /// Where it happens: a place file, or the address as the calendar wrote it.
+    pub place: Option<LinkOrText>,
+    /// Who takes part, without the vault's owner, who is implied: a person file, or
+    /// the name (else the email) as the calendar wrote it.
+    pub participants: Vec<LinkOrText>,
     /// Where it stands; absent means planned for a future event.
     pub status: Option<EventStatus>,
 }

@@ -311,6 +311,42 @@ fn digits(text: &str) -> Option<i16> {
     text.parse().ok()
 }
 
+/// A link to a file of the vault, or plain text when there is no file to link to: a
+/// calendar guest without a person file, an address without a place file.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum LinkOrText {
+    /// `[[marie-dupont]]`.
+    Link(WikiLink),
+    /// `Marc Leroy`, `12 rue des Lilas, Lyon`.
+    Text(String),
+}
+
+impl LinkOrText {
+    /// A link when `text` is one (`[[marie-dupont]]`), plain text otherwise.
+    #[must_use]
+    pub fn parse(text: &str) -> Self {
+        WikiLink::parse(text).map_or_else(|| Self::Text(text.to_owned()), Self::Link)
+    }
+
+    /// The link, if it is one.
+    #[must_use]
+    pub fn link(&self) -> Option<&WikiLink> {
+        match self {
+            Self::Link(link) => Some(link),
+            Self::Text(_) => None,
+        }
+    }
+}
+
+impl fmt::Display for LinkOrText {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Link(link) => link.fmt(f),
+            Self::Text(text) => f.write_str(text),
+        }
+    }
+}
+
 /// A link to another file of the vault: `[[marie-dupont]]` or `[[marie-dupont|Maman]]`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WikiLink {

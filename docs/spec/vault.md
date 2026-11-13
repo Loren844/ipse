@@ -179,11 +179,13 @@ Apporter le dessert.
 | `title` | string | yes | |
 | `start` | datetime or date | yes | A date alone means an all-day event. |
 | `end` | datetime or date | no | Exclusive. Absent for a point in time ("film seen"). |
-| `place` | wikilink | no | |
-| `participants` | list of wikilinks | no | Without the vault's owner, who is implied. |
-| `status` | string | no | `planned` (default for future events), `done`, `cancelled`. |
+| `place` | wikilink or text | no | A link when the place has a file; the address as the calendar wrote it otherwise. |
+| `participants` | list of wikilinks or texts | no | Without the vault's owner, who is implied. A guest is linked only when their email matches exactly one person file (decision 0011); otherwise their name, or else their email, is kept as text. |
+| `status` | string | no | `planned` (default for future events), `done`, `cancelled`. An event removed from its calendar before it happened becomes `cancelled`; past events stay as they are. |
 
 Recurring events are expanded: one file per occurrence the person actually has, generated up to 90 days ahead. The recurrence rule itself stays in the raw journal.
+
+An event is found again by its calendar identifier (`UID`, and `RECURRENCE-ID` for one occurrence), whatever calendar it came from: the same invitation in two calendars is one file with two `sources` (decision 0011).
 
 ## 5. States ("right now")
 
@@ -282,8 +284,11 @@ The vault is a git repository, invisible to the person: no git word appears in t
 - Every change Ipse makes is **one commit**, whatever the number of files it touches (a rename with its link updates is one change).
 - Every commit carries a trailer saying where the change came from: `Ipse-Source: connector:calendar`, `Ipse-Source: proposal:<id>`, `Ipse-Source: person`, or `Ipse-Source: ipse` for what Ipse does on its own (creating the memory, upgrading its format). Commits are made in pure Rust; the `git` program is not needed.
 - Changes the person makes in another editor are detected (file watching, then, before Ipse changes anything, a comparison of the folder with the last commit) and committed as `Ipse-Source: person`. **The person always wins**: Ipse never overwrites an edit it did not make; a connector update that conflicts becomes a proposal.
+    - From a connector, Ipse writes only the keys it takes from the source (a person's name, emails, phones and birthday; an event's title, times, place, guests and status), and only while they are as it last wrote them. The raw journal keeps every version, and `.ipse/materialized.toml` remembers which one is in the vault.
+    - If the person changed one of those keys, the update is skipped and counted, to become a proposal in milestone 2. What the person added (facts, notes, other keys) never stops an update.
+    - A file the person deleted is not created again.
 - `ipse init` in a folder that already holds notes records them first, as the person's, then its own files as one change. A vault created before its history starts one, its files recorded as `ipse`.
-- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
+- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/materialized.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
 - After each commit the git index is rewritten, so that a person who opens the folder with git sees a clean state.
 - "Undo" in the interface reverts one change by creating a new commit; history is never rewritten.
 

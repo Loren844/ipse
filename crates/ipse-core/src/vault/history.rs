@@ -27,8 +27,9 @@ const TRAILER: &str = "Ipse-Source:";
 
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
 /// indexes, the connected AIs and what they read) and editors' scratch files.
-const IGNORED: [&str; 8] = [
+const IGNORED: [&str; 9] = [
     "journal/",
+    ".ipse/materialized.toml",
     ".ipse/index/",
     ".ipse/proposals/",
     ".ipse/access/",
@@ -450,6 +451,12 @@ impl Change<'_> {
         self.paths.is_empty()
     }
 
+    /// The history this change goes into.
+    #[must_use]
+    pub fn history(&self) -> &History {
+        self.history
+    }
+
     /// Records the touched files as one commit, with `summary` as its first line and
     /// the source as trailer. Ignored files (the journal…) are left out. Returns
     /// `None` when nothing differs from the last change.
@@ -467,6 +474,7 @@ impl Change<'_> {
             .edit_tree(base.unwrap_or_else(|| ObjectId::empty_tree(gix::hash::Kind::Sha1)))
             .map_err(|_| failed("update"))?;
         let mut files = Vec::new();
+        let mut blobs = Blobs::new(repo.git_dir().join("objects"));
         for rel in &self.paths {
             let ignored = excludes
                 .at_path(rel.as_str(), Some(gix::index::entry::Mode::FILE))
@@ -478,7 +486,7 @@ impl Change<'_> {
             let path = history.root.join(rel);
             match std::fs::read(&path) {
                 Ok(bytes) => {
-                    let blob = repo.write_blob(bytes).map_err(|_| failed("update"))?;
+                    let blob = blobs.write(&bytes)?;
                     editor
                         .upsert(rel.as_str(), EntryKind::Blob, blob)
                         .map_err(|_| failed("update"))?;
@@ -537,6 +545,79 @@ impl Change<'_> {
             summary: summary.to_owned(),
             files,
         }))
+    }
+}
+
+/// Writes file contents as git loose objects, reusing one compressor.
+///
+/// `gix` makes a new compressor for every object, and setting one up costs more than
+/// compressing a small Markdown file: with many files in one change, that was most of
+/// the time. The loose object format is git's oldest and simplest: the zlib of
+/// `blob <len>\0` followed by the content, in `objects/<2 hex>/<38 hex>`.
+struct Blobs {
+    objects: PathBuf,
+    compress: gix::zlib::stream::deflate::Compress,
+    input: Vec<u8>,
+    output: Vec<u8>,
+}
+
+impl Blobs {
+    fn new(objects: PathBuf) -> Self {
+        Self {
+            objects,
+            compress: gix::zlib::stream::deflate::Compress::new(gix::zlib::Compression::default()),
+            input: Vec::new(),
+            output: Vec::new(),
+        }
+    }
+
+    /// Writes `content` as a blob unless it is already there; returns its id.
+    fn write(&mut self, content: &[u8]) -> Result<ObjectId> {
+        let id = gix::objs::compute_hash(gix::hash::Kind::Sha1, gix::objs::Kind::Blob, content)
+            .map_err(|_| failed("update"))?;
+        let hex = id.to_hex().to_string();
+        let dir = self.objects.join(&hex[..2]);
+        let path = dir.join(&hex[2..]);
+        if path.exists() {
+            return Ok(id);
+        }
+
+        self.input.clear();
+        self.input
+            .extend_from_slice(format!("blob {}\0", content.len()).as_bytes());
+        self.input.extend_from_slice(content);
+        // Large enough for any zlib output of this input.
+        self.output.clear();
+        self.output
+            .resize(self.input.len() + self.input.len() / 1000 + 128, 0);
+        self.compress.reset();
+        let status = self
+            .compress
+            .compress(
+                &self.input,
+                &mut self.output,
+                gix::zlib::stream::deflate::FlushCompress::Finish,
+            )
+            .map_err(|_| failed("update"))?;
+        if status != gix::zlib::Status::StreamEnd {
+            return Err(failed("update"));
+        }
+        let written = usize::try_from(self.compress.total_out()).map_err(|_| failed("update"))?;
+        self.output.truncate(written);
+
+        std::fs::create_dir_all(&dir).map_err(|source| Error::Io {
+            action: "create",
+            path: dir.clone(),
+            source,
+        })?;
+        let mut tmp = tempfile::NamedTempFile::new_in(&dir).map_err(|_| failed("update"))?;
+        std::io::Write::write_all(&mut tmp, &self.output).map_err(|_| failed("update"))?;
+        match tmp.persist_noclobber(&path) {
+            Ok(_) => Ok(id),
+            // Written meanwhile by another process: same content, same id.
+            Err(e) if e.error.kind() == std::io::ErrorKind::AlreadyExists => Ok(id),
+            Err(_) => Err(failed("update")),
+        }
     }
 }
 

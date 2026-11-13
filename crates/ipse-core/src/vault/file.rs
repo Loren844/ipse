@@ -5,11 +5,11 @@ use std::path::{Path, PathBuf};
 
 use saphyr_parser::ScalarStyle;
 
-use super::atomic::write_atomic;
+use super::atomic::{write_atomic, write_atomic_unsynced};
 use super::emit::{self, Out};
 use super::event::{EventFields, EventStatus, EventTime};
 use super::fields::{
-    Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, WikiLink,
+    Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
 };
 use super::front::{self, RawEntry};
 use super::state::{StateLogFields, Topic};
@@ -396,6 +396,20 @@ impl MemoryFile {
     /// [`Error::Invalid`] from [`MemoryFile::render`], or if the text would not read
     /// back the same; [`Error::Io`] when reading the current file or writing fails.
     pub fn write(&self) -> Result<bool> {
+        self.write_with(true)
+    }
+
+    /// As [`MemoryFile::write`], without waiting for the disk: for many files written
+    /// together, then made durable with [`super::atomic::sync_files`].
+    ///
+    /// # Errors
+    ///
+    /// As [`MemoryFile::write`].
+    pub fn write_unsynced(&self) -> Result<bool> {
+        self.write_with(false)
+    }
+
+    fn write_with(&self, sync: bool) -> Result<bool> {
         let text = self.render()?;
         match std::fs::read(&self.path) {
             Ok(bytes) => {
@@ -423,7 +437,11 @@ impl MemoryFile {
                 "Ipse prepared a version of this file that does not read back the same; nothing was written",
             ));
         }
-        write_atomic(&self.path, text.as_bytes())?;
+        if sync {
+            write_atomic(&self.path, text.as_bytes())?;
+        } else {
+            write_atomic_unsynced(&self.path, text.as_bytes())?;
+        }
         Ok(true)
     }
 }
@@ -550,8 +568,8 @@ impl<'n> Reader<'_, 'n> {
             title,
             start,
             end: self.event_time("end")?,
-            place: self.link("place")?,
-            participants: self.links("participants")?,
+            place: self.link_or_text("place")?,
+            participants: self.links_or_texts("participants")?,
             status,
         })
     }
@@ -590,30 +608,43 @@ impl<'n> Reader<'_, 'n> {
             })
     }
 
-    /// A list of wikilinks, each written `"[[marc]]"` or `[[marc]]`.
-    fn links(&self, key: &str) -> Result<Vec<WikiLink>> {
+    /// A link (`"[[lyon]]"` or `[[lyon]]`) or plain text.
+    fn link_or_text(&self, key: &str) -> Result<Option<LinkOrText>> {
+        let Some(node) = self.get(key) else {
+            return Ok(None);
+        };
+        as_link_or_text(node).map(Some).ok_or_else(|| {
+            self.wrong(
+                node,
+                format!("`{key}` must be a link like \"[[lyon]]\", or text"),
+            )
+        })
+    }
+
+    /// A list of links or texts: `["[[marc-leroy]]", "Paul"]`.
+    fn links_or_texts(&self, key: &str) -> Result<Vec<LinkOrText>> {
         let Some(node) = self.get(key) else {
             return Ok(Vec::new());
         };
         let wrong = || {
             self.wrong(
                 node,
-                format!("`{key}` must be a list of links like \"[[marc-leroy]]\""),
+                format!("`{key}` must be a list of links like \"[[marc-leroy]]\" or names"),
             )
         };
         match node {
             Node::Seq { items, .. } => {
                 // `[[a]]` alone, unquoted, is read by YAML as one list in a list.
                 if let Some(link) = as_link(node).filter(|_| items.len() == 1) {
-                    return Ok(vec![link]);
+                    return Ok(vec![LinkOrText::Link(link)]);
                 }
                 items
                     .iter()
                     .filter(|item| !item.is_null())
-                    .map(|item| as_link(item).ok_or_else(wrong))
+                    .map(|item| as_link_or_text(item).ok_or_else(wrong))
                     .collect()
             }
-            Node::Scalar { .. } => as_link(node).map(|l| vec![l]).ok_or_else(wrong),
+            Node::Scalar { .. } => as_link_or_text(node).map(|l| vec![l]).ok_or_else(wrong),
             Node::Map { .. } => Err(wrong()),
         }
     }
@@ -732,6 +763,17 @@ impl<'n> Reader<'_, 'n> {
         as_link(node)
             .map(Some)
             .ok_or_else(|| self.wrong(node, format!("`{key}` must be a link like \"[[lyon]]\"")))
+    }
+}
+
+/// A link node, or a text one.
+fn as_link_or_text(node: &Node<'_>) -> Option<LinkOrText> {
+    if let Some(link) = as_link(node) {
+        return Some(LinkOrText::Link(link));
+    }
+    match node {
+        Node::Scalar { text, .. } => Some(LinkOrText::parse(text)),
+        _ => None,
     }
 }
 
@@ -926,11 +968,14 @@ Apporter le dessert.
         assert_eq!(event.title, "Dîner chez Julie");
         assert_eq!(event.start.to_string(), "2026-11-14T20:00:00+01:00");
         assert_eq!(event.end.unwrap().to_string(), "2026-11-14T23:00:00+01:00");
-        assert_eq!(event.place.as_ref().unwrap().target, "chez-julie");
+        assert_eq!(
+            event.place.as_ref().unwrap().link().unwrap().target,
+            "chez-julie"
+        );
         let who: Vec<&str> = event
             .participants
             .iter()
-            .map(|l| l.target.as_str())
+            .map(|l| l.link().unwrap().target.as_str())
             .collect();
         assert_eq!(who, ["julie-dupont", "marc-leroy"]);
         assert_eq!(event.status, None);
@@ -958,7 +1003,10 @@ Apporter le dessert.
         let common = Common::new(FileType::Event, &tz).unwrap();
         let mut event = EventFields::new("Noël", EventTime::parse("2026-12-24").unwrap());
         event.end = EventTime::parse("2026-12-27");
-        event.participants = vec![WikiLink::parse("[[marie-dupont]]").unwrap()];
+        event.participants = vec![
+            LinkOrText::parse("[[marie-dupont]]"),
+            LinkOrText::parse("Paul (ami de Marie)"),
+        ];
         let path = dir.path().join("noel.md");
         assert!(
             MemoryFile::new_event(&path, common, event.clone(), "")
@@ -966,7 +1014,7 @@ Apporter le dessert.
                 .unwrap()
         );
         let text = std::fs::read_to_string(&path).unwrap();
-        assert!(text.contains("\ntitle: Noël\nstart: 2026-12-24\nend: 2026-12-27\nparticipants:\n  - \"[[marie-dupont]]\"\n"), "{text}");
+        assert!(text.contains("\ntitle: Noël\nstart: 2026-12-24\nend: 2026-12-27\nparticipants:\n  - \"[[marie-dupont]]\"\n  - Paul (ami de Marie)\n"), "{text}");
         let back = MemoryFile::read(&path).unwrap();
         assert_eq!(back.event(), Some(&event));
         assert!(back.event().unwrap().start.is_day());
@@ -982,9 +1030,12 @@ Apporter le dessert.
             );
         let file = MemoryFile::parse("e.md", &text).unwrap();
         let event = file.event().unwrap();
-        assert_eq!(event.place.as_ref().unwrap().target, "chez-julie");
+        assert_eq!(
+            event.place.as_ref().unwrap().link().unwrap().target,
+            "chez-julie"
+        );
         assert_eq!(event.participants.len(), 1);
-        assert_eq!(event.participants[0].target, "julie-dupont");
+        assert_eq!(event.participants[0].link().unwrap().target, "julie-dupont");
     }
 
     #[test]
@@ -1013,12 +1064,12 @@ Apporter le dessert.
             ),
             (
                 "place: \"[[chez-julie]]\"",
-                "place: chez Julie",
+                "place:\n  rue: chez Julie",
                 "`place` must be a link",
             ),
             (
                 "participants: [",
-                "participants: [Julie, ",
+                "participants: [{Julie: x}, ",
                 "`participants` must be a list of links",
             ),
         ] {

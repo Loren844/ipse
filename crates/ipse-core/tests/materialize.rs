@@ -75,7 +75,9 @@ fn each_contact_becomes_a_person_file() {
             added: 2,
             updated: 0,
             unchanged: 0,
-            skipped: 1
+            skipped: 1,
+            conflicts: 0,
+            deleted: 0,
         }
     );
 

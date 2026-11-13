@@ -19,10 +19,12 @@ pub mod state;
 mod store;
 mod yaml;
 
-pub use atomic::write_atomic;
+pub use atomic::{sync_files, write_atomic, write_atomic_unsynced};
 pub use body::{Body, Fact, FactId, Relation, Section};
 pub use event::{EventFields, EventStatus, EventTime};
-pub use fields::{Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, WikiLink};
+pub use fields::{
+    Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
+};
 pub use file::MemoryFile;
 pub use history::{Change, History, Source};
 pub use lang::Language;

@@ -17,6 +17,8 @@ Imports your events from a calendar file (`.ics`).
 - **Apple Calendar**: on a Mac, select a calendar → File → Export → Export.
 - **Outlook**: save a calendar as an iCalendar file.
 
+Then: `ipse import agenda.ics --vault ~/Ipse`. Each event becomes a file in `events/`, its guests linked to the people already imported when their email matches exactly one of them.
+
 ## Records
 
 Each event is read as soon as it ends in the file, so a file of any size uses little memory.
