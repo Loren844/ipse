@@ -7,6 +7,7 @@
 //! the vault, the raw journal, the connector protocol and the rights model.
 
 pub mod error;
+pub mod journal;
 pub mod slug;
 pub mod time;
 pub mod vault;
