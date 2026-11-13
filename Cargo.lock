@@ -595,6 +595,7 @@ name = "ipse"
 version = "0.0.1"
 dependencies = [
  "clap",
+ "criterion",
  "ipse-core",
  "ipse-protocol",
  "jiff",

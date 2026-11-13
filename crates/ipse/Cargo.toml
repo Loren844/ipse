@@ -23,9 +23,14 @@ serde_json = { workspace = true }
 tokio = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
 rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
+
+[[bench]]
+name = "calendar"
+harness = false
 
 [lints]
 workspace = true
