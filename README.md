@@ -37,7 +37,10 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 
 | Path | What it holds |
 | --- | --- |
-| `crates/ipse-core` | The core library (Rust). |
+| `crates/ipse` | The `ipse` program: command line, MCP server, built-in connectors. |
+| `crates/ipse-core` | The core library: vault, journal, index, rights. |
+| `crates/ipse-protocol` | Messages of the connector protocol, shared by the core and connectors. |
+| `docs/spec` | The specification: vault, journal, connectors, rights. |
 | `docs/decisions` | Architecture decisions, one dated file each. |
 | `AGENTS.md` | Rules every contributor and coding agent follows. |
 | `.github` | CI, issue and pull request templates. |
