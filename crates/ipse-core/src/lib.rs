@@ -6,6 +6,7 @@
 //! The formats this crate implements are specified in `docs/spec/`:
 //! the vault, the raw journal, the connector protocol and the rights model.
 
+pub mod connector;
 pub mod error;
 pub mod journal;
 pub mod slug;

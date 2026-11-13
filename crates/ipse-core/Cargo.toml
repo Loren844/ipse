@@ -34,3 +34,7 @@ harness = false
 
 [lints]
 workspace = true
+
+[[test]]
+name = "connector_host"
+harness = false
