@@ -292,10 +292,16 @@ fn manifest_follows_the_spec() {
     let m = manifest();
     assert_eq!(
         (m.id.as_str(), m.rung, m.category.as_str()),
-        ("calendar", 4, "agenda")
+        ("calendar", 1, "agenda")
     );
     assert_eq!(m.access.files, FileAccess::Picked);
-    assert!(m.access.network.is_empty() && m.access.secrets.is_empty());
-    assert_eq!(m.modes, [Mode::Import]);
+    assert_eq!(
+        m.access.network,
+        ["*"],
+        "only the host of the person's link"
+    );
+    assert_eq!(m.access.secrets, [LINK_SECRET]);
+    assert_eq!(m.modes, [Mode::Import, Mode::Sync]);
+    assert_eq!(m.sync.unwrap().default_every, "15m");
     assert_eq!(m.kinds, [KIND]);
 }

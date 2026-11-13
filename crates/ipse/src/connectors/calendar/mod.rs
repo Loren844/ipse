@@ -1,11 +1,17 @@
-//! The calendar connector: imports iCalendar files (`.ics`) the person picked.
+//! The calendar connector: imports iCalendar files (`.ics`) the person picked, or
+//! follows a calendar's subscription link.
 //!
-//! Rung 4 of decision 0008: calendar apps export iCalendar files; this connector reads
-//! them without any network access or account. Events are sent as they are read.
+//! Decision 0008: calendar apps give a link to a calendar in iCal format, their official
+//! way to let other apps read it (rung 1). In mode `sync`, the connector fetches it and
+//! sends the whole calendar each time, with `done.complete`, so that the core removes
+//! what disappeared (`fetch`). Calendar apps also export iCalendar files (rung 4); in
+//! mode `import`, the connector reads the picked files without any network access.
+//! Events are sent as they are read.
 //! Repeating events are kept until the end of the file, because an occurrence moved or
 //! cancelled may come after them; their rule is sent once, and their occurrences from
 //! one year back to 90 days ahead are expanded (`docs/spec/vault.md`, section 4).
 
+pub(crate) mod fetch;
 mod ics;
 mod rrule;
 mod time;
@@ -17,13 +23,14 @@ use std::io::{BufRead, BufReader, Write};
 use ipse_core::journal::data_hash;
 use ipse_protocol::{
     Access, DoneSummary, ErrorCode, FileAccess, Localized, MAX_BATCH_RECORDS, Manifest, Mode, Op,
-    PROTOCOL_VERSION, Record,
+    PROTOCOL_VERSION, Record, SyncSettings,
 };
 use jiff::tz::TimeZone;
 use jiff::{Span, Timestamp, ToSpan, Unit, Zoned};
 use serde_json::{Map, Value, json};
 
-use super::session::{Session, SessionResult};
+use super::session::{Hello, Session, SessionResult};
+use fetch::{CUT_SHORT, Cursor, Failure, Fetched, NOT_A_CALENDAR};
 use ics::{Event, Item, Items, Person};
 use rrule::{Rule, Until};
 use time::{Key, When, Zones};
@@ -56,43 +63,60 @@ pub(crate) fn manifest() -> Manifest {
         id: ID.to_owned(),
         name: localized([("en", "Calendar"), ("fr", "Agenda")]),
         summary: localized([
-            ("en", "Your events, from a calendar file (.ics)."),
-            ("fr", "Vos événements, depuis un fichier d'agenda (.ics)."),
+            (
+                "en",
+                "Your events, from your calendar's link or a calendar file (.ics).",
+            ),
+            (
+                "fr",
+                "Vos événements, depuis le lien de votre agenda ou un fichier d'agenda (.ics).",
+            ),
         ]),
         version: env!("CARGO_PKG_VERSION").to_owned(),
         command: vec!["ipse".into(), "connector".into(), ID.into()],
-        modes: vec![Mode::Import],
-        rung: 4,
+        modes: vec![Mode::Import, Mode::Sync],
+        rung: 1,
         kinds: vec![KIND.to_owned()],
         category: "agenda".to_owned(),
         access: Access {
-            network: Vec::new(),
+            // Only the host of the link the person gives.
+            network: vec!["*".to_owned()],
             files: FileAccess::Picked,
-            secrets: Vec::new(),
+            secrets: vec![LINK_SECRET.to_owned()],
         },
-        sync: None,
+        sync: Some(SyncSettings {
+            default_every: "15m".to_owned(),
+        }),
     }
 }
 
-/// Runs one session: reads the picked files and sends their events in batches.
+/// The secret holding the calendar's link, in mode `sync`.
+pub(crate) const LINK_SECRET: &str = "url";
+
+/// Runs one session: reads the picked files, or fetches the calendar's link, and sends
+/// their events in batches.
 pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> {
     let (mut session, hello) = Session::open(input, output, ID, env!("CARGO_PKG_VERSION"))?;
     let french = hello.language == "fr";
-    if hello.mode != Mode::Import {
+    if !matches!(hello.mode, Mode::Import | Mode::Sync) {
         session.error(
             ErrorCode::Unsupported,
             say(
                 french,
-                "This connector only imports files.",
-                "Ce connecteur importe seulement des fichiers.",
+                "This connector imports calendar files or follows a calendar's link.",
+                "Ce connecteur importe des fichiers d'agenda ou suit le lien d'un agenda.",
             ),
         )?;
         return session.finish();
     }
-    session.wait_start()?;
-
+    let full = session.wait_start()?;
     let time_zone = TimeZone::get(&hello.time_zone).unwrap_or(TimeZone::UTC);
-    let mut import = Import::new(time_zone, Timestamp::now());
+    let now = Timestamp::now();
+    if hello.mode == Mode::Sync {
+        return sync(session, &hello, full, time_zone, now);
+    }
+
+    let mut import = Import::new(time_zone, now);
     let mut sent = 0_u64;
     for path in &hello.files {
         let Ok(file) = File::open(path) else {
@@ -104,35 +128,121 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
                 Err(_) => return bad_input(session, french),
             }
             if import.records.len() >= MAX_BATCH_RECORDS {
-                sent += send(&mut session, &mut import.records)?;
+                sent += send(&mut session, &mut import.records, None)?;
             }
         }
     }
     import.finish();
-    sent += send(&mut session, &mut import.records)?;
+    sent += send(&mut session, &mut import.records, None)?;
+    import.done(session, sent, french, false)
+}
 
-    if let Some(message) = import.report(french) {
-        session.progress(sent, Some(sent), Some(message))?;
+/// Mode `sync`: fetches the link and sends the whole calendar, or nothing when it did
+/// not change.
+fn sync<R: BufRead, W: Write>(
+    mut session: Session<R, W>,
+    hello: &Hello,
+    full: bool,
+    time_zone: TimeZone,
+    now: Timestamp,
+) -> SessionResult<()> {
+    let french = hello.language == "fr";
+    let link = match hello
+        .secrets
+        .get(LINK_SECRET)
+        .map(|s| fetch::parse(s.expose()))
+    {
+        Some(Ok(link)) => link,
+        Some(Err(e)) => {
+            session.error(ErrorCode::BadInput, e.message(french))?;
+            return session.finish();
+        }
+        None => {
+            session.error(
+                ErrorCode::BadInput,
+                say(
+                    french,
+                    "This calendar's link is missing from the keychain. Subscribe to it again.",
+                    "Le lien de cet agenda manque dans le trousseau. Abonnez-vous à nouveau.",
+                ),
+            )?;
+            return session.finish();
+        }
+    };
+    let cursor = hello
+        .cursor
+        .clone()
+        .filter(|_| !full)
+        .and_then(|c| serde_json::from_value::<Cursor>(c).ok());
+    let today = now.to_zoned(time_zone.clone()).date().to_string();
+    let (body, cursor) = match fetch::fetch(&link, cursor.as_ref(), &today) {
+        Ok(Fetched::Unchanged) => {
+            // Nothing sent, so nothing complete: the core must not remove anything.
+            session.done(DoneSummary::default())?;
+            return session.finish();
+        }
+        Ok(Fetched::Calendar(body, cursor)) => (body, cursor),
+        Err(failure) => return fail(session, &failure, french),
+    };
+
+    let mut import = Import::new(time_zone, now);
+    let mut items = Items::new(body);
+    let mut sent = 0_u64;
+    for item in items.by_ref() {
+        match item {
+            Ok(item) => import.add(item),
+            Err(_) => return fail(session, &CUT_SHORT, french),
+        }
+        if import.records.len() >= MAX_BATCH_RECORDS {
+            sent += send(&mut session, &mut import.records, None)?;
+        }
     }
-    session.done(DoneSummary {
-        upserts: import.upserts,
-        deletes: import.deletes,
-        ..DoneSummary::default()
-    })?;
+    if !items.whole() {
+        let failure = if items.begun() {
+            CUT_SHORT
+        } else {
+            NOT_A_CALENDAR
+        };
+        return fail(session, &failure, french);
+    }
+    import.finish();
+    let cursor = serde_json::to_value(cursor).ok();
+    sent += send(&mut session, &mut import.records, cursor)?;
+    import.done(session, sent, french, true)
+}
+
+fn fail<R: BufRead, W: Write>(
+    mut session: Session<R, W>,
+    failure: &Failure,
+    french: bool,
+) -> SessionResult<()> {
+    session.error_retry(
+        failure.code,
+        failure.retry_after.clone(),
+        failure.message(french),
+    )?;
     session.finish()
 }
 
-/// Sends `records` in batches; returns how many the core accepted.
+/// Sends `records` in batches; returns how many the core accepted. A `cursor` goes
+/// with the last batch, alone if there is nothing to send: the core saves it only once
+/// everything before it is on disk.
 fn send<R: BufRead, W: Write>(
     session: &mut Session<R, W>,
     records: &mut Vec<Record>,
+    mut cursor: Option<Value>,
 ) -> SessionResult<u64> {
     let mut accepted = 0;
-    while !records.is_empty() {
+    while !records.is_empty() || cursor.is_some() {
         let rest = records.split_off(records.len().min(MAX_BATCH_RECORDS));
         let batch = std::mem::replace(records, rest);
         let count = batch.len() as u64;
-        let rejected = session.batch(batch, None)?;
+        let last = if records.is_empty() {
+            cursor.take()
+        } else {
+            None
+        };
+        let rejected = session.batch(batch, last)?;
         accepted += count - rejected.len() as u64;
     }
     Ok(accepted)
@@ -247,6 +357,27 @@ impl Import {
         for event in std::mem::take(&mut self.repeating) {
             self.expand(&event);
         }
+    }
+
+    /// Ends the session: a word on what was left out, then `done`. `complete` when
+    /// every event the source holds was sent.
+    fn done<R: BufRead, W: Write>(
+        &self,
+        mut session: Session<R, W>,
+        sent: u64,
+        french: bool,
+        complete: bool,
+    ) -> SessionResult<()> {
+        if let Some(message) = self.report(french) {
+            session.progress(sent, Some(sent), Some(message))?;
+        }
+        session.done(DoneSummary {
+            upserts: self.upserts,
+            deletes: self.deletes,
+            complete,
+            ..DoneSummary::default()
+        })?;
+        session.finish()
     }
 
     /// A message for the person when something was left out.

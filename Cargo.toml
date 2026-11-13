@@ -20,6 +20,8 @@ getrandom = "0.4"
 gix = { version = "0.90", default-features = false, features = ["excludes", "index", "sha1"] }
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 jiff = { version = "0.2", features = ["serde"] }
+# The system keychain: Keychain on macOS, Credential Manager on Windows, Secret Service on Linux.
+keyring = "4.2"
 rmcp = { version = "3.10", default-features = false, features = ["server", "macros", "transport-io"] }
 saphyr-parser = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -30,6 +32,8 @@ thiserror = "2.0"
 tokio = { version = "1.48", default-features = false, features = ["rt"] }
 toml = { version = "1.2", default-features = false, features = ["parse", "serde", "std"] }
 ulid = "3.0"
+# HTTP for connectors that fetch a link, with rustls (no OpenSSL).
+ureq = "3.5"
 
 # One lint policy for every crate. Each crate opts in with `[lints] workspace = true`.
 [workspace.lints.rust]

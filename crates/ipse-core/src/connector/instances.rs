@@ -123,15 +123,19 @@ impl Instances {
         self.list.iter().find(|i| i.id == id)
     }
 
-    /// Adds an instance of `connector` named `name`, and saves. Its id is the
+    /// A new instance of `connector` named `name`, not added yet. Its id is the
     /// connector's with the first free number from 2 (`calendar-2`): the bare id stays
     /// for files the person imports.
     ///
     /// # Errors
     ///
-    /// [`Error::Refused`] for an empty name; [`Error::Io`] when the list cannot be
-    /// saved.
-    pub fn add(&mut self, connector: &str, name: &str, every: SignedDuration) -> Result<Instance> {
+    /// [`Error::Refused`] for an empty name.
+    pub fn new_instance(
+        &self,
+        connector: &str,
+        name: &str,
+        every: SignedDuration,
+    ) -> Result<Instance> {
         let name = name.trim();
         if name.is_empty() {
             return Err(Error::Refused("Give it a name, like \"Perso\".".to_owned()));
@@ -141,15 +145,29 @@ impl Instances {
             .map(|n| format!("{connector}-{n}"))
             .find(|id| self.get(id).is_none())
             .unwrap_or_else(|| connector.to_owned());
-        let instance = Instance {
+        Ok(Instance {
             id,
             connector: connector.to_owned(),
             name: name.to_owned(),
             every,
-        };
-        self.list.push(instance.clone());
-        self.save()?;
-        Ok(instance)
+        })
+    }
+
+    /// Adds `instance`, made by [`Instances::new_instance`], and saves.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when its id is taken; [`Error::Io`] when the list cannot be
+    /// saved.
+    pub fn add(&mut self, instance: Instance) -> Result<()> {
+        if self.get(&instance.id).is_some() {
+            return Err(Error::Refused(format!(
+                "There is already a source named {}.",
+                instance.id
+            )));
+        }
+        self.list.push(instance);
+        self.save()
     }
 
     /// Removes the instance `id` and saves. Returns `false` when there is none.
@@ -383,12 +401,13 @@ mod tests {
     fn instances_are_added_listed_and_removed() {
         let dir = tempfile::tempdir().unwrap();
         let mut instances = Instances::load(dir.path()).unwrap();
-        let perso = instances
-            .add("calendar", " Perso ", SignedDuration::from_mins(15))
-            .unwrap();
-        let pro = instances
-            .add("calendar", "Pro \"équipe\"", SignedDuration::from_mins(90))
-            .unwrap();
+        let mut add = |name: &str, every| {
+            let instance = instances.new_instance("calendar", name, every).unwrap();
+            instances.add(instance.clone()).unwrap();
+            instance
+        };
+        let perso = add(" Perso ", SignedDuration::from_mins(15));
+        let pro = add("Pro \"équipe\"", SignedDuration::from_mins(90));
         assert_eq!(
             (perso.id.as_str(), pro.id.as_str()),
             ("calendar-2", "calendar-3")
@@ -403,12 +422,19 @@ mod tests {
         assert!(instances.remove("calendar-2").unwrap());
         assert!(!instances.remove("calendar-2").unwrap());
         let next = instances
-            .add("calendar", "Club", SignedDuration::from_hours(1))
+            .new_instance("calendar", "Club", SignedDuration::from_hours(1))
             .unwrap();
         assert_eq!(next.id, "calendar-2", "a freed number is used again");
+        assert_eq!(
+            Instances::load(dir.path()).unwrap().list().len(),
+            1,
+            "not added yet"
+        );
+        instances.add(next.clone()).unwrap();
+        assert!(instances.add(next).is_err(), "the id is taken");
         assert!(
             instances
-                .add("calendar", "  ", SignedDuration::from_mins(15))
+                .new_instance("calendar", "  ", SignedDuration::from_mins(15))
                 .is_err()
         );
     }
