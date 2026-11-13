@@ -204,7 +204,7 @@ fn a_missing_file_is_reported_in_plain_words() {
 
 #[test]
 fn the_core_runs_it_and_fills_the_journal() {
-    use ipse_core::connector::{Launch, Outcome, run_import};
+    use ipse_core::connector::{Launch, Outcome, run_session};
     use ipse_core::journal::Journal;
 
     let vault = tempfile::tempdir().unwrap();
@@ -222,7 +222,7 @@ fn the_core_runs_it_and_fills_the_journal() {
     launch.files = vec![fixture("google.ics")];
     launch.kinds = Some(vec!["calendar.event".into()]);
 
-    let report = run_import(&mut journal, &launch).unwrap();
+    let report = run_session(&mut journal, &launch).unwrap();
     assert!(matches!(report.outcome, Outcome::Done(_)), "{report:?}");
     assert_eq!(report.rejected, 0);
     let titles: Vec<String> = journal

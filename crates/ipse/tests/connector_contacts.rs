@@ -201,7 +201,7 @@ fn an_empty_file_sends_nothing_but_done() {
 
 #[test]
 fn the_core_runs_it_and_fills_the_journal() {
-    use ipse_core::connector::{Launch, Outcome, run_import};
+    use ipse_core::connector::{Launch, Outcome, run_session};
     use ipse_core::journal::Journal;
 
     let vault = tempfile::tempdir().unwrap();
@@ -219,7 +219,7 @@ fn the_core_runs_it_and_fills_the_journal() {
     launch.files = vec![fixture("google-v3.vcf"), fixture("apple-v4.vcf")];
     launch.kinds = Some(vec!["contact.card".into()]);
 
-    let report = run_import(&mut journal, &launch).unwrap();
+    let report = run_session(&mut journal, &launch).unwrap();
     assert!(
         matches!(report.outcome, Outcome::Done(s) if s.upserts == 4),
         "{report:?}"

@@ -19,7 +19,7 @@ Settled on 2026-11-12.
 
 - **Core**: the Ipse process that starts connectors, writes the journal and the vault.
 - **Connector**: a program implementing this protocol for one source.
-- **Instance**: one configured use of a connector: "my Google calendar" and "my work calendar" are two instances of `calendar`. Each instance has its own folder in the journal (`calendar`, `calendar-2`).
+- **Instance**: one configured use of a connector: "my Google calendar" and "my work calendar" are two instances of `calendar`. Each instance has its own folder in the journal (`calendar`, `calendar-2`). The bare id is for files the person imports; instances that sync are numbered from 2. They are listed in `.ipse/connectors.toml` (id, connector, name, `every`), which is part of the vault's history. Their secrets are never in the vault: they stay in the system keychain, under a key unique to the vault.
 
 ## 2. Manifest
 
@@ -164,8 +164,10 @@ After `need`, the connector sends `done` or waits for `bye`.
 ### 5.8 `done` (connector → core)
 
 ```json
-{"type":"done","summary":{"upserts":12,"deletes":1,"observes":0}}
+{"type":"done","summary":{"upserts":12,"deletes":1,"observes":0,"complete":true}}
 ```
+
+`complete: true` says the session sent **every** item the source holds now, as for a calendar subscription, which can only give the whole calendar. Then, in mode `sync`, the core records the removal of every item of the instance that is still in the journal but was not sent this time: the connector keeps no list of what it sent before, the journal is that list. A connector leaves `complete` out when it sent only part of the source, when it sent only changes (with a cursor), or when the source said nothing changed (HTTP 304): sending nothing then must not empty the vault. In mode `import`, `complete` is ignored: importing a file never removes anything.
 
 The connector exits after `bye`. `watch` connectors never send `done` unless they stop for good.
 
@@ -202,6 +204,7 @@ The connector exits within **5 seconds**. After that, the core stops it.
 
 ## 7. Supervision
 
+- An instance in mode `sync` runs when its `every` has passed since its last run, and after a failure when the backoff of `unavailable` has passed. When each instance last ran, and how many times in a row it failed, is in `.ipse/sync.toml`, left out of the vault's history.
 - A connector that crashes is restarted with the backoff of `unavailable`. After 5 crashes in a row, the instance is paused and the person is told in plain words.
 - A connector that sends a message that is not valid JSON, or breaks the rules above, is stopped; nothing from the unacknowledged batches is kept.
 - A connector never runs twice for the same instance at the same time.
