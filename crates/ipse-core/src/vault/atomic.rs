@@ -98,7 +98,8 @@ pub fn sync_files(paths: &[PathBuf]) -> Result<()> {
     })?;
     #[cfg(unix)]
     {
-        let dirs: BTreeSet<&Path> = paths.iter().filter_map(|p| p.parent()).collect();
+        let dirs: std::collections::BTreeSet<&Path> =
+            paths.iter().filter_map(|p| p.parent()).collect();
         for dir in dirs {
             std::fs::File::open(dir)
                 .and_then(|d| d.sync_all())
