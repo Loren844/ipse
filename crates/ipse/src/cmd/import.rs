@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use ipse_core::connector::{Launch, Outcome, run_import};
+use ipse_core::connector::{Launch, Outcome, run_session};
 use ipse_core::journal::Journal;
 use ipse_core::materialize::{
     EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people,
@@ -79,7 +79,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     launch.kinds = Some(vec![kind.record_kind().to_owned()]);
 
     let mut journal = Journal::new(vault.root());
-    let report = run_import(&mut journal, &launch)?;
+    let report = run_session(&mut journal, &launch)?;
     match report.outcome {
         Outcome::Done(_) => {}
         Outcome::Failed { message, .. } | Outcome::Needs { message, .. } => {

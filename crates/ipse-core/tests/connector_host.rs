@@ -17,9 +17,9 @@ use std::io::{BufRead, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::time::Duration;
 
-use ipse_core::connector::{Launch, Outcome, StopReason, run_import};
+use ipse_core::connector::{Launch, Outcome, StopReason, run_session};
 use ipse_core::journal::Journal;
-use ipse_protocol::{ErrorCode, NeedKind};
+use ipse_protocol::{ErrorCode, Mode, NeedKind, Op, Record, Secret};
 use serde_json::{Value, json};
 
 fn main() {
@@ -28,7 +28,7 @@ fn main() {
         fake_connector(args.get(2).map_or("", String::as_str));
         return;
     }
-    let tests: [(&str, fn()); 8] = [
+    let tests: [(&str, fn()); 10] = [
         ("normal_session", normal_session),
         (
             "cursor_is_given_back_next_time",
@@ -51,6 +51,14 @@ fn main() {
         (
             "batches_must_be_numbered_in_order",
             batches_must_be_numbered_in_order,
+        ),
+        (
+            "a_complete_sync_records_what_disappeared",
+            a_complete_sync_records_what_disappeared,
+        ),
+        (
+            "sync_gets_secrets_config_and_full",
+            sync_gets_secrets_config_and_full,
         ),
     ];
     let mut failed = 0;
@@ -95,7 +103,8 @@ fn fake_connector(mode: &str) {
         std::thread::sleep(Duration::from_secs(5));
         return;
     }
-    assert_eq!(read()["type"], "start");
+    let start = read();
+    assert_eq!(start["type"], "start");
     eprintln!("diagnostic line");
 
     match mode {
@@ -109,6 +118,23 @@ fn fake_connector(mode: &str) {
         })),
         "crash" => std::process::exit(3),
         "bad-seq" => say(json!({"type": "batch", "seq": 2, "records": []})),
+        "sync-complete" | "sync-partial" => {
+            let record = |id: &str| {
+                json!({"kind": "contact.card", "op": "upsert", "external_id": id,
+                "observed_at": "2026-11-12T18:30:00Z", "data": {"n": id}})
+            };
+            say(json!({"type": "batch", "seq": 1, "records": [record("a"), record("b")]}));
+            read();
+            let complete = mode == "sync-complete";
+            say(json!({"type": "done", "summary": {"upserts": 2, "complete": complete}}));
+        }
+        "echo" => {
+            say(json!({"type": "progress", "done": 0, "message": format!(
+                "mode={} config={} secret={} full={}",
+                hello["mode"], hello["config"], hello["secrets"]["url"], start["full"]
+            )}));
+            say(json!({"type": "done", "summary": {}}));
+        }
         _ => {
             let env: Vec<String> = std::env::vars().map(|(k, _)| k).collect();
             say(
@@ -160,7 +186,7 @@ fn launch(mode: &str) -> Launch {
 fn normal_session() {
     let vault = tempfile::tempdir().unwrap();
     let mut journal = Journal::new(vault.path());
-    let report = run_import(&mut journal, &launch("normal")).unwrap();
+    let report = run_session(&mut journal, &launch("normal")).unwrap();
 
     assert!(matches!(report.outcome, Outcome::Done(s) if s.upserts == 1 && s.deletes == 1));
     assert_eq!((report.written, report.rejected), (2, 2));
@@ -202,8 +228,8 @@ fn normal_session() {
 fn cursor_is_given_back_next_time() {
     let vault = tempfile::tempdir().unwrap();
     let mut journal = Journal::new(vault.path());
-    run_import(&mut journal, &launch("normal")).unwrap();
-    let report = run_import(&mut journal, &launch("normal")).unwrap();
+    run_session(&mut journal, &launch("normal")).unwrap();
+    let report = run_session(&mut journal, &launch("normal")).unwrap();
     assert!(
         report.progress[0].contains(r#"cursor={"page":2}"#),
         "{:?}",
@@ -213,7 +239,7 @@ fn cursor_is_given_back_next_time() {
 
 fn invalid_json_stops_the_connector() {
     let vault = tempfile::tempdir().unwrap();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("invalid-json")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("invalid-json")).unwrap();
     assert!(matches!(
         report.outcome,
         Outcome::Stopped(StopReason::BrokeProtocol(_))
@@ -223,7 +249,7 @@ fn invalid_json_stops_the_connector() {
 
 fn error_is_returned_with_its_message() {
     let vault = tempfile::tempdir().unwrap();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("error")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("error")).unwrap();
     assert_eq!(
         report.outcome,
         Outcome::Failed {
@@ -236,7 +262,7 @@ fn error_is_returned_with_its_message() {
 
 fn need_is_returned_with_its_link() {
     let vault = tempfile::tempdir().unwrap();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("need")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("need")).unwrap();
     assert_eq!(
         report.outcome,
         Outcome::Needs {
@@ -250,7 +276,7 @@ fn need_is_returned_with_its_link() {
 fn no_ready_in_time() {
     let vault = tempfile::tempdir().unwrap();
     let started = std::time::Instant::now();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("no-ready")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("no-ready")).unwrap();
     assert_eq!(report.outcome, Outcome::Stopped(StopReason::NoReady));
     assert!(
         started.elapsed() < Duration::from_secs(4),
@@ -260,15 +286,104 @@ fn no_ready_in_time() {
 
 fn a_crash_ends_the_session() {
     let vault = tempfile::tempdir().unwrap();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("crash")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("crash")).unwrap();
     assert_eq!(report.outcome, Outcome::Stopped(StopReason::Ended));
 }
 
 fn batches_must_be_numbered_in_order() {
     let vault = tempfile::tempdir().unwrap();
-    let report = run_import(&mut Journal::new(vault.path()), &launch("bad-seq")).unwrap();
+    let report = run_session(&mut Journal::new(vault.path()), &launch("bad-seq")).unwrap();
     assert!(matches!(
         report.outcome,
         Outcome::Stopped(StopReason::BrokeProtocol(_))
     ));
+}
+
+fn seeded() -> (tempfile::TempDir, Journal) {
+    let vault = tempfile::tempdir().unwrap();
+    let mut journal = Journal::new(vault.path());
+    let record = |id: &str, op: Op| Record {
+        kind: "contact.card".into(),
+        op,
+        external_id: Some(id.into()),
+        observed_at: "2026-11-01T00:00:00Z".parse().unwrap(),
+        data: (op == Op::Upsert).then(|| json!({"n": id})),
+    };
+    journal
+        .append(
+            "fake",
+            &[
+                record("a", Op::Upsert),
+                record("b", Op::Upsert),
+                record("c", Op::Upsert),
+                record("d", Op::Upsert),
+                record("d", Op::Delete),
+            ],
+            None,
+        )
+        .unwrap();
+    (vault, journal)
+}
+
+fn latest_ops(journal: &Journal) -> Vec<(String, Op)> {
+    let mut latest = std::collections::BTreeMap::new();
+    for record in journal.read("fake", None).unwrap() {
+        let record = record.unwrap();
+        latest.insert(record.external_id.unwrap(), record.op);
+    }
+    latest.into_iter().collect()
+}
+
+fn a_complete_sync_records_what_disappeared() {
+    let (_vault, mut journal) = seeded();
+    let mut sync = launch("sync-complete");
+    sync.mode = Mode::Sync;
+    let report = run_session(&mut journal, &sync).unwrap();
+    assert!(matches!(report.outcome, Outcome::Done(s) if s.complete));
+    assert_eq!(report.removed, 1, "c only: d was already removed");
+    assert_eq!(
+        latest_ops(&journal),
+        [
+            ("a".into(), Op::Upsert),
+            ("b".into(), Op::Upsert),
+            ("c".into(), Op::Delete),
+            ("d".into(), Op::Delete),
+        ]
+    );
+
+    // A session that sent only what changed removes nothing.
+    let (_vault, mut journal) = seeded();
+    let mut partial = launch("sync-partial");
+    partial.mode = Mode::Sync;
+    assert_eq!(run_session(&mut journal, &partial).unwrap().removed, 0);
+    // Nor does an import, even one that says it is complete.
+    let (_vault, mut journal) = seeded();
+    assert_eq!(
+        run_session(&mut journal, &launch("sync-complete"))
+            .unwrap()
+            .removed,
+        0
+    );
+}
+
+fn sync_gets_secrets_config_and_full() {
+    let vault = tempfile::tempdir().unwrap();
+    let mut journal = Journal::new(vault.path());
+    let mut sync = launch("echo");
+    sync.mode = Mode::Sync;
+    sync.full = true;
+    sync.config.insert("name".into(), json!("Perso"));
+    sync.secrets
+        .insert("url".into(), Secret::new("https://example.org/private.ics"));
+    let report = run_session(&mut journal, &sync).unwrap();
+    assert_eq!(
+        report.progress,
+        [
+            r#"mode="sync" config={"name":"Perso"} secret="https://example.org/private.ics" full=true"#
+        ]
+    );
+    assert!(
+        !format!("{sync:?}").contains("private.ics"),
+        "secrets never show in debug output"
+    );
 }

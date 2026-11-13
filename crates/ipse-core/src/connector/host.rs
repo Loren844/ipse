@@ -1,6 +1,6 @@
-//! Running one import session with a connector process.
+//! Running one session with a connector process, in `import` or `sync` mode.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::io::{BufRead, BufReader, Read as _, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 use ipse_protocol::{
     ConnectorMessage, CoreMessage, DoneSummary, ErrorCode, MAX_BATCH_RECORDS, MAX_MESSAGE_BYTES,
-    Mode, NeedKind, PROTOCOL_VERSION, Record, from_line, to_line,
+    Mode, NeedKind, Op, PROTOCOL_VERSION, Record, Secret, from_line, to_line,
 };
 use serde_json::{Map, Value};
 
@@ -36,7 +36,7 @@ const WINDOWS_ENV: [&str; 7] = [
     "LOCALAPPDATA",
 ];
 
-/// How to start a connector for one import.
+/// How to start a connector for one session.
 #[derive(Debug, Clone)]
 pub struct Launch {
     /// The program and its arguments.
@@ -58,6 +58,14 @@ pub struct Launch {
     pub bye_timeout: Duration,
     /// How long the connector may stay silent before it is stopped.
     pub idle_timeout: Duration,
+    /// `import` (the default) or `sync`.
+    pub mode: Mode,
+    /// The instance's settings, as the connector declared them.
+    pub config: Map<String, Value>,
+    /// Secrets read from the keychain for this session only.
+    pub secrets: BTreeMap<String, Secret>,
+    /// Send everything, ignoring the cursor.
+    pub full: bool,
 }
 
 impl Launch {
@@ -74,6 +82,10 @@ impl Launch {
             ready_timeout: Duration::from_secs(10),
             bye_timeout: Duration::from_secs(5),
             idle_timeout: Duration::from_mins(5),
+            mode: Mode::Import,
+            config: Map::new(),
+            secrets: BTreeMap::new(),
+            full: false,
         }
     }
 }
@@ -142,16 +154,21 @@ pub struct Report {
     pub progress: Vec<String>,
     /// The last lines the connector wrote to its standard error.
     pub diagnostics: Vec<String>,
+    /// Items recorded as removed because a complete sync did not send them.
+    pub removed: u64,
 }
 
-/// Runs a connector in import mode and writes what it sends to `journal`.
+/// Runs a connector in the launch's mode and writes what it sends to `journal`.
+///
+/// When a `sync` session ends with `complete`, every item of the instance whose latest
+/// record is an upsert and that the session did not send is recorded as removed.
 ///
 /// # Errors
 ///
 /// [`Error::Io`] when the connector cannot be started; journal errors when a batch
 /// cannot be written (the connector is then stopped). Everything the connector does
 /// wrong is reported in the [`Report`], not as an error.
-pub fn run_import(journal: &mut Journal, launch: &Launch) -> Result<Report> {
+pub fn run_session(journal: &mut Journal, launch: &Launch) -> Result<Report> {
     let (program, args) = launch
         .command
         .split_first()
@@ -195,6 +212,7 @@ pub fn run_import(journal: &mut Journal, launch: &Launch) -> Result<Report> {
         written: 0,
         rejected: 0,
         progress: Vec::new(),
+        sent: HashSet::new(),
     };
     let outcome = session.run(journal, launch);
     session.stop(launch.bye_timeout);
@@ -203,13 +221,59 @@ pub fn run_import(journal: &mut Journal, launch: &Launch) -> Result<Report> {
         .lock()
         .map(|lines| lines.iter().cloned().collect())
         .unwrap_or_default();
+    let outcome = outcome?;
+    let removed = match &outcome {
+        Outcome::Done(summary) if summary.complete && launch.mode == Mode::Sync => {
+            record_removals(journal, launch, &session.sent)?
+        }
+        _ => 0,
+    };
     Ok(Report {
-        outcome: outcome?,
+        outcome,
         written: session.written,
         rejected: session.rejected,
         progress: session.progress,
         diagnostics,
+        removed,
     })
+}
+
+/// Records as removed every item of the instance still present in the journal that a
+/// complete session did not send. Returns how many.
+fn record_removals(
+    journal: &mut Journal,
+    launch: &Launch,
+    sent: &HashSet<(String, String)>,
+) -> Result<u64> {
+    let kinds: Option<Vec<&str>> = launch
+        .kinds
+        .as_ref()
+        .map(|k| k.iter().map(String::as_str).collect());
+    let mut present: HashMap<(String, String), bool> = HashMap::new();
+    for record in journal.read(&launch.instance, kinds.as_deref())? {
+        let record = record?;
+        if let Some(id) = record.external_id {
+            present.insert((record.kind, id), record.op == Op::Upsert);
+        }
+    }
+    let observed_at = jiff::Timestamp::now();
+    let mut removed: Vec<Record> = present
+        .into_iter()
+        .filter(|(key, upsert)| *upsert && !sent.contains(key))
+        .map(|((kind, id), _)| Record {
+            kind,
+            op: Op::Delete,
+            external_id: Some(id),
+            observed_at,
+            data: None,
+        })
+        .collect();
+    removed.sort_by(|a, b| a.external_id.cmp(&b.external_id));
+    let mut count = 0;
+    for chunk in removed.chunks(MAX_BATCH_RECORDS) {
+        count += journal.append(&launch.instance, chunk, None)?.len() as u64;
+    }
+    Ok(count)
 }
 
 /// One line read from the connector.
@@ -226,6 +290,8 @@ struct Host {
     written: u64,
     rejected: u64,
     progress: Vec<String>,
+    /// The items sent in this session, by kind and identifier.
+    sent: HashSet<(String, String)>,
 }
 
 impl Host {
@@ -233,12 +299,12 @@ impl Host {
         let hello = CoreMessage::Hello {
             protocol: PROTOCOL_VERSION,
             instance: launch.instance.clone(),
-            mode: Mode::Import,
+            mode: launch.mode,
             language: launch.language.clone(),
             time_zone: launch.time_zone.clone(),
             cursor: journal.cursor(&launch.instance)?,
-            config: Map::new(),
-            secrets: std::collections::BTreeMap::new(),
+            config: launch.config.clone(),
+            secrets: launch.secrets.clone(),
             files: launch.files.clone(),
         };
         if !self.send(&hello) {
@@ -266,7 +332,7 @@ impl Host {
             Err(StopReason::Silent) => return Ok(Outcome::Stopped(StopReason::NoReady)),
             Err(reason) => return Ok(Outcome::Stopped(reason)),
         }
-        if !self.send(&CoreMessage::Start { full: false }) {
+        if !self.send(&CoreMessage::Start { full: launch.full }) {
             return Ok(Outcome::Stopped(StopReason::Ended));
         }
 
@@ -342,6 +408,9 @@ impl Host {
                 .as_ref()
                 .is_none_or(|kinds| kinds.contains(&record.kind));
             if allowed && record.validate().is_ok() {
+                if let Some(id) = &record.external_id {
+                    self.sent.insert((record.kind.clone(), id.clone()));
+                }
                 valid.push(record);
             } else {
                 rejected.push(i);

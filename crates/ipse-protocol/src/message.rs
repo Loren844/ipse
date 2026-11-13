@@ -173,4 +173,9 @@ pub struct DoneSummary {
     /// Records with `op: observe`.
     #[serde(default)]
     pub observes: u64,
+    /// The session sent every item the source holds (a feed read whole): the core
+    /// records the removal of the items it did not send. Left out when the connector
+    /// sent only what changed, or nothing because the source did not change.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub complete: bool,
 }
