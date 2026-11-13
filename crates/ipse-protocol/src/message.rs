@@ -32,7 +32,8 @@ pub enum CoreMessage {
         instance: String,
         /// The mode asked for.
         mode: Mode,
-        /// The vault's language, for messages shown to the person: `fr`, `en`.
+        /// The language the person reads messages in: the interface's, not necessarily
+        /// the vault's. `en` for the command line.
         language: String,
         /// The vault's IANA time zone: `Europe/Paris`.
         time_zone: String,
