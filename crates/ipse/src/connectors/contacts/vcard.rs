@@ -7,6 +7,8 @@ use std::io::BufRead;
 
 use ipse_core::vault::Birthday;
 
+use crate::connectors::content_line::{Lines, Property, non_empty, split_unescaped, text};
+
 /// What Ipse keeps from one card.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub(crate) struct Card {
@@ -34,48 +36,15 @@ pub(crate) enum CardError {
 
 /// The cards of a vCard file, in order.
 pub(crate) struct Cards<R> {
-    input: R,
-    raw: Vec<u8>,
-    /// The logical line being unfolded.
-    pending: Option<String>,
-    /// A logical line to read again before the input.
-    requeued: Option<String>,
+    lines: Lines<R>,
     done: bool,
 }
 
 impl<R: BufRead> Cards<R> {
     pub(crate) fn new(input: R) -> Self {
         Self {
-            input,
-            raw: Vec::with_capacity(1024),
-            pending: None,
-            requeued: None,
+            lines: Lines::new(input),
             done: false,
-        }
-    }
-
-    /// The next logical line: physical lines joined where a line starts with a space
-    /// or a tab (folding). Invalid UTF-8 is replaced, never fatal.
-    fn next_line(&mut self) -> Result<Option<String>, std::io::Error> {
-        if let Some(line) = self.requeued.take() {
-            return Ok(Some(line));
-        }
-        loop {
-            self.raw.clear();
-            if self.input.read_until(b'\n', &mut self.raw)? == 0 {
-                return Ok(self.pending.take());
-            }
-            let text = String::from_utf8_lossy(&self.raw);
-            let text = text.trim_end_matches(['\n', '\r']);
-            if let Some(rest) = text.strip_prefix([' ', '\t'])
-                && let Some(pending) = &mut self.pending
-            {
-                pending.push_str(rest);
-                continue;
-            }
-            if let Some(previous) = self.pending.replace(text.to_owned()) {
-                return Ok(Some(previous));
-            }
         }
     }
 }
@@ -89,7 +58,7 @@ impl<R: BufRead> Iterator for Cards<R> {
         }
         let mut card: Option<Builder> = None;
         loop {
-            let line = match self.next_line() {
+            let line = match self.lines.next_line() {
                 Ok(Some(line)) => line,
                 Ok(None) => {
                     self.done = true;
@@ -103,13 +72,13 @@ impl<R: BufRead> Iterator for Cards<R> {
             let Some(property) = Property::parse(&line) else {
                 continue;
             };
-            match (property.name.as_str(), &mut card) {
+            match (property.name.as_ref(), &mut card) {
                 ("BEGIN", None) if property.value.eq_ignore_ascii_case("VCARD") => {
                     card = Some(Builder::default());
                 }
                 ("BEGIN", Some(_)) if property.value.eq_ignore_ascii_case("VCARD") => {
                     // A card that never ended: skip it; the next call starts the new one.
-                    self.requeued = Some(line);
+                    self.lines.requeue(line);
                     return Some(Err(CardError::Unreadable));
                 }
                 ("END", Some(_)) if property.value.eq_ignore_ascii_case("VCARD") => {
@@ -120,59 +89,6 @@ impl<R: BufRead> Iterator for Cards<R> {
                 (_, None) => {}
             }
         }
-    }
-}
-
-/// One content line: `[group.]NAME[;param=value…]:value`.
-struct Property {
-    name: String,
-    params: Vec<(String, String)>,
-    value: String,
-}
-
-impl Property {
-    fn parse(line: &str) -> Option<Self> {
-        let mut quoted = false;
-        let colon = line.char_indices().find_map(|(i, c)| match c {
-            '"' => {
-                quoted = !quoted;
-                None
-            }
-            ':' if !quoted => Some(i),
-            _ => None,
-        })?;
-        let (head, value) = (&line[..colon], &line[colon + 1..]);
-        let mut parts = head.split(';');
-        let name = parts
-            .next()?
-            .rsplit('.')
-            .next()?
-            .trim()
-            .to_ascii_uppercase();
-        if name.is_empty() {
-            return None;
-        }
-        let params = parts
-            .map(|p| match p.split_once('=') {
-                Some((k, v)) => (
-                    k.trim().to_ascii_uppercase(),
-                    v.trim().trim_matches('"').to_owned(),
-                ),
-                None => ("TYPE".to_owned(), p.trim().to_owned()),
-            })
-            .collect();
-        Some(Self {
-            name,
-            params,
-            value: value.to_owned(),
-        })
-    }
-
-    fn param(&self, key: &str) -> Option<&str> {
-        self.params
-            .iter()
-            .find(|(k, _)| k == key)
-            .map(|(_, v)| v.as_str())
     }
 }
 
@@ -188,32 +104,32 @@ impl Builder {
             return;
         }
         let card = &mut self.card;
-        match p.name.as_str() {
-            "UID" => card.uid = text(&p.value),
+        match p.name.as_ref() {
+            "UID" => card.uid = text(p.value),
             "FN" => {
-                if let Some(name) = text(&p.value) {
+                if let Some(name) = text(p.value) {
                     card.full_name = name;
                 }
             }
             "N" => {
-                let parts = split_unescaped(&p.value, ';');
+                let parts = split_unescaped(p.value, ';');
                 card.family_name = parts.first().and_then(|s| non_empty(s));
                 card.given_name = parts.get(1).and_then(|s| non_empty(s));
             }
             "NICKNAME" => card.nicknames.extend(
-                split_unescaped(&p.value, ',')
+                split_unescaped(p.value, ',')
                     .into_iter()
                     .filter_map(|s| non_empty(&s)),
             ),
-            "EMAIL" => card.emails.extend(text(&p.value)),
-            "TEL" => card.phones.extend(text(&p.value).map(|t| {
+            "EMAIL" => card.emails.extend(text(p.value)),
+            "TEL" => card.phones.extend(text(p.value).map(|t| {
                 t.strip_prefix("tel:")
                     .or_else(|| t.strip_prefix("TEL:"))
                     .map_or(t.clone(), str::to_owned)
             })),
-            "BDAY" => card.birthday = birthday(&p.value, p.param("X-APPLE-OMIT-YEAR")),
+            "BDAY" => card.birthday = birthday(p.value, p.param("X-APPLE-OMIT-YEAR")),
             "ORG" => {
-                let parts: Vec<String> = split_unescaped(&p.value, ';')
+                let parts: Vec<String> = split_unescaped(p.value, ';')
                     .into_iter()
                     .filter_map(|s| non_empty(&s))
                     .collect();
@@ -221,7 +137,7 @@ impl Builder {
                     card.organization = Some(parts.join(", "));
                 }
             }
-            "NOTE" => card.note = text(&p.value),
+            "NOTE" => card.note = text(p.value),
             _ => {}
         }
     }
@@ -239,56 +155,6 @@ impl Builder {
         }
         (!card.full_name.is_empty()).then_some(card)
     }
-}
-
-/// An unescaped, trimmed value; `None` when empty.
-fn text(value: &str) -> Option<String> {
-    non_empty(&unescape(value))
-}
-
-fn non_empty(value: &str) -> Option<String> {
-    let value = value.trim();
-    (!value.is_empty()).then(|| value.to_owned())
-}
-
-/// `\n`, `\N`, `\,`, `\;` and `\\` decoded.
-fn unescape(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    let mut chars = value.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.next() {
-            Some('n' | 'N') => out.push('\n'),
-            Some(other) => out.push(other),
-            None => out.push('\\'),
-        }
-    }
-    out
-}
-
-/// Splits on `separator` where it is not escaped, then unescapes each part.
-fn split_unescaped(value: &str, separator: char) -> Vec<String> {
-    let mut parts = Vec::new();
-    let mut current = String::new();
-    let mut chars = value.chars();
-    while let Some(c) = chars.next() {
-        if c == '\\' {
-            current.push(c);
-            if let Some(next) = chars.next() {
-                current.push(next);
-            }
-        } else if c == separator {
-            parts.push(unescape(&current));
-            current.clear();
-        } else {
-            current.push(c);
-        }
-    }
-    parts.push(unescape(&current));
-    parts
 }
 
 /// `1965-03-12`, `19650312`, `--03-12`, `--0312`, with or without a time, as

@@ -45,6 +45,8 @@ pub(crate) type SessionResult<T> = Result<T, SessionError>;
 pub(crate) struct Hello {
     pub(crate) mode: Mode,
     pub(crate) language: String,
+    /// The vault's IANA time zone.
+    pub(crate) time_zone: String,
     pub(crate) files: Vec<PathBuf>,
 }
 
@@ -76,6 +78,7 @@ impl<R: BufRead, W: Write> Session<R, W> {
                 protocol,
                 mode,
                 language,
+                time_zone,
                 files,
                 ..
             }) => {
@@ -90,6 +93,7 @@ impl<R: BufRead, W: Write> Session<R, W> {
                 Hello {
                     mode,
                     language,
+                    time_zone,
                     files,
                 }
             }
