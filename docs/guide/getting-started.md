@@ -44,6 +44,8 @@ ipse import contacts.vcf --vault ~/Ipse
 
 Each contact becomes a file in `people/`. Importing the same file again later updates them; people who look alike are never merged without asking you.
 
+Before importing, add your email to your own file (a line `emails:` then `  - you@example.org` in its header). Ipse then recognizes your own card: it completes your file instead of making a second one, and the related people it lists ("mother: Maman") become your relations.
+
 ## 4. Subscribe to your calendar
 
 Your AI can also know what you did and what is coming. Copy your calendar's link in iCal format:

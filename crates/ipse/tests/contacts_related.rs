@@ -71,6 +71,10 @@ fn an_apple_card_names_mother_and_godfather() {
         said.contains("2 relations added to your own file"),
         "{said}"
     );
+    assert!(
+        said.contains("4 people added"),
+        "your card is not a fifth: {said}"
+    );
     let text = owner(dir.path());
     assert!(
         text.contains("## Relations\n\n- mère : [[maman]]\n- Parrain : [[paul-bernard]]\n"),
@@ -103,15 +107,87 @@ fn an_apple_card_names_mother_and_godfather() {
 }
 
 #[test]
-fn a_google_card_found_by_phone_with_typed_labels() {
+fn a_google_card_found_by_phone() {
     let dir = memory("phones:\n  - 06 98 76 54 32\n");
     let said = import(dir.path(), "google-related.vcf");
-    assert!(said.contains("2 relations added"), "{said}");
+    assert!(said.contains("3 relations added"), "{said}");
     let text = owner(dir.path());
     assert!(text.contains("- frère : [[tom-durand]]\n"), "{text}");
     assert!(
         text.contains("- conjoint : [[samuel-petit]]\n"),
         "found by their other name: {text}"
+    );
+    assert!(
+        text.contains("- famille : [[tante-jo]]\n"),
+        "Google's own label: {text}"
+    );
+    assert!(
+        !dir.path().join("people/camille-durand-2.md").exists(),
+        "no second file for your own card"
+    );
+}
+
+#[test]
+fn your_own_card_completes_your_file() {
+    let dir = memory("emails:\n  - camille.durand@example.org\n");
+    let said = import(dir.path(), "apple-related.vcf");
+    assert!(
+        said.contains("Your own contact card completed your file."),
+        "{said}"
+    );
+    assert!(!dir.path().join("people/camille-durand-2.md").exists());
+    let text = owner(dir.path());
+    assert!(
+        text.contains("name: Camille Durand\n"),
+        "your name stays: {text}"
+    );
+    assert!(text.contains("phones:\n  - +33 6 55 44 33 22\n"), "{text}");
+    assert!(text.contains("aliases:\n  - Cam\n"), "{text}");
+    assert!(text.contains("birthday: 1992-05-17\n"), "{text}");
+    assert!(
+        text.contains("  - contacts:6B29FC40-CA47-1067-B31D-00DD010662DA\n"),
+        "linked to your card: {text}"
+    );
+    assert!(
+        text.matches("camille.durand@example.org").count() == 1,
+        "no email twice: {text}"
+    );
+    assert!(text.contains("owner: true"));
+
+    // You remove the phone: importing again does not bring it back.
+    std::fs::write(
+        owner_path(dir.path()),
+        text.replace("phones:\n  - +33 6 55 44 33 22\n", ""),
+    )
+    .unwrap();
+    let again = import(dir.path(), "apple-related.vcf");
+    assert!(!again.contains("completed"), "{again}");
+    assert!(!owner(dir.path()).contains("+33 6 55 44 33 22"));
+    assert!(!dir.path().join("people/camille-durand-2.md").exists());
+}
+
+#[test]
+fn a_card_imported_before_as_a_second_file_stays_there() {
+    // Imported before your file had your email: your card got its own file.
+    let dir = memory("");
+    import(dir.path(), "apple-related.vcf");
+    assert!(dir.path().join("people/camille-durand-2.md").is_file());
+    let owner_file = owner_path(dir.path());
+    let text = std::fs::read_to_string(&owner_file).unwrap();
+    std::fs::write(
+        &owner_file,
+        text.replace(
+            "owner: true\n",
+            "emails:\n  - camille.durand@example.org\nowner: true\n",
+        ),
+    )
+    .unwrap();
+    let said = import(dir.path(), "apple-related.vcf");
+    assert!(!said.contains("completed"), "{said}");
+    assert!(dir.path().join("people/camille-durand-2.md").is_file());
+    assert!(
+        owner(dir.path()).contains("- mère : [[maman]]\n"),
+        "its relations still come"
     );
 }
 

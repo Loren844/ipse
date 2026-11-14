@@ -77,8 +77,8 @@ struct Person {
     owner: bool,
 }
 
-/// Adds to the owner's file the relations its card names, and returns how many.
-/// `cards` are the latest cards of `instance`.
+/// Adds to the owner's file the relations their own card names (`related`), and
+/// returns how many.
 ///
 /// # Errors
 ///
@@ -87,27 +87,21 @@ struct Person {
 pub(crate) fn add_owner_relations(
     vault: &Vault,
     instance: &str,
-    cards: &[OwnerCandidate],
+    related: &[Related],
     change: &mut Change<'_>,
 ) -> Result<u64> {
-    let root = vault.root();
-    let mut owner_file = MemoryFile::read(vault.owner_file())?;
-    let Some(owner) = owner_file.entity() else {
-        return Ok(0);
-    };
-    let Some(card) = owner_card(cards, &owner.emails, &owner.phones) else {
-        return Ok(0);
-    };
-    if card.related.is_empty() {
+    if related.is_empty() {
         return Ok(0);
     }
+    let root = vault.root();
+    let mut owner_file = MemoryFile::read(vault.owner_file())?;
 
     let (people, by_name, by_source) = people(root, instance)?;
     let language = vault.settings().language();
     let current = owner_file.sections();
     let mut added = Added::read(root)?;
     let mut new = Vec::new();
-    for related in &card.related {
+    for related in related {
         let matches: Vec<usize> = match (&related.uid, &related.name) {
             (Some(uid), _) => by_source
                 .get(&uid_key(uid))
@@ -155,18 +149,19 @@ pub(crate) fn add_owner_relations(
     Ok(new.len() as u64)
 }
 
-/// The one card whose email or phone is on the owner's file. Two such cards: none.
-fn owner_card<'a>(
-    cards: &'a [OwnerCandidate],
+/// The position of the one card whose email or phone is on the owner's file. Two such
+/// cards: none.
+pub(crate) fn owner_card(
+    cards: &[OwnerCandidate],
     emails: &[String],
     phones: &[String],
-) -> Option<&'a OwnerCandidate> {
+) -> Option<usize> {
     let emails: BTreeSet<String> = emails.iter().map(|e| e.trim().to_lowercase()).collect();
     let phones: BTreeSet<String> = phones.iter().filter_map(|p| phone_key(p)).collect();
     if emails.is_empty() && phones.is_empty() {
         return None;
     }
-    let mut found = cards.iter().filter(|card| {
+    let mut found = cards.iter().enumerate().filter(|(_, card)| {
         card.emails
             .iter()
             .any(|e| emails.contains(&e.trim().to_lowercase()))
@@ -176,8 +171,8 @@ fn owner_card<'a>(
                 .filter_map(|p| phone_key(p))
                 .any(|p| phones.contains(&p))
     });
-    let card = found.next()?;
-    found.next().is_none().then_some(card)
+    let (i, _) = found.next()?;
+    found.next().is_none().then_some(i)
 }
 
 /// The people files, and indexes by name and other name, and by the cards of
@@ -229,7 +224,7 @@ fn people(
 }
 
 /// A name compared without case or extra spaces.
-fn name_key(name: &str) -> String {
+pub(crate) fn name_key(name: &str) -> String {
     name.split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -248,7 +243,7 @@ fn uid_key(uid: &str) -> String {
 
 /// The last 9 digits of a phone number, so that `+33 6 98 76 54 32` and
 /// `06 98 76 54 32` match. Shorter numbers are not compared.
-fn phone_key(phone: &str) -> Option<String> {
+pub(crate) fn phone_key(phone: &str) -> Option<String> {
     let digits: String = phone.chars().filter(char::is_ascii_digit).collect();
     (digits.len() >= 9).then(|| digits[digits.len() - 9..].to_owned())
 }
@@ -279,7 +274,9 @@ fn word(kind: Option<&str>, language: Language) -> String {
         "assistant" => ("assistant", "assistant"),
         "neighbor" => ("neighbor", "voisin"),
         "acquaintance" => ("acquaintance", "connaissance"),
-        "kin" => ("relative", "famille"),
+        "kin" | "relative" => ("relative", "famille"),
+        "domestic partner" => ("domestic partner", "partenaire"),
+        "referred by" => ("referred by", "recommandé par"),
         "grandmother" => ("grandmother", "grand-mère"),
         "grandfather" => ("grandfather", "grand-père"),
         "grandparent" => ("grandparent", "grand-parent"),
@@ -391,7 +388,7 @@ mod tests {
         let id = |emails: &[&str], phones: &[&str]| {
             let emails: Vec<String> = emails.iter().map(|s| (*s).to_owned()).collect();
             let phones: Vec<String> = phones.iter().map(|s| (*s).to_owned()).collect();
-            owner_card(&cards, &emails, &phones).and_then(|c| c.related[0].name.clone())
+            owner_card(&cards, &emails, &phones).and_then(|i| cards[i].related[0].name.clone())
         };
         assert_eq!(id(&["camille@example.org"], &[]), Some("me".into()));
         assert_eq!(id(&[], &["06 98 76 54 32"]), Some("c".into()));

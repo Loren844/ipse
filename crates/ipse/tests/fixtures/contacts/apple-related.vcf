@@ -3,6 +3,9 @@ VERSION:3.0
 N:Durand;Camille;;;
 FN:Camille Durand
 EMAIL;type=INTERNET;type=HOME;type=pref:camille.durand@example.org
+TEL;type=CELL;type=VOICE:+33 6 55 44 33 22
+NICKNAME:Cam
+BDAY:1992-05-17
 item1.X-ABRELATEDNAMES;type=pref:Maman
 item1.X-ABLabel:_$!<Mother>!$_
 item2.X-ABRELATEDNAMES:Léa

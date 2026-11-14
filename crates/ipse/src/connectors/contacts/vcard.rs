@@ -231,15 +231,19 @@ fn related(p: &Property) -> Option<Related> {
     Some(Related { name, uid, kind })
 }
 
-/// The kind an Apple label names: `_$!<Mother>!$_` is `mother`; a label the person
-/// typed is kept as written.
+/// The kind a label names. Apple and Google write their built-in kinds as
+/// `_$!<Mother>!$_`, which is `mother`; Google also writes some in capitals
+/// (`DOMESTIC_PARTNER`, which is `domestic partner`). A label the person typed is kept
+/// as written.
 fn label_kind(label: &str) -> Option<String> {
     let label = label.trim();
+    let constant = label.len() > 1 && label.bytes().all(|b| b.is_ascii_uppercase() || b == b'_');
     let kind = match label
         .strip_prefix("_$!<")
         .and_then(|l| l.strip_suffix(">!$_"))
     {
         Some(builtin) => builtin.trim().to_lowercase(),
+        None if constant => label.to_lowercase().replace('_', " "),
         None => label.to_owned(),
     };
     (!kind.is_empty()).then_some(kind)
@@ -341,6 +345,19 @@ mod tests {
                 related(Some("Paul Bernard"), None, Some("Parrain")),
             ]
         );
+    }
+
+    #[test]
+    fn labels_of_apple_and_google() {
+        assert_eq!(label_kind("_$!<Mother>!$_").as_deref(), Some("mother"));
+        assert_eq!(label_kind("RELATIVE").as_deref(), Some("relative"));
+        assert_eq!(
+            label_kind("DOMESTIC_PARTNER").as_deref(),
+            Some("domestic partner")
+        );
+        assert_eq!(label_kind("Parrain").as_deref(), Some("Parrain"));
+        assert_eq!(label_kind("Other").as_deref(), Some("Other"));
+        assert_eq!(label_kind("  "), None);
     }
 
     #[test]

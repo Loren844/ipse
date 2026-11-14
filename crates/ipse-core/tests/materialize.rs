@@ -79,6 +79,7 @@ fn each_contact_becomes_a_person_file() {
             conflicts: 0,
             deleted: 0,
             relations: 0,
+            owner: false,
         }
     );
 

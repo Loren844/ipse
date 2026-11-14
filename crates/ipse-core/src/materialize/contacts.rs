@@ -9,7 +9,9 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
-use super::relations::{OwnerCandidate, Related, add_owner_relations};
+use super::relations::{
+    OwnerCandidate, Related, add_owner_relations, name_key, owner_card, phone_key,
+};
 use super::{Ledger, Merge, Outcome, versions};
 use crate::Result;
 use crate::journal::Journal;
@@ -39,6 +41,8 @@ pub struct PeopleSummary {
     pub deleted: u64,
     /// Relations added to the owner's file from their own card.
     pub relations: u64,
+    /// The owner's own card completed the owner's file.
+    pub owner: bool,
 }
 
 /// Creates or updates one `people/` file per contact from `instance`'s records.
@@ -58,8 +62,9 @@ pub fn contacts_to_people(
     let existing = people_by_source(vault.root(), instance)?;
     let mut summary = PeopleSummary::default();
     let mut written = Vec::new();
-    let mut cards = Vec::with_capacity(items.len());
 
+    let mut cards = Vec::with_capacity(items.len());
+    let mut candidates = Vec::with_capacity(items.len());
     for (external_id, versions) in items {
         // A contact removed from the address book leaves its person file alone.
         let Some(data) = &versions.latest else {
@@ -69,15 +74,45 @@ pub fn contacts_to_people(
             summary.skipped += 1;
             continue;
         };
-        cards.push(OwnerCandidate {
+        candidates.push(OwnerCandidate {
             emails: card.emails.clone(),
             phones: card.phones.clone(),
             related: Related::list(data),
         });
-        let source = format!("{instance}:{external_id}");
-        if let Some(path) = existing.get(&source) {
+        cards.push((format!("{instance}:{external_id}"), versions, card));
+    }
+
+    // The owner's own card: the one already linked to their file, else the one card
+    // sharing an email or phone with it. It completes their file instead of making a
+    // second one, unless an earlier import already gave it its own file.
+    let owner_path = vault.owner_file().to_owned();
+    let owner_index = {
+        let owner = MemoryFile::read(&owner_path)?;
+        let sources = &owner.common().sources;
+        cards
+            .iter()
+            .position(|(source, _, _)| sources.contains(source))
+            .or_else(|| {
+                owner
+                    .entity()
+                    .and_then(|e| owner_card(&candidates, &e.emails, &e.phones))
+            })
+    };
+
+    for (i, (source, versions, card)) in cards.iter().enumerate() {
+        let own_file = existing.get(source);
+        if Some(i) == owner_index && own_file.is_none_or(|p| *p == owner_path) {
             let previous = versions.applied.as_ref().and_then(CardFields::from_data);
-            let outcome = update_person(path, &card, previous.as_ref(), vault)?;
+            if complete_owner(&owner_path, source, card, previous.as_ref(), vault)? {
+                change.touched(&owner_path);
+                written.push(owner_path.clone());
+                summary.owner = true;
+            }
+            continue;
+        }
+        if let Some(path) = own_file {
+            let previous = versions.applied.as_ref().and_then(CardFields::from_data);
+            let outcome = update_person(path, card, previous.as_ref(), vault)?;
             if outcome.written {
                 change.touched(path);
                 written.push(path.clone());
@@ -91,7 +126,7 @@ pub fn contacts_to_people(
         } else if versions.materialized {
             // The person deleted the file Ipse made: it stays deleted.
             summary.deleted += 1;
-        } else if let Some(path) = create_person(source, &card, vault)? {
+        } else if let Some(path) = create_person(source.clone(), card, vault)? {
             change.touched(&path);
             written.push(path.clone());
             summary.added += 1;
@@ -99,7 +134,9 @@ pub fn contacts_to_people(
     }
     // Made durable before the ledger says they are in the vault.
     sync_files(&written)?;
-    summary.relations = add_owner_relations(vault, instance, &cards, change)?;
+    if let Some(i) = owner_index {
+        summary.relations = add_owner_relations(vault, instance, &candidates[i].related, change)?;
+    }
     ledger.save(instance, last)?;
     Ok(summary)
 }
@@ -132,6 +169,80 @@ fn update_person(
         written: true,
         conflict,
     })
+}
+
+/// Completes the owner's file from their own card, and links it to the card. The file
+/// is the person's: Ipse only adds what the card brought since it last read it (emails,
+/// phones, the card's name and nicknames as other names, a birthday the file lacks),
+/// and never replaces or removes anything. Returns whether the file changed.
+fn complete_owner(
+    path: &Path,
+    source: &str,
+    card: &CardFields,
+    previous: Option<&CardFields>,
+    vault: &Vault,
+) -> Result<bool> {
+    let mut file = MemoryFile::read(path)?;
+    let Some(current) = file.entity().cloned() else {
+        return Ok(false);
+    };
+    let mut entity = current.clone();
+
+    let emails_before: Vec<String> = previous.map(|p| p.emails.clone()).unwrap_or_default();
+    for email in &card.emails {
+        let known = |e: &String| e.trim().eq_ignore_ascii_case(email.trim());
+        if !emails_before.iter().any(known) && !entity.emails.iter().any(known) {
+            entity.emails.push(email.clone());
+        }
+    }
+    let phones_before: Vec<String> = previous.map(|p| p.phones.clone()).unwrap_or_default();
+    for phone in &card.phones {
+        let key = phone_key(phone);
+        let known = |p: &String| match (&key, phone_key(p)) {
+            (Some(a), Some(b)) => *a == b,
+            _ => p.trim() == phone.trim(),
+        };
+        if !phones_before.iter().any(known) && !entity.phones.iter().any(known) {
+            entity.phones.push(phone.clone());
+        }
+    }
+    let names_before: Vec<String> = previous
+        .map(|p| {
+            std::iter::once(&p.name)
+                .chain(&p.nicknames)
+                .map(|n| name_key(n))
+                .collect()
+        })
+        .unwrap_or_default();
+    for name in std::iter::once(&card.name).chain(&card.nicknames) {
+        let key = name_key(name);
+        let known = entity
+            .name
+            .iter()
+            .chain(&entity.aliases)
+            .any(|n| name_key(n) == key);
+        if !known && !names_before.contains(&key) {
+            entity.aliases.push(name.clone());
+        }
+    }
+    let birthday_new = previous.is_none_or(|p| p.birthday != card.birthday);
+    if entity.birthday.is_none() && birthday_new {
+        entity.birthday = card.birthday;
+    }
+
+    let linked = file.common().sources.iter().any(|s| s == source);
+    if entity == current && linked {
+        return Ok(false);
+    }
+    if !linked {
+        file.common_mut().sources.push(source.to_owned());
+    }
+    if let Some(e) = file.entity_mut() {
+        *e = entity;
+    }
+    file.common_mut().updated = DateTime::now(vault.settings().time_zone());
+    file.write_unsynced()?;
+    Ok(true)
 }
 
 /// Writes a new person file for a card seen for the first time. Returns its path.
