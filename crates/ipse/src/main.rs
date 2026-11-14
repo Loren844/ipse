@@ -69,6 +69,9 @@ enum Command {
     },
     /// Serve the memory to an AI app over MCP; the AI app starts it with an access code
     Mcp {
+        /// Serve over HTTP on this computer instead, at this port (default: 7420)
+        #[arg(long, value_name = "PORT", num_args = 0..=1, default_missing_value = "7420")]
+        http: Option<String>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -164,7 +167,7 @@ fn main() -> ExitCode {
             ClientAction::List { vault } => cmd::client::list(vault),
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },
-        Command::Mcp { vault } => mcp::run(vault),
+        Command::Mcp { http, vault } => mcp::run(vault, http.as_deref()),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {

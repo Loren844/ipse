@@ -119,7 +119,23 @@ In Claude Desktop, open **Settings → Developer → Edit Config**. This opens `
 
 On Windows, write paths with double backslashes: `"C:\\Users\\you\\.cargo\\bin\\ipse.exe"` and `"C:\\Users\\you\\Ipse"`. If the file already lists other servers, add `"ipse": {…}` next to them.
 
-Quit Claude Desktop completely and open it again. Ipse appears among the connectors, with three tools: `about_me`, `search` and `get`.
+Quit Claude Desktop completely and open it again. Ipse appears among the connectors, with six tools: `about_me`, `search`, `get`, `events`, `now` and `states_history`.
+
+### An AI app that connects over HTTP
+
+Some AI apps connect to MCP servers by address rather than by starting a program. Start Ipse for them, and leave the terminal open:
+
+```sh
+ipse mcp --http --vault ~/Ipse
+```
+
+It serves `http://127.0.0.1:7420/mcp`, on this computer only (`--http 8123` for another port). In the AI app, add an MCP server of type "Streamable HTTP" (or just "HTTP") with that address and a header `Authorization` whose value is `Bearer ` followed by your code. For example, with Claude Code:
+
+```sh
+claude mcp add --transport http ipse http://127.0.0.1:7420/mcp --header "Authorization: Bearer ipse_paste_your_code_here"
+```
+
+A request without the code, or with a wrong one, is refused before anything is read.
 
 ## 6. Ask
 
