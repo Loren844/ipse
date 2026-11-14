@@ -41,6 +41,8 @@ jobs:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
       - run: cargo test --workspace
+      - name: Milestone 1 scenario time
+        run: cargo test -p ipse --test milestone1 -- --nocapture
 
   bench:
     name: Benchmarks compile

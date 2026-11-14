@@ -4,7 +4,7 @@
 
 Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, memories, habits, and the data already sitting in their services — into a local graph they can see, correct and control. Any AI, local or online, can then plug into it with the rights the person chooses, and act as a truly personal assistant without being told everything again.
 
-> **Status: early.** A first slice works from the command line: import your contacts, connect your AI app, and ask it who someone is. [Getting started](docs/guide/getting-started.md) shows how. The rest of the first milestone (calendar, the other MCP tools) is under way.
+> **Status: early.** The first milestone works from the command line: import your contacts and your calendar, connect your AI app, and ask it about the people you know and your week. [Getting started](docs/guide/getting-started.md) shows how. The app comes with the next milestones.
 
 ## What it will do
 
