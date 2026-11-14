@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
+use super::relations::{OwnerCandidate, Related, add_owner_relations};
 use super::{Ledger, Merge, Outcome, versions};
 use crate::Result;
 use crate::journal::Journal;
@@ -36,6 +37,8 @@ pub struct PeopleSummary {
     pub conflicts: u64,
     /// People files the person deleted, not created again.
     pub deleted: u64,
+    /// Relations added to the owner's file from their own card.
+    pub relations: u64,
 }
 
 /// Creates or updates one `people/` file per contact from `instance`'s records.
@@ -55,6 +58,7 @@ pub fn contacts_to_people(
     let existing = people_by_source(vault.root(), instance)?;
     let mut summary = PeopleSummary::default();
     let mut written = Vec::new();
+    let mut cards = Vec::with_capacity(items.len());
 
     for (external_id, versions) in items {
         // A contact removed from the address book leaves its person file alone.
@@ -65,6 +69,11 @@ pub fn contacts_to_people(
             summary.skipped += 1;
             continue;
         };
+        cards.push(OwnerCandidate {
+            emails: card.emails.clone(),
+            phones: card.phones.clone(),
+            related: Related::list(data),
+        });
         let source = format!("{instance}:{external_id}");
         if let Some(path) = existing.get(&source) {
             let previous = versions.applied.as_ref().and_then(CardFields::from_data);
@@ -90,6 +99,7 @@ pub fn contacts_to_people(
     }
     // Made durable before the ledger says they are in the vault.
     sync_files(&written)?;
+    summary.relations = add_owner_relations(vault, instance, &cards, change)?;
     ledger.save(instance, last)?;
     Ok(summary)
 }

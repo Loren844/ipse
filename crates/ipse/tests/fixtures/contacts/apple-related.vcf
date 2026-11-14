@@ -1,0 +1,42 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Durand;Camille;;;
+FN:Camille Durand
+EMAIL;type=INTERNET;type=HOME;type=pref:camille.durand@example.org
+item1.X-ABRELATEDNAMES;type=pref:Maman
+item1.X-ABLabel:_$!<Mother>!$_
+item2.X-ABRELATEDNAMES:Léa
+item2.X-ABLabel:_$!<Sister>!$_
+item3.X-ABRELATEDNAMES:Paul Bernard
+item3.X-ABLabel:Parrain
+item4.X-ABRELATEDNAMES:Personne Inconnue
+item4.X-ABLabel:_$!<Friend>!$_
+UID:6B29FC40-CA47-1067-B31D-00DD010662DA
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;Maman;;;
+FN:Maman
+TEL;type=CELL;type=VOICE;type=pref:06 11 22 33 44
+UID:0F3A9B7C-2D4E-4F60-8A1B-3C5D7E9F1A2B
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;Léa;;;
+FN:Léa
+EMAIL;type=INTERNET:lea.du.club@example.org
+UID:A1B2C3D4-0000-4000-8000-000000000001
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:;Léa;;;
+FN:Léa
+EMAIL;type=INTERNET:lea.voisine@example.org
+UID:A1B2C3D4-0000-4000-8000-000000000002
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Bernard;Paul;;;
+FN:Paul Bernard
+UID:A1B2C3D4-0000-4000-8000-000000000003
+END:VCARD

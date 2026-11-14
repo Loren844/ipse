@@ -289,8 +289,9 @@ The vault is a git repository, invisible to the person: no git word appears in t
     - A name the person gave to a contact is theirs: the address book's name (often a nickname such as "Maman") becomes one of the person's other names, so that it is still understood.
     - A guest first written as text, then linked once their contact is imported, is not a change by the person.
     - A file the person deleted is not created again.
+    - Relations taken from the owner's own contact card are added once: `.ipse/added-relations.toml` lists them, so that one the person removes is not added again (`docs/connectors/contacts.md`).
 - `ipse init` in a folder that already holds notes records them first, as the person's, then its own files as one change. A vault created before its history starts one, its files recorded as `ipse`.
-- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/materialized.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
+- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/materialized.toml`, `.ipse/added-relations.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
 - After each commit the git index is rewritten, so that a person who opens the folder with git sees a clean state.
 - "Undo" in the interface reverts one change by creating a new commit; history is never rewritten.
 

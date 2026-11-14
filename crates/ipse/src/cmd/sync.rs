@@ -8,7 +8,7 @@ use ipse_core::time::Timestamp;
 use ipse_core::vault::Vault;
 use ipse_core::{Error, Result};
 
-use super::import::{conflicts_line, deleted_line, events_line, summary_line};
+use super::import::{conflicts_line, deleted_line, events_line, relations_line, summary_line};
 use crate::keychain::Keychain;
 
 /// Syncs every subscription, or with `due` only those whose interval passed: the form
@@ -88,6 +88,9 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
         if s.conflicts > 0 {
             lines.push(conflicts_line(s.conflicts));
         }
+        if s.relations > 0 {
+            lines.push(relations_line(s.relations));
+        }
     }
     lines
 }
@@ -99,7 +102,7 @@ fn nothing_changed(synced: &Synced) -> bool {
             .is_none_or(|s| s.added + s.updated + s.cancelled + s.conflicts == 0)
         && synced
             .people
-            .is_none_or(|s| s.added + s.updated + s.conflicts == 0)
+            .is_none_or(|s| s.added + s.updated + s.conflicts + s.relations == 0)
 }
 
 fn stopped_line(reason: StopReason) -> String {

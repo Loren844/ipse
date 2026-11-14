@@ -189,6 +189,22 @@ fn data(card: &Card) -> Value {
             map.insert(key.into(), json!(values));
         }
     }
+    if !card.related.is_empty() {
+        let related: Vec<Value> = card
+            .related
+            .iter()
+            .map(|r| {
+                let mut entry = Map::new();
+                for (key, value) in [("name", &r.name), ("uid", &r.uid), ("kind", &r.kind)] {
+                    if let Some(value) = value {
+                        entry.insert(key.into(), json!(value));
+                    }
+                }
+                Value::Object(entry)
+            })
+            .collect();
+        map.insert("related".into(), Value::Array(related));
+    }
     Value::Object(map)
 }
 
@@ -219,6 +235,30 @@ mod tests {
         assert_eq!(
             data(&card),
             json!({"full_name": "Ana Silva", "emails": ["ana@example.org"]})
+        );
+    }
+
+    #[test]
+    fn related_people_in_data() {
+        let card = Card {
+            full_name: "Camille Durand".into(),
+            related: vec![
+                vcard::Related {
+                    name: Some("Marie Dupont".into()),
+                    uid: None,
+                    kind: Some("mother".into()),
+                },
+                vcard::Related {
+                    name: None,
+                    uid: Some("urn:uuid:7d1e".into()),
+                    kind: None,
+                },
+            ],
+            ..Card::default()
+        };
+        assert_eq!(
+            data(&card)["related"],
+            json!([{"name": "Marie Dupont", "kind": "mother"}, {"uid": "urn:uuid:7d1e"}])
         );
     }
 

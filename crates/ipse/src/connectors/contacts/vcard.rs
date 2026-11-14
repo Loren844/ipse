@@ -23,6 +23,19 @@ pub(crate) struct Card {
     pub(crate) birthday: Option<String>,
     pub(crate) organization: Option<String>,
     pub(crate) note: Option<String>,
+    /// People the card names as related: "mother: Marie Dupont".
+    pub(crate) related: Vec<Related>,
+}
+
+/// Someone a card names as related, by name or by the `UID` of another card.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct Related {
+    pub(crate) name: Option<String>,
+    /// A `urn:uuid:` pointing to another card.
+    pub(crate) uid: Option<String>,
+    /// A plain English word for the vCard and Apple kinds (`mother`, `colleague`), or
+    /// the label the person typed.
+    pub(crate) kind: Option<String>,
 }
 
 /// Why a card was not returned.
@@ -95,6 +108,9 @@ impl<R: BufRead> Iterator for Cards<R> {
 #[derive(Default)]
 struct Builder {
     card: Card,
+    /// Apple's related names, by group: their kind is the `X-ABLABEL` of the same group.
+    grouped: Vec<(String, Related)>,
+    labels: Vec<(String, String)>,
 }
 
 impl Builder {
@@ -138,6 +154,24 @@ impl Builder {
                 }
             }
             "NOTE" => card.note = text(p.value),
+            "RELATED" => card.related.extend(related(p)),
+            "X-ABRELATEDNAMES" => {
+                if let Some(name) = text(p.value) {
+                    let related = Related {
+                        name: Some(name),
+                        ..Related::default()
+                    };
+                    match p.group {
+                        Some(group) => self.grouped.push((group.to_ascii_lowercase(), related)),
+                        None => card.related.push(related),
+                    }
+                }
+            }
+            "X-ABLABEL" => {
+                if let (Some(group), Some(label)) = (p.group, text(p.value)) {
+                    self.labels.push((group.to_ascii_lowercase(), label));
+                }
+            }
             _ => {}
         }
     }
@@ -145,6 +179,14 @@ impl Builder {
     /// The card, unless it has no name at all.
     fn build(self) -> Option<Card> {
         let mut card = self.card;
+        for (group, mut related) in self.grouped {
+            related.kind = self
+                .labels
+                .iter()
+                .find(|(g, _)| *g == group)
+                .and_then(|(_, label)| label_kind(label));
+            card.related.push(related);
+        }
         if card.full_name.is_empty() {
             let parts: Vec<&str> = [&card.given_name, &card.family_name]
                 .into_iter()
@@ -155,6 +197,52 @@ impl Builder {
         }
         (!card.full_name.is_empty()).then_some(card)
     }
+}
+
+/// A vCard 4 `RELATED`: text with `VALUE=text`, or the `urn:uuid:` of another card.
+/// Other links (web pages, emails) and `TYPE=me` are left out.
+fn related(p: &Property) -> Option<Related> {
+    let kind = p
+        .param("TYPE")
+        .and_then(|types| types.split(',').map(str::trim).find(|t| !t.is_empty()))
+        .map(|t| match t.to_ascii_lowercase().as_str() {
+            "co-worker" => "colleague".to_owned(),
+            other => other.to_owned(),
+        });
+    if kind.as_deref() == Some("me") {
+        return None;
+    }
+    let value = text(p.value)?;
+    let is_text = p
+        .param("VALUE")
+        .is_some_and(|v| v.eq_ignore_ascii_case("text"));
+    let is_uuid = value
+        .get(..9)
+        .is_some_and(|scheme| scheme.eq_ignore_ascii_case("urn:uuid:"));
+    let (name, uid) = if is_text {
+        (Some(value), None)
+    } else if is_uuid {
+        (None, Some(value))
+    } else if value.contains(':') {
+        return None;
+    } else {
+        (Some(value), None)
+    };
+    Some(Related { name, uid, kind })
+}
+
+/// The kind an Apple label names: `_$!<Mother>!$_` is `mother`; a label the person
+/// typed is kept as written.
+fn label_kind(label: &str) -> Option<String> {
+    let label = label.trim();
+    let kind = match label
+        .strip_prefix("_$!<")
+        .and_then(|l| l.strip_suffix(">!$_"))
+    {
+        Some(builtin) => builtin.trim().to_lowercase(),
+        None => label.to_owned(),
+    };
+    (!kind.is_empty()).then_some(kind)
 }
 
 /// `1965-03-12`, `19650312`, `--03-12`, `--0312`, with or without a time, as
@@ -227,6 +315,54 @@ mod tests {
         assert_eq!(card.phones, ["+33698765432"]);
         assert_eq!(card.birthday.as_deref(), Some("--03-15"));
         assert_eq!(card.emails, ["marc@example.org"], "groups are ignored");
+    }
+
+    fn related(name: Option<&str>, uid: Option<&str>, kind: Option<&str>) -> Related {
+        Related {
+            name: name.map(Into::into),
+            uid: uid.map(Into::into),
+            kind: kind.map(Into::into),
+        }
+    }
+
+    #[test]
+    fn apple_related_names_take_the_label_of_their_group() {
+        let text = "BEGIN:VCARD\nVERSION:3.0\nFN:Camille Durand\n\
+                    item2.X-ABLabel:_$!<Mother>!$_\nitem1.X-ABRELATEDNAMES:Léa Martin\n\
+                    item1.X-ABLabel:_$!<Sister>!$_\nitem2.X-ABRELATEDNAMES:Marie Dupont\n\
+                    item3.X-ABRELATEDNAMES:Paul Bernard\nitem3.X-ABLabel:Parrain\n\
+                    X-ABRELATEDNAMES:Sans Étiquette\nEND:VCARD\n";
+        assert_eq!(
+            ok(text)[0].related,
+            [
+                related(Some("Sans Étiquette"), None, None),
+                related(Some("Léa Martin"), None, Some("sister")),
+                related(Some("Marie Dupont"), None, Some("mother")),
+                related(Some("Paul Bernard"), None, Some("Parrain")),
+            ]
+        );
+    }
+
+    #[test]
+    fn vcard_4_related() {
+        let text = "BEGIN:VCARD\nVERSION:4.0\nFN:Camille Durand\n\
+                    RELATED;TYPE=parent:urn:uuid:7d1e2f30-4a5b-4c6d-8e9f-0a1b2c3d4e5f\n\
+                    RELATED;VALUE=text;TYPE=\"co-worker,friend\":Marc Leroy\n\
+                    RELATED;TYPE=friend:https://example.org/ana\n\
+                    RELATED;TYPE=me:urn:uuid:0000\nRELATED:Ana Silva\nEND:VCARD\n";
+        assert_eq!(
+            ok(text)[0].related,
+            [
+                related(
+                    None,
+                    Some("urn:uuid:7d1e2f30-4a5b-4c6d-8e9f-0a1b2c3d4e5f"),
+                    Some("parent")
+                ),
+                related(Some("Marc Leroy"), None, Some("colleague")),
+                related(Some("Ana Silva"), None, None),
+            ],
+            "web links and the card's own `me` are left out"
+        );
     }
 
     #[test]
