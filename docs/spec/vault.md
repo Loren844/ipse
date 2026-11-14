@@ -132,6 +132,7 @@ A fact is one bullet line in the `Facts` section:
 - A fact is one sentence of free text, written for a human.
 - The trailing `^f-xxxx` is an Obsidian block identifier. Ipse adds one to every fact it indexes that has none, so that proposals, history and AIs can point at a single fact. It is 4 characters of lowercase Crockford base 32 after `f-`, unique within the file.
 - A fact the person typed without an identifier is valid; Ipse adds the identifier on its next write to that file, at the end of the fact's last line, without changing the text or any other byte.
+- **The identifier is for Ipse, not for the person.** The interface never shows it: it displays and edits the fact's text alone and keeps the identifier attached to the fact. AIs receive facts without it. Obsidian already hides `^…` block identifiers when reading.
 - An identifier used by two facts of a file is reported by `ipse check`, which says which file to fix; Ipse never renumbers a fact on its own.
 - Provenance of each fact is kept in history (section 9), not on the line, so lines stay readable.
 
