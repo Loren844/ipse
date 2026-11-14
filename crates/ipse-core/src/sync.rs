@@ -12,6 +12,7 @@ use crate::connector::{
 };
 use crate::journal::Journal;
 use crate::materialize::{EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people};
+use crate::tasks::Tasks;
 use crate::vault::{Source, Vault};
 
 /// What the core needs to know about a built-in connector that syncs.
@@ -51,6 +52,8 @@ pub struct Synced {
     pub events: Option<EventsSummary>,
     /// What changed in the people, for contacts.
     pub people: Option<PeopleSummary>,
+    /// Tasks made for the person's AI from what the sync brought.
+    pub tasks: usize,
 }
 
 impl Synced {
@@ -146,7 +149,9 @@ pub fn sync_instance(
             )?),
         ),
     };
+    let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
+    let tasks = Tasks::new(vault).extract_from(&touched)?;
 
     let synced = Synced {
         outcome: report.outcome,
@@ -154,6 +159,7 @@ pub fn sync_instance(
         progress: report.progress,
         events,
         people,
+        tasks,
     };
     SyncState::load(root)?.record(&instance.id, options.now, synced.succeeded())?;
     Ok(synced)

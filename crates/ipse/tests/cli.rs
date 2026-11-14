@@ -34,6 +34,7 @@ fn help_lists_the_commands() {
         "sync",
         "check",
         "proposals",
+        "tasks",
         "client",
         "mcp",
     ] {
@@ -454,7 +455,7 @@ fn review_a_proposal_from_the_command_line() {
 
     let listed = ok(&["proposals", "list", "--vault", vault_arg]);
     assert!(
-        listed.starts_with("01jd3k9m  waiting   client:claude  Dit dans la conversation."),
+        listed.starts_with("01jd3k9m2p4q6r  waiting   client:claude  Dit dans la conversation."),
         "{listed}"
     );
     let shown = ok(&["proposals", "show", "01jd3k8m", "--vault", vault_arg]);
@@ -509,4 +510,58 @@ fn review_a_proposal_from_the_command_line() {
         String::from_utf8_lossy(&out.stderr).trim(),
         "This proposal is already refused."
     );
+}
+
+#[test]
+fn notes_from_an_import_become_a_task_for_the_ai() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    let ok = |args: &[&str]| {
+        let out = ipse(args);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8(out.stdout).unwrap()
+    };
+    ok(&[
+        "init",
+        vault_arg,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    let contacts = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/contacts/google-v3.vcf");
+    let contacts = contacts.to_str().unwrap();
+    let printed = ok(&["import", contacts, "--vault", vault_arg]);
+    assert!(
+        printed.contains("1 task for your AI: notes to turn into facts (`ipse tasks list`)."),
+        "{printed}"
+    );
+    let printed = ok(&["import", contacts, "--vault", vault_arg]);
+    assert!(
+        !printed.contains("task"),
+        "same notes, no new task: {printed}"
+    );
+
+    let listed = ok(&["tasks", "list", "--vault", vault_arg]);
+    assert_eq!(listed.lines().count(), 1, "{listed}");
+    assert!(
+        listed.contains("  extract   open      Read the notes of"),
+        "{listed}"
+    );
+    let id = listed.split_whitespace().next().unwrap();
+    let shown = ok(&["tasks", "show", id, "--vault", vault_arg]);
+    assert!(
+        shown.contains("Élodie Martin (people/elodie-martin.md, people)"),
+        "{shown}"
+    );
+    assert!(shown.contains("club d'escalade"), "{shown}");
+    assert!(shown.contains("Example of a good proposal:"), "{shown}");
 }

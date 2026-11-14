@@ -133,9 +133,10 @@ fn line(item: &DiffItem) -> String {
     }
 }
 
-/// The first 8 characters of an id: enough to name a proposal.
-fn short(id: &str) -> &str {
-    id.get(..8).unwrap_or(id)
+/// The first 14 characters of an id: its time and enough randomness to name it, even
+/// among proposals made in the same second.
+pub(crate) fn short(id: &str) -> &str {
+    id.get(..14).unwrap_or(id)
 }
 
 fn first_line(text: &str) -> String {

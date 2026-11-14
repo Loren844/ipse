@@ -9,7 +9,7 @@ use ipse_core::vault::Vault;
 use ipse_core::{Error, Result};
 
 use super::import::{
-    OWNER_LINE, conflicts_line, deleted_line, events_line, relations_line, summary_line,
+    OWNER_LINE, conflicts_line, deleted_line, events_line, relations_line, summary_line, tasks_line,
 };
 use crate::keychain::Keychain;
 
@@ -97,11 +97,15 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
             lines.push(relations_line(s.relations));
         }
     }
+    if synced.tasks > 0 {
+        lines.push(tasks_line(synced.tasks));
+    }
     lines
 }
 
 fn nothing_changed(synced: &Synced) -> bool {
     synced.progress.is_empty()
+        && synced.tasks == 0
         && synced
             .events
             .is_none_or(|s| s.added + s.updated + s.cancelled + s.conflicts == 0)
