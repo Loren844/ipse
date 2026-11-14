@@ -51,6 +51,7 @@ Every vault file has one `category` (vault spec, section 2.2). Format version 1 
   ```
 
   - `sensitive` left out counts as `true`: a category nobody said was safe to share stays closed.
+  - **The interface must say it plainly.** Next to every sensitive category, and above all one the person declared without saying `sensitive`, it shows that no AI can see it until the person opens it to one, and to which AIs it is open. The person must never believe an AI reads a category it cannot, nor the reverse.
   - The name is lowercase letters, digits and dashes. One of the names above declared again keeps its meaning here.
   - A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it. Until the interface asks, the person adds it to that AI's `read` list in `.ipse/clients.toml`. AIs connected afterwards get it, as every non-sensitive category.
 - A category used in a file but declared nowhere is treated as `private`.
