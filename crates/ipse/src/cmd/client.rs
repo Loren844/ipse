@@ -8,21 +8,44 @@ use ipse_core::{Error, Result};
 
 /// Connects a new AI and shows its access code, once. `local`: the person says it
 /// runs entirely on this computer.
-pub(crate) fn add(name: &str, local: bool, vault: Option<PathBuf>) -> Result<()> {
+pub(crate) fn add(
+    name: &str,
+    local: bool,
+    propose: &[String],
+    vault: Option<PathBuf>,
+) -> Result<()> {
     let vault = open(vault)?;
     let categories = Categories::of(vault.settings());
     let mut clients = Clients::load(vault.root())?;
-    let (client, token) = clients.add(
+    // Checked before the AI is added, so that a mistake adds nothing.
+    if let Some(name) = propose
+        .iter()
+        .find(|c| !categories.default_read().contains(c))
+    {
+        return Err(Error::Refused(format!(
+            "An AI can only propose changes in a category it reads, and a new AI reads no sensitive or unknown category: `{name}` cannot be given here. Use `ipse client set` after."
+        )));
+    }
+    let (mut client, token) = clients.add(
         name,
         DateTime::now(vault.settings().time_zone()),
         &categories,
         local,
     )?;
+    if !propose.is_empty() {
+        client = clients.set_rights(&client.id, None, Some(propose.to_vec()), &categories)?;
+    }
     println!(
         "{} can now read your memory: {}.",
         client.name,
         client.read.join(", ")
     );
+    if !client.propose.is_empty() {
+        println!(
+            "It can propose changes in: {}. Nothing is written until you accept them (`ipse proposals list`).",
+            client.propose.join(", ")
+        );
+    }
     println!(
         "Sensitive categories stay closed: {}.",
         categories.sensitive().join(", ")
@@ -62,7 +85,53 @@ pub(crate) fn list(vault: Option<PathBuf>) -> Result<()> {
             client.created,
             client.read.join(", ")
         );
+        if !client.propose.is_empty() {
+            println!("  proposes in {}", client.propose.join(", "));
+        }
     }
+    Ok(())
+}
+
+/// Changes what an AI may read and propose on.
+pub(crate) fn set(
+    id: &str,
+    read: Option<Vec<String>>,
+    propose: Option<Vec<String>>,
+    vault: Option<PathBuf>,
+) -> Result<()> {
+    if read.is_none() && propose.is_none() {
+        return Err(Error::Refused(
+            "Say what to change: --read people,agenda or --propose people (empty to remove all)."
+                .to_owned(),
+        ));
+    }
+    let vault = open(vault)?;
+    let categories = Categories::of(vault.settings());
+    let mut clients = Clients::load(vault.root())?;
+    let client = clients.set_rights(id, read, propose, &categories)?;
+    println!(
+        "{} reads {}.",
+        client.name,
+        if client.read.is_empty() {
+            "nothing".to_owned()
+        } else {
+            client.read.join(", ")
+        }
+    );
+    if client.propose.is_empty() {
+        println!("It cannot propose changes.");
+    } else {
+        println!("It proposes changes in {}.", client.propose.join(", "));
+    }
+    let sensitive: Vec<&str> = categories
+        .sensitive()
+        .into_iter()
+        .filter(|c| client.read.iter().any(|r| r == c))
+        .collect();
+    if !sensitive.is_empty() {
+        println!("Sensitive categories open to it: {}.", sensitive.join(", "));
+    }
+    println!("This applies from its next request.");
     Ok(())
 }
 

@@ -218,7 +218,7 @@ fn names(results: &Value, key: &str) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn the_six_tools_explain_themselves() {
+async fn the_tools_explain_themselves() {
     let f = fixture();
     let ai = connect(&f.root, Some(&f.allowed)).await;
     let info = ai.peer_info().unwrap();
@@ -235,8 +235,12 @@ async fn the_six_tools_explain_themselves() {
             "events",
             "get",
             "now",
+            "proposal",
+            "propose",
             "search",
-            "states_history"
+            "states_history",
+            "task",
+            "tasks"
         ]
     );
     for tool in &tools {
@@ -572,7 +576,7 @@ fn over_http_each_tool_with_an_allowed_and_a_denied_category() {
         .as_array()
         .unwrap()
         .len();
-    assert_eq!(tools, 6);
+    assert_eq!(tools, 10);
 
     let today = jiff::Timestamp::now()
         .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
@@ -762,4 +766,112 @@ async fn every_call_is_in_the_access_log_without_what_was_asked() {
     for leak in ["marie", "Marie", "Voisine", &f.marie] {
         assert!(!text.contains(leak), "{leak} in the access log");
     }
+}
+
+#[tokio::test]
+async fn an_ai_tidies_up_through_tasks_and_proposals() {
+    let f = fixture();
+    // Notes to read, and the right to propose in `people` for Claude only.
+    let notes = f.root.join("people/zoe-martin.md");
+    std::fs::write(
+        &notes,
+        "---\nid: 01jcx8m2p4q6r8t0v2w4y6z8a7\ntype: person\ncategory: people\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\nname: Zoé Martin\n---\n\n## Notes\n\nInfirmière à Lyon, sœur de Paul.\n",
+    )
+    .unwrap();
+    let vault = Vault::open(&f.root).unwrap();
+    ipse_core::tasks::Tasks::new(&vault)
+        .extract_from(std::slice::from_ref(&notes))
+        .unwrap();
+    let mut clients = Clients::load(&f.root).unwrap();
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["people".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    let tasks = read(&ai, "tasks", json!({})).await;
+    assert_eq!(tasks["tasks"].as_array().unwrap().len(), 1, "{tasks}");
+    assert_eq!(tasks["tasks"][0]["kind"], "extract");
+    let id = tasks["tasks"][0]["id"].as_str().unwrap().to_owned();
+
+    let task = read(&ai, "task", json!({ "id": id })).await;
+    assert_eq!(task["task"]["items"][0]["file"], "people/zoe-martin.md");
+    assert_eq!(
+        task["task"]["items"][0]["text"],
+        "Infirmière à Lyon, sœur de Paul."
+    );
+    assert_eq!(task["task"]["example"]["task"], id.as_str());
+
+    let message = refused(
+        &ai,
+        "propose",
+        json!({ "task": id, "reason": "Lu.", "changes": [{"kind": "add_facts"}] }),
+    )
+    .await;
+    assert!(
+        message.starts_with("Change 1 is not a change Ipse knows"),
+        "{message}"
+    );
+    let proposed = read(
+        &ai,
+        "propose",
+        json!({
+            "task": id,
+            "reason": "Lu dans les notes de Zoé.",
+            "changes": [
+                {"kind": "add_fact", "file": "people/zoe-martin.md", "text": "Infirmière à Lyon."},
+                {"kind": "add_relation", "file": "people/zoe-martin.md", "word": "sœur", "target": "paul-durand"}
+            ]
+        }),
+    )
+    .await;
+    assert_eq!(proposed["status"], "waiting");
+    let proposal = proposed["proposal"].as_str().unwrap().to_owned();
+    let status = read(&ai, "proposal", json!({ "id": proposal })).await;
+    assert_eq!(status["proposal"]["status"], "waiting");
+    assert!(
+        !std::fs::read_to_string(&notes)
+            .unwrap()
+            .contains("## Faits"),
+        "nothing written before the person accepts"
+    );
+    ai.cancel().await.unwrap();
+
+    // The AI that may not propose sees no task and can submit nothing.
+    let other = connect(&f.root, Some(&f.denied)).await;
+    assert_eq!(
+        read(&other, "tasks", json!({})).await,
+        json!({ "tasks": [], "more": false })
+    );
+    assert_eq!(
+        refused(&other, "task", json!({ "id": id })).await,
+        format!("There is no task {id}.")
+    );
+    assert_eq!(
+        refused(&other, "proposal", json!({ "id": proposal })).await,
+        format!("There is no proposal {proposal}.")
+    );
+    assert_eq!(
+        refused(
+            &other,
+            "propose",
+            json!({ "reason": "x", "changes": [{"kind": "add_fact", "file": "people/zoe-martin.md", "text": "x"}] })
+        )
+        .await,
+        "There is no file people/zoe-martin.md."
+    );
+    other.cancel().await.unwrap();
+
+    // Without a code, nothing is read.
+    let nobody = connect(&f.root, None).await;
+    assert!(
+        refused(&nobody, "tasks", json!({}))
+            .await
+            .contains("No access code")
+    );
+    nobody.cancel().await.unwrap();
 }

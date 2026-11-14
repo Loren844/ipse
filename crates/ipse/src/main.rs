@@ -210,12 +210,29 @@ enum ClientAction {
         /// This AI runs entirely on this computer (a local model): recorded and shown
         #[arg(long)]
         local: bool,
+        /// Categories where it may propose changes, like people,agenda (none by default)
+        #[arg(long, value_delimiter = ',')]
+        propose: Vec<String>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
     },
     /// List the connected AIs
     List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Change what an AI may read and propose changes in
+    Set {
+        /// The AI's id, as `ipse client list` shows it
+        id: String,
+        /// Every category it may read, like identity,people,agenda (replaces the list)
+        #[arg(long, value_delimiter = ',', num_args = 0..=1, default_missing_value = "")]
+        read: Option<Vec<String>>,
+        /// Every category where it may propose changes (replaces the list; empty for none)
+        #[arg(long, value_delimiter = ',', num_args = 0..=1, default_missing_value = "")]
+        propose: Option<Vec<String>>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -265,7 +282,18 @@ fn main() -> ExitCode {
             TasksAction::Show { id, vault } => cmd::tasks::show(&id, vault),
         },
         Command::Client { action } => match action {
-            ClientAction::Add { name, local, vault } => cmd::client::add(&name, local, vault),
+            ClientAction::Add {
+                name,
+                local,
+                propose,
+                vault,
+            } => cmd::client::add(&name, local, &propose, vault),
+            ClientAction::Set {
+                id,
+                read,
+                propose,
+                vault,
+            } => cmd::client::set(&id, read, propose, vault),
             ClientAction::List { vault } => cmd::client::list(vault),
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },

@@ -42,10 +42,10 @@ pub const FULL_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs
 /// What an AI can ask for, opened on one vault.
 #[derive(Debug)]
 pub struct Gateway {
-    vault: Vault,
+    pub(super) vault: Vault,
     index: SearchIndex,
     clients: Clients,
-    categories: Categories,
+    pub(super) categories: Categories,
     log: AccessLog,
     /// When every file was last checked for edits.
     checked: std::time::Instant,
@@ -142,8 +142,8 @@ impl Gateway {
 /// of what it returned, for the access log ([`Access::log`]).
 #[derive(Debug)]
 pub struct Access<'g> {
-    gateway: &'g Gateway,
-    client: &'g Client,
+    pub(super) gateway: &'g Gateway,
+    pub(super) client: &'g Client,
     read: RefCell<BTreeSet<String>>,
 }
 
@@ -298,12 +298,12 @@ impl<'g> Access<'g> {
     }
 
     /// True when this AI may read `category`.
-    fn reads(&self, category: &str) -> bool {
+    pub(super) fn reads(&self, category: &str) -> bool {
         self.client.reads(category, &self.gateway.categories)
     }
 
     /// Remembers that something of `category` was returned.
-    fn returned(&self, category: &str) {
+    pub(super) fn returned(&self, category: &str) {
         let category = self.gateway.categories.effective(category);
         let mut read = self.read.borrow_mut();
         if !read.contains(category) {

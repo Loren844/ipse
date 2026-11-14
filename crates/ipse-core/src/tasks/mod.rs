@@ -98,10 +98,12 @@ pub enum TaskStatus {
         /// That proposal.
         proposal: String,
     },
-    /// The person accepted a proposal answering it.
+    /// The person accepted a proposal answering it, or the AI found nothing worth
+    /// keeping.
     Done {
-        /// That proposal.
-        proposal: String,
+        /// The accepted proposal; `None` when there was nothing to propose.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        proposal: Option<String>,
     },
 }
 
@@ -293,8 +295,21 @@ impl<'v> Tasks<'v> {
     pub(crate) fn done(&self, id: &str, proposal: &str) -> Result<()> {
         self.update(id, |task| {
             task.status = TaskStatus::Done {
-                proposal: proposal.to_owned(),
+                proposal: Some(proposal.to_owned()),
             };
+            task.comment = None;
+        })
+    }
+
+    /// Closes the open task `id` without a proposal: the AI found nothing worth keeping.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when there is no such task or it is not open.
+    pub fn dismiss(&self, id: &str) -> Result<()> {
+        let id = self.check_open(id)?;
+        self.update(&id, |task| {
+            task.status = TaskStatus::Done { proposal: None };
             task.comment = None;
         })
     }

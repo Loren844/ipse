@@ -565,3 +565,99 @@ fn notes_from_an_import_become_a_task_for_the_ai() {
     assert!(shown.contains("club d'escalade"), "{shown}");
     assert!(shown.contains("Example of a good proposal:"), "{shown}");
 }
+
+#[test]
+fn an_ai_is_allowed_to_propose_only_when_asked() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    let run = |args: &[&str]| {
+        let out = ipse(args);
+        (
+            out.status.success(),
+            String::from_utf8(out.stdout).unwrap(),
+            String::from_utf8(out.stderr).unwrap(),
+        )
+    };
+    run(&[
+        "init",
+        vault_arg,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    let (ok, said, _) = run(&[
+        "client",
+        "add",
+        "Claude",
+        "--propose",
+        "people,agenda",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(ok);
+    assert!(
+        said.contains("It can propose changes in: people, agenda."),
+        "{said}"
+    );
+    let (ok, said, _) = run(&["client", "add", "Autre", "--vault", vault_arg]);
+    assert!(ok && !said.contains("propose"), "{said}");
+    let (ok, _, error) = run(&[
+        "client",
+        "add",
+        "Trop",
+        "--propose",
+        "health",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(
+        !ok && error.contains("`health` cannot be given here"),
+        "{error}"
+    );
+    let clients = std::fs::read_to_string(vault.join(".ipse/clients.toml")).unwrap();
+    assert!(
+        clients.contains("propose = [\"people\", \"agenda\"]"),
+        "{clients}"
+    );
+    assert!(!clients.contains("Trop"), "nothing added on a mistake");
+
+    let (ok, said, _) = run(&[
+        "client",
+        "set",
+        "autre",
+        "--read",
+        "people,health",
+        "--propose",
+        "health",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(ok, "{said}");
+    assert!(said.contains("Autre reads people, health."), "{said}");
+    assert!(said.contains("It proposes changes in health."), "{said}");
+    assert!(
+        said.contains("Sensitive categories open to it: health."),
+        "{said}"
+    );
+    let (ok, said, _) = run(&["client", "set", "autre", "--propose", "--vault", vault_arg]);
+    assert!(ok && said.contains("It cannot propose changes."), "{said}");
+    let (ok, _, error) = run(&[
+        "client",
+        "set",
+        "autre",
+        "--propose",
+        "agenda",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(
+        !ok && error.contains("give `agenda` to read too"),
+        "{error}"
+    );
+    let listed = run(&["client", "list", "--vault", vault_arg]).1;
+    assert!(listed.contains("  proposes in people, agenda"), "{listed}");
+}

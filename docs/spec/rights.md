@@ -67,7 +67,7 @@ name = "Claude (ordinateur)"
 created = 2026-11-12T20:40:00+01:00
 token_hash = "b3:4e1a…"        # BLAKE3 of the token; the token itself is never stored
 read = ["identity", "people", "agenda", "places", "media", "work", "things", "summaries"]
-propose = []                    # categories where it may submit proposals (milestone 2)
+propose = []                    # categories where it may submit proposals
 local = false                   # the person said this AI runs entirely on this computer
 ```
 
@@ -77,7 +77,7 @@ local = false                   # the person said this AI runs entirely on this 
 - When connecting an AI, Ipse asks whether it **runs entirely on this computer**. If the person answers yes, the connection screen also offers to open every category at once, still as an explicit choice. Ipse cannot verify the answer; it records it as `local = true` and shows it next to the client.
 - Access levels per category:
     - `read`: the client can read the category.
-    - `propose` (milestone 2): the client can submit proposals touching that category; the person accepts or refuses them in the review inbox.
+    - `propose`: the client can submit proposals touching that category, and see the tasks of that category; the person accepts or refuses them in the review inbox. A client proposes only in categories it also reads. Nothing can propose by default: `ipse client add --propose people,agenda` or `ipse client set <id> --propose …` opens it.
     - Writing without review is out of scope until decision 0005 is revisited at milestone 4.
 
 ## 3. Transport
@@ -131,9 +131,9 @@ Every tool answers in JSON, both as text and as structured content:
 - Nothing found and hidden look the same: an empty list, or `null`.
 - A refused call (no code, a wrong code, missing arguments) is a tool error with a plain message saying what to do, never a protocol error, so that the AI can tell the person.
 
-### 4.2 Processing tools (milestone 2)
+### 4.2 Processing tools
 
-Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right on the categories involved; tasks touching other categories are invisible to that client.
+Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right (and `read`) on the categories involved: a task touching another category is invisible to that client, and a change to a file of another category is refused in the same words as a change to a file that does not exist ("There is no file …"). A client sees only the proposals it made.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |
@@ -143,6 +143,8 @@ Decision 0010: the person's own AI does the work that needs a language model. Th
 | `proposal` | `id` | Status of a proposal: waiting, accepted, refused (with the person's comment if any). |
 
 - A task is `proposed` while a proposal answering it waits, and `done` once the person accepts it; a refused proposal opens the task again with the person's comment, so the AI can try again (`vault.md`, section 13).
+- `propose` with a `task` and no `changes` says the task holds nothing worth keeping: the task is closed, and nothing is written.
+- `propose` checks every change before storing it (`vault.md`, section 12), with at most 100 changes, a reason under 1 000 characters and 256 KB in all; a refusal says in plain words what to fix.
 - When the client supports MCP sampling and the person enabled it for that client, Ipse may send `summary` tasks to the client's model directly.
 - Every tool here has an `ipse` command doing the same thing (`ipse tasks`, `ipse propose`…), so that an agent or a script on the same computer can run them on a schedule.
 
@@ -156,10 +158,12 @@ Every request is logged in `.ipse/access/<YYYY-MM>.jsonl`, one line per call:
 
 - The log records **which categories were read and how many results**, never the arguments' text or the content returned.
 - The interface turns it into plain words: "Claude a consulté votre agenda 12 fois aujourd'hui."
+- For the processing tools, `categories` are those of the tasks listed or opened, or of the files a proposal touches, and `results` how many tasks, items or changes; a refused call is logged with `results: 0`.
 - `categories` are those of what the call returned (unknown categories counted as `private`); `results` is how many items the answer lists (1 for `about_me` with something to show). A refused code is not logged: it names no client.
 - The access log is kept 12 months, then deleted: when a new month starts, months 12 or more months old are removed.
 
 ## 6. What is checked where
 
 - Category filtering happens in the **query layer of the core**, the same code every tool and every future interface goes through. A tool cannot return data without passing through it.
+- For the processing tools, tests **must** also cover: a client without `propose` sees no task and can submit nothing; a task or file of a category it may not propose in reads as one that does not exist; another client's proposal reads as one that does not exist.
 - Tests for each tool **must** cover: a denied category returns nothing; a fact or relation linking to a denied file is left out; an unknown category is treated as `private`; a missing or wrong token is refused before any read.

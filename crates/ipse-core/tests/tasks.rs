@@ -134,7 +134,7 @@ fn a_task_follows_its_proposals() {
     assert_eq!(
         status().status,
         TaskStatus::Done {
-            proposal: second.id.clone()
+            proposal: Some(second.id.clone())
         }
     );
     assert_eq!(status().comment, None);
