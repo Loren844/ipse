@@ -40,13 +40,14 @@ Settled on 2026-11-12. These choices are hard to undo after 1.0.
 ├── journal/                raw journal — specified in journal.md, not part of this document
 └── .ipse/                  Ipse's own data — never memory
     ├── vault.toml          vault settings (format version, language, freshness windows)
-    ├── index/              derived index: may be deleted, Ipse rebuilds it
+    ├── index/              derived index: may be deleted, Ipse rebuilds it (search.bin: the search index)
     └── proposals/          AI proposals waiting for review
 ```
 
 - Folder names are fixed and in English in every language, so that tools and documentation stay the same everywhere.
 - Ipse **must not** fail on files or folders it does not know. A person may keep their own notes in the vault; Ipse leaves them alone and does not index them as entities.
 - `journal/` and `.ipse/index/` are excluded from history (section 9).
+- The search index covers entities (name, other names, facts, relations, notes), events (title, place, participants, notes) and summaries (their text). Words are matched without case or accents, and plurals as their singular, by the rules of the vault's language (`chevaux` finds `cheval`, `cities` finds `city`). Ipse saves it in `.ipse/index/search.bin` and, when it opens, reads again only the files whose size or date changed.
 
 ## 2. Common rules for every memory file
 

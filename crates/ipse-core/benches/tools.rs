@@ -113,6 +113,58 @@ fn measure(gateway: &mut Gateway, token: &str, name: &str, call: impl Fn(&Access
     );
 }
 
+/// Building the index from every file, opening the saved one, updating it after one
+/// edit.
+fn index_timings(root: &Path) {
+    let time = |runs: usize, mut f: Box<dyn FnMut()>| {
+        let mut times: Vec<Duration> = (0..runs)
+            .map(|_| {
+                let start = Instant::now();
+                f();
+                start.elapsed()
+            })
+            .collect();
+        times.sort();
+        times[times.len() / 2]
+    };
+    let build = time(
+        5,
+        Box::new(|| {
+            ipse_core::search::SearchIndex::build(root).unwrap();
+        }),
+    );
+    println!(
+        "{:<32} p50 {build:>9.3?}  (every file read)",
+        "build the index"
+    );
+    let open = time(
+        5,
+        Box::new(|| {
+            ipse_core::search::SearchIndex::load(root).unwrap();
+        }),
+    );
+    println!(
+        "{:<32} p50 {open:>9.3?}  (saved index, no file read)",
+        "open the saved index"
+    );
+    let mut index = ipse_core::search::SearchIndex::load(root).unwrap();
+    let edited = root.join("people/personne-numero-7.md");
+    let mut n = 0;
+    let update = time(
+        20,
+        Box::new(move || {
+            n += 1;
+            let text = std::fs::read_to_string(&edited).unwrap();
+            std::fs::write(&edited, format!("{text}- Fait numéro {n}.\n")).unwrap();
+            assert!(index.update(root).unwrap());
+        }),
+    );
+    println!(
+        "{:<32} p50 {update:>9.3?}  (one file edited)",
+        "update the index"
+    );
+}
+
 fn main() {
     // `cargo bench` passes `--bench`; `cargo test --benches` passes nothing else useful.
     let dir = tempfile::tempdir().unwrap();
@@ -127,6 +179,7 @@ fn main() {
     let event = id('e', 42);
 
     println!("{} files, {CALLS} calls each", PEOPLE + EVENTS + 2);
+    index_timings(root);
     let index = ipse_core::search::SearchIndex::load(root).unwrap();
     let mut full: Vec<Duration> = (0..20)
         .map(|_| {
