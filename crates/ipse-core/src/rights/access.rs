@@ -77,13 +77,24 @@ impl Gateway {
     ///
     /// As [`Gateway::open`].
     pub fn refresh(&mut self) -> Result<()> {
-        self.index = SearchIndex::load(self.vault.root())?;
+        self.update_index()?;
         self.clients = Clients::load(self.vault.root())?;
         Ok(())
     }
 
-    /// Reads the connected AIs again, checks `token`, then reads the entities again if
-    /// the vault changed since they were read: a file added, removed or renamed is seen
+    /// Reads again the files that changed, and saves the index when it changed.
+    fn update_index(&mut self) -> Result<()> {
+        let root = self.vault.root();
+        if self.index.update(root)? {
+            // The saved index only saves time at the next start: failing to save it
+            // never stops a read.
+            let _ = self.index.save(root);
+        }
+        Ok(())
+    }
+
+    /// Reads the connected AIs again, checks `token`, then reads again the files that
+    /// changed since they were read: a file added, removed or renamed is seen
     /// at once, a file edited in place within [`FULL_CHECK_EVERY`]. For a server that runs as long as the AI
     /// app: rights apply from the next request, and nothing is read for a refused code.
     ///
@@ -95,13 +106,9 @@ impl Gateway {
         self.clients = Clients::load(self.vault.root())?;
         self.access(token)?;
         let root = self.vault.root();
-        let mut reload = self.index.folders_changed(root);
-        if !reload && self.checked.elapsed() >= FULL_CHECK_EVERY {
-            self.checked = std::time::Instant::now();
-            reload = self.index.changed(root)?;
-        }
-        if reload {
-            self.index = SearchIndex::load(root)?;
+        // Listing every file and reading again those that changed is one pass.
+        if self.index.folders_changed(root) || self.checked.elapsed() >= FULL_CHECK_EVERY {
+            self.update_index()?;
             self.checked = std::time::Instant::now();
         }
         self.access(token)

@@ -14,6 +14,7 @@ ipse-protocol = { workspace = true }
 getrandom = { workspace = true }
 gix = { workspace = true }
 jiff = { workspace = true }
+postcard = { workspace = true }
 saphyr-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

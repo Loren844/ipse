@@ -313,6 +313,20 @@ pub fn owner_hint(language: Language) -> String {
     out
 }
 
+/// The text of `section` in `body`, in any supported language, as written, without
+/// surrounding blank lines. `None` when the body has no such section or it is empty.
+#[must_use]
+pub fn section_text(body: &str, section: Section) -> Option<String> {
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let headings = headings(&lines);
+    let at = headings.iter().position(|(_, s)| *s == Some(section))?;
+    let start = headings[at].0 + 1;
+    let end = headings.get(at + 1).map_or(lines.len(), |(i, _)| *i);
+    let text: String = lines[start..end].concat();
+    let text = text.trim_matches('\n').trim_end();
+    (!text.trim().is_empty()).then(|| text.to_owned())
+}
+
 /// `body` with `relations` added at the end of its `Relations` section, in any
 /// language. Without one, a section is added before `Notes`, or at the end. Everything
 /// else is kept byte for byte.
@@ -587,6 +601,18 @@ Rencontrée au club.
             word: word.into(),
             link: WikiLink::parse(&format!("[[{target}]]")).unwrap(),
         }
+    }
+
+    #[test]
+    fn the_text_of_one_section() {
+        let body =
+            "\n## Résumé\n\nUne journée calme.\nPromenade au parc.\n\n## Événements\n\n- [[x]]\n";
+        assert_eq!(
+            section_text(body, Section::Summary).as_deref(),
+            Some("Une journée calme.\nPromenade au parc.")
+        );
+        assert_eq!(section_text(body, Section::Notes), None);
+        assert_eq!(section_text("## Summary\n\n", Section::Summary), None);
     }
 
     #[test]
