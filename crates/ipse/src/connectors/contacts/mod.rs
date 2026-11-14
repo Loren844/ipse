@@ -17,7 +17,7 @@ use ipse_protocol::{
 use jiff::Timestamp;
 use serde_json::{Map, Value, json};
 
-use super::session::{Session, SessionResult};
+use ipse_protocol::connector::{Session, SessionResult};
 use phone::{Country, e164};
 use vcard::{Card, CardError, Cards};
 
@@ -87,7 +87,6 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
     // National phone numbers are read with the country of the vault's time zone.
     let country = Country::of_time_zone(&hello.time_zone);
     let mut batch = Vec::with_capacity(MAX_BATCH_RECORDS);
-    let mut sent = 0_u64;
     let mut skipped = 0_u64;
     for path in &hello.files {
         let Ok(file) = File::open(path) else {
@@ -98,7 +97,7 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
                 Ok(card) => {
                     batch.push(record(card, country, observed_at));
                     if batch.len() == MAX_BATCH_RECORDS {
-                        sent += send(&mut session, &mut batch)?;
+                        send(&mut session, &mut batch)?;
                     }
                 }
                 Err(CardError::Unreadable) => skipped += 1,
@@ -106,7 +105,8 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
             }
         }
     }
-    sent += send(&mut session, &mut batch)?;
+    send(&mut session, &mut batch)?;
+    let sent = session.flush()?.accepted;
 
     if skipped > 0 {
         let message = if french {
@@ -123,17 +123,16 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
     session.finish()
 }
 
+/// Sends a batch without waiting for its `ack`, up to 4 at a time.
 fn send<R: BufRead, W: Write>(
     session: &mut Session<R, W>,
     batch: &mut Vec<Record>,
-) -> SessionResult<u64> {
+) -> SessionResult<()> {
     if batch.is_empty() {
-        return Ok(0);
+        return Ok(());
     }
     let records = std::mem::replace(batch, Vec::with_capacity(MAX_BATCH_RECORDS));
-    let count = records.len() as u64;
-    let rejected = session.batch(records, None)?;
-    Ok(count - rejected.len() as u64)
+    session.push(records, None)
 }
 
 fn bad_input<R: BufRead, W: Write>(mut session: Session<R, W>, french: bool) -> SessionResult<()> {

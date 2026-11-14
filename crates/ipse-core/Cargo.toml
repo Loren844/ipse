@@ -15,9 +15,11 @@ getrandom = { workspace = true }
 gix = { workspace = true }
 jiff = { workspace = true }
 postcard = { workspace = true }
+ruzstd = { workspace = true }
 saphyr-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+sha2 = { workspace = true }
 sys-locale = { workspace = true }
 tempfile = { workspace = true }
 thiserror = { workspace = true }
@@ -52,4 +54,12 @@ workspace = true
 
 [[test]]
 name = "connector_host"
+harness = false
+
+[[bench]]
+name = "journal"
+harness = false
+
+[[bench]]
+name = "host"
 harness = false

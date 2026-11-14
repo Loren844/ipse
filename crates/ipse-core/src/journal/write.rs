@@ -1,6 +1,6 @@
 //! Appending records to the journal (`docs/spec/journal.md`, sections 5 and 6).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::OpenOptions;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -12,16 +12,33 @@ use serde_json::Value;
 
 use super::canonical::data_hash;
 use super::is_source_name;
+use super::latest::Table;
 use super::read::Reader;
 use super::record::{JournalRecord, RECORD_VERSION};
+use super::segment;
 use crate::vault::write_atomic;
 use crate::{Error, Result};
 
 /// The journal of one vault, at `<vault>/journal`.
+///
+/// The latest record of each item is kept in a table per source, read on the first
+/// write and saved when the journal is dropped ([`Journal::save_index`] saves it
+/// earlier).
 #[derive(Debug)]
 pub struct Journal {
+    vault_root: PathBuf,
     root: PathBuf,
     ids: ulid::Generator,
+    tables: HashMap<String, Table>,
+    /// Sources whose past months were sealed by this journal.
+    sealed: HashSet<String>,
+    recovered: u64,
+}
+
+impl Drop for Journal {
+    fn drop(&mut self) {
+        self.save_index();
+    }
 }
 
 impl Journal {
@@ -29,9 +46,28 @@ impl Journal {
     #[must_use]
     pub fn new(vault_root: &Path) -> Self {
         Self {
+            vault_root: vault_root.to_owned(),
             root: vault_root.join("journal"),
             ids: ulid::Generator::new(),
+            tables: HashMap::new(),
+            sealed: HashSet::new(),
+            recovered: 0,
         }
+    }
+
+    /// Saves the tables of latest records read or changed so far. A failure only means
+    /// reading the journal again next time.
+    pub fn save_index(&mut self) {
+        for (source, table) in &mut self.tables {
+            table.save(&self.vault_root, source);
+        }
+    }
+
+    /// How many incomplete last lines, left by a crash in the middle of a write, this
+    /// journal cut off. Nothing of those lines is kept or shown.
+    #[must_use]
+    pub fn recovered(&self) -> u64 {
+        self.recovered
     }
 
     /// The folder of `source`'s segments.
@@ -43,6 +79,11 @@ impl Journal {
     /// Appends a batch of records from `source`, each to the segment of its month, and
     /// flushes them to disk before returning. Then, if given, saves `cursor` as the
     /// point `source` resumes from. Returns the records as written.
+    ///
+    /// An upsert whose data is the same as the item's latest record is skipped: a full
+    /// re-sync writes only what changed. The first write of a source in a new month
+    /// seals its past months (section 5); a sealed month that does not match its
+    /// checksum is left as it is.
     ///
     /// # Errors
     ///
@@ -65,11 +106,29 @@ impl Journal {
                 .map_err(|rule| Error::Refused(format!("Record {} is invalid: {rule}.", i + 1)))?;
         }
 
+        if !self.tables.contains_key(source) {
+            let table = Table::load(&self.vault_root, source, &self.source_dir(source))?;
+            self.tables.insert(source.to_owned(), table);
+        }
+        if self.sealed.insert(source.to_owned()) {
+            self.seal_past_months(source)?;
+        }
+
         let ingested_at = Timestamp::now();
         let mut written = Vec::with_capacity(records.len());
         // Segment month → lines, in order. A batch usually fits in one segment.
         let mut segments: BTreeMap<(i16, i8), Vec<u8>> = BTreeMap::new();
         for record in records {
+            let hash = match (record.op, &record.data) {
+                (Op::Upsert, Some(data)) => Some(data_hash(data)),
+                _ => None,
+            };
+            if let (Some(hash), Some(external_id), Some(table)) =
+                (&hash, &record.external_id, self.tables.get(source))
+                && table.unchanged(&record.kind, external_id, hash)
+            {
+                continue;
+            }
             let entry = JournalRecord {
                 v: RECORD_VERSION,
                 id: self.next_id(),
@@ -79,12 +138,18 @@ impl Journal {
                 external_id: record.external_id.clone(),
                 observed_at: record.observed_at,
                 ingested_at,
-                hash: match (record.op, &record.data) {
-                    (Op::Upsert, Some(data)) => Some(data_hash(data)),
-                    _ => None,
-                },
+                hash,
                 data: record.data.clone(),
             };
+            if let Some(table) = self.tables.get_mut(source) {
+                table.note(
+                    &entry.kind,
+                    entry.external_id.as_deref(),
+                    entry.op,
+                    &entry.id,
+                    entry.hash.as_deref(),
+                );
+            }
             let lines = segments.entry(month_of(entry.observed_at)).or_default();
             serde_json::to_writer(&mut *lines, &entry)
                 .map_err(|_| Error::Refused("A record could not be encoded as JSON.".to_owned()))?;
@@ -93,7 +158,11 @@ impl Journal {
         }
 
         for ((year, month), lines) in &segments {
-            self.append_lines(&self.segment_path(source, *year, *month), lines)?;
+            let path = self.segment_path(source, *year, *month);
+            if segment::recover(&path)? {
+                self.recovered += 1;
+            }
+            self.append_lines(&path, lines)?;
         }
 
         if let Some(cursor) = cursor {
@@ -138,7 +207,39 @@ impl Journal {
     ///
     /// [`Error::Io`] when the source's folder cannot be listed.
     pub fn read(&self, source: &str, kinds: Option<&[&str]>) -> Result<Reader> {
-        Reader::open(&self.source_dir(source), kinds)
+        Reader::open(&self.source_dir(source), kinds, None)
+    }
+
+    /// As [`Journal::read`], only the records observed from `from` (included) to `to`
+    /// (excluded). Segments of other months are not opened. A time-series batch counts
+    /// by its first point (section 4).
+    ///
+    /// # Errors
+    ///
+    /// As [`Journal::read`].
+    pub fn read_between(
+        &self,
+        source: &str,
+        kinds: Option<&[&str]>,
+        from: Timestamp,
+        to: Timestamp,
+    ) -> Result<Reader> {
+        Reader::open(&self.source_dir(source), kinds, Some((from, to)))
+    }
+
+    /// Seals the open segments of `source` older than this month. A month whose earlier
+    /// sealed file does not match its checksum is left open, never overwritten.
+    fn seal_past_months(&self, source: &str) -> Result<()> {
+        let this_month = month_of(Timestamp::now());
+        let segments = segment::list(&self.source_dir(source))?;
+        for open in segments
+            .iter()
+            .filter(|s| !s.sealed && s.month < this_month)
+        {
+            let earlier = segments.iter().find(|s| s.sealed && s.month == open.month);
+            segment::seal(open, earlier)?;
+        }
+        Ok(())
     }
 
     fn segment_path(&self, source: &str, year: i16, month: i8) -> PathBuf {

@@ -19,7 +19,7 @@ use std::time::Duration;
 
 use ipse_core::connector::{Launch, Outcome, StopReason, run_session};
 use ipse_core::journal::Journal;
-use ipse_protocol::{ErrorCode, Mode, NeedKind, Op, Record, Secret};
+use ipse_protocol::{DoneSummary, ErrorCode, Mode, NeedKind, Op, Record, Secret};
 use serde_json::{Value, json};
 
 fn main() {
@@ -28,7 +28,7 @@ fn main() {
         fake_connector(args.get(2).map_or("", String::as_str));
         return;
     }
-    let tests: [(&str, fn()); 10] = [
+    let tests: [(&str, fn()); 12] = [
         ("normal_session", normal_session),
         (
             "cursor_is_given_back_next_time",
@@ -60,6 +60,14 @@ fn main() {
             "sync_gets_secrets_config_and_full",
             sync_gets_secrets_config_and_full,
         ),
+        (
+            "the_rust_helper_pipelines_its_batches",
+            the_rust_helper_pipelines_its_batches,
+        ),
+        (
+            "an_unchanged_item_is_not_written_again",
+            an_unchanged_item_is_not_written_again,
+        ),
     ];
     let mut failed = 0;
     for (name, test) in tests {
@@ -79,6 +87,10 @@ fn main() {
 // ---------------------------------------------------------------- the fake connector
 
 fn fake_connector(mode: &str) {
+    if mode == "helper" {
+        helper_connector();
+        return;
+    }
     let stdin = std::io::stdin();
     let mut lines = stdin.lock().lines();
     let mut read = || -> Value {
@@ -159,6 +171,38 @@ fn fake_connector(mode: &str) {
     }
     // Wait for `bye`.
     while !read().is_null() {}
+}
+
+/// Records sent by the `helper` mode: five batches, the last one partly full.
+const HELPER_RECORDS: usize = 4 * ipse_protocol::MAX_BATCH_RECORDS + 500;
+
+/// A connector written with the Rust helper, which sends batches before their `ack`.
+fn helper_connector() {
+    use ipse_protocol::connector::Session;
+    let (mut session, _hello) = Session::open(
+        std::io::stdin().lock(),
+        std::io::stdout().lock(),
+        "fake",
+        "0",
+    )
+    .unwrap();
+    session.wait_start().unwrap();
+    let observed_at = "2026-11-12T18:30:00Z".parse().unwrap();
+    let records = (0..HELPER_RECORDS).map(|i| Record {
+        kind: "contact.card".into(),
+        op: Op::Upsert,
+        external_id: Some(format!("c{i}")),
+        observed_at,
+        data: Some(json!({"n": i})),
+    });
+    let sent = session.send(records, Some(json!({"page": "end"}))).unwrap();
+    session
+        .done(DoneSummary {
+            upserts: sent.accepted,
+            ..DoneSummary::default()
+        })
+        .unwrap();
+    session.finish().unwrap();
 }
 
 // ---------------------------------------------------------------- the tests
@@ -386,4 +430,44 @@ fn sync_gets_secrets_config_and_full() {
         !format!("{sync:?}").contains("private.ics"),
         "secrets never show in debug output"
     );
+}
+
+fn the_rust_helper_pipelines_its_batches() {
+    let vault = tempfile::tempdir().unwrap();
+    let mut journal = Journal::new(vault.path());
+    let report = run_session(&mut journal, &launch("helper")).unwrap();
+
+    assert!(
+        matches!(report.outcome, Outcome::Done(s) if s.upserts == HELPER_RECORDS as u64),
+        "{:?}",
+        report.outcome
+    );
+    assert_eq!(report.written, HELPER_RECORDS as u64);
+    assert_eq!(
+        journal.cursor("fake").unwrap(),
+        Some(json!({"page": "end"}))
+    );
+    let ids: Vec<String> = journal
+        .read("fake", None)
+        .unwrap()
+        .map(|r| r.unwrap().external_id.unwrap())
+        .collect();
+    assert_eq!(ids.len(), HELPER_RECORDS);
+    assert_eq!(ids.first().map(String::as_str), Some("c0"));
+    assert_eq!(
+        ids.last().map(String::as_str),
+        Some(format!("c{}", HELPER_RECORDS - 1).as_str())
+    );
+}
+
+fn an_unchanged_item_is_not_written_again() {
+    let vault = tempfile::tempdir().unwrap();
+    let mut journal = Journal::new(vault.path());
+    run_session(&mut journal, &launch("helper")).unwrap();
+    // A new journal reads the saved table of latest records.
+    let mut journal = Journal::new(vault.path());
+    let report = run_session(&mut journal, &launch("helper")).unwrap();
+    assert!(matches!(report.outcome, Outcome::Done(_)));
+    assert_eq!(report.written, 0);
+    assert_eq!(journal.read("fake", None).unwrap().count(), HELPER_RECORDS);
 }

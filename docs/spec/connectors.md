@@ -212,5 +212,6 @@ The connector exits within **5 seconds**. After that, the core stops it.
 
 ## 8. Writing a connector
 
-- Any language can implement this protocol; the repository will provide a Rust helper crate for first-party connectors and a conformance test that any connector can run.
+- Any language can implement this protocol. For Rust, `ipse_protocol::connector::Session` keeps the protocol's order and rules: it reads `hello` and `start`, splits records into batches of 1 000, sends up to 4 of them before their `ack` (so the connector keeps reading its source while the core writes to disk), sends the cursor with the last batch, and answers `bye`. The first-party connectors use it.
+- The repository will provide a conformance test that any connector can run.
 - A connector documents, in its own README: its rung and why a higher one is not possible (decision 0008), its kinds with the shape of their `data`, its settings, and what it sends where.

@@ -79,8 +79,10 @@ High-volume measurements (GPS points, heart rate, home sensor readings) are stor
 - **Append-only.** A written record is never changed. The only exceptions are recovery (below) and forgetting (section 8).
 - **Unchanged items are skipped.** Before appending an `upsert`, Ipse compares its `hash` with the latest record of the same item; if they are equal, nothing is written. This makes a full re-sync from a connector cheap.
 - **Durability.** Records arrive in batches. A batch is appended, then flushed to disk (`fsync`) before Ipse acknowledges it to the connector. A batch acknowledged is never lost.
-- **Recovery.** If the last line of an open segment is incomplete after a crash, Ipse truncates that line on start and logs that it did, without the content.
-- **Sealing.** On the first write of a new month, Ipse compresses the previous month's segment, writes its SHA-256 checksum next to it, then deletes the uncompressed file. A segment whose checksum does not match is reported and kept, never overwritten.
+- **Recovery.** If the last line of an open segment is incomplete after a crash, Ipse truncates that line before appending to it again, and notes that it did, without the content.
+- **Sealing.** On the first write of a session to a source, Ipse compresses (zstd) every open segment of a past month, writes its SHA-256 checksum next to it (the `sha256sum` format), then deletes the uncompressed file. The checksum is written before the compressed file, so a crash between the two leaves a segment that fails its check and an open file that is still there: nothing is lost.
+- **Late records.** A record observed in a month already sealed goes to a new open segment of that month. At the next sealing, Ipse merges it with the sealed segment, if that one matches its checksum.
+- **Damaged segments.** A sealed segment whose checksum does not match is reported (by readers and by `ipse check`) and kept, never overwritten nor merged into: it is to be restored from a backup.
 
 ## 6. Resume points
 
@@ -89,7 +91,8 @@ High-volume measurements (GPS points, heart rate, home sensor readings) are stor
 ## 7. Reading
 
 - Readers go **segment by segment, line by line**, without loading a segment in memory.
-- To serve "the current state of every item" quickly, Ipse keeps a derived table in `.ipse/index/` (item → latest record id and hash). It can be deleted; Ipse rebuilds it by reading the journal once.
+- To serve "the current state of every item" quickly, Ipse keeps a derived table per source in `.ipse/index/journal/<source>.bin` (item → latest record id and hash, with the id of the last record it has seen). It can be deleted; when it is missing, damaged or behind the journal, Ipse rebuilds it by reading the journal once.
+- A period can be read alone: only the segments of its months are opened.
 - Records with an unknown `v` or `kind` are skipped and counted, never an error: an older Ipse must be able to read a journal written by a newer connector.
 
 ## 8. Forgetting

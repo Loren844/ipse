@@ -168,7 +168,7 @@ fn hash_ignores_key_order() {
     );
     let b = record(
         Op::Upsert,
-        Some("c"),
+        Some("d"),
         "2026-11-12T18:30:00Z",
         Some(serde_json::from_str(r#"{"b":[1,2],"a":1}"#).unwrap()),
     );
