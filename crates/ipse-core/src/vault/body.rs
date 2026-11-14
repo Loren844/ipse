@@ -313,6 +313,103 @@ pub fn owner_hint(language: Language) -> String {
     out
 }
 
+/// `body` with `relations` added at the end of its `Relations` section, in any
+/// language. Without one, a section is added before `Notes`, or at the end. Everything
+/// else is kept byte for byte.
+#[must_use]
+pub fn add_relations(body: &str, relations: &[Relation], language: Language) -> String {
+    if relations.is_empty() {
+        return body.to_owned();
+    }
+    let separator = match language {
+        Language::Fr => " : ",
+        _ => ": ",
+    };
+    let mut new_lines = String::new();
+    for relation in relations {
+        new_lines.push_str("- ");
+        new_lines.push_str(&one_line(&relation.word));
+        new_lines.push_str(separator);
+        new_lines.push_str(&relation.link.to_string());
+        new_lines.push('\n');
+    }
+
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let headings = headings(&lines);
+    let position = |section| headings.iter().position(|(_, s)| *s == Some(section));
+    let mut out = String::with_capacity(body.len() + new_lines.len() + 32);
+    if let Some(at) = position(Section::Relations) {
+        let start = headings[at].0 + 1;
+        let end = headings.get(at + 1).map_or(lines.len(), |(i, _)| *i);
+        // After the section's last line that is not blank.
+        let insert = (start..end)
+            .rev()
+            .find(|&i| !lines[i].trim().is_empty())
+            .map_or(start, |i| i + 1);
+        lines[..insert].iter().for_each(|l| out.push_str(l));
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+        if insert == start {
+            out.push('\n');
+        }
+        out.push_str(&new_lines);
+        if insert == end && end < lines.len() {
+            out.push('\n');
+        }
+        lines[insert..].iter().for_each(|l| out.push_str(l));
+    } else if let Some(at) = position(Section::Notes) {
+        let notes = headings[at].0;
+        lines[..notes].iter().for_each(|l| out.push_str(l));
+        out.push_str("## ");
+        out.push_str(Section::Relations.heading(language));
+        out.push_str("\n\n");
+        out.push_str(&new_lines);
+        out.push('\n');
+        lines[notes..].iter().for_each(|l| out.push_str(l));
+    } else {
+        out.push_str(body);
+        if !out.is_empty() && !out.ends_with('\n') {
+            out.push('\n');
+        }
+        open_section(&mut out, Section::Relations, language);
+        out.push_str(&new_lines);
+    }
+    out
+}
+
+/// The level-1 and level-2 headings of a body, by line, outside code blocks and
+/// comments, with the section each names.
+fn headings(lines: &[&str]) -> Vec<(usize, Option<Section>)> {
+    let mut found = Vec::new();
+    let mut fence: Option<&str> = None;
+    let mut in_comment = false;
+    for (i, line) in lines.iter().enumerate() {
+        let line = line.trim_end_matches(['\n', '\r']);
+        let trimmed = line.trim_start();
+        if in_comment || trimmed.starts_with("<!--") {
+            let closes = trimmed.contains("-->")
+                && (in_comment || trimmed.find("-->") > trimmed.find("<!--"));
+            in_comment = !closes;
+            continue;
+        }
+        if let Some(open) = fence {
+            if trimmed.starts_with(open) {
+                fence = None;
+            }
+            continue;
+        }
+        if let Some(heading) = line.strip_prefix("## ") {
+            found.push((i, Section::from_heading(heading)));
+        } else if line.starts_with("# ") {
+            found.push((i, None));
+        } else if let Some(marker) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m)) {
+            fence = Some(marker);
+        }
+    }
+    found
+}
+
 fn open_section(out: &mut String, section: Section, language: Language) {
     out.push_str("\n## ");
     out.push_str(section.heading(language));
@@ -483,5 +580,56 @@ Rencontrée au club.
             "\n## Notes\n\nSeulement des notes.\n"
         );
         assert_eq!(render(&Body::default(), Language::Fr), "");
+    }
+
+    fn relation(word: &str, target: &str) -> Relation {
+        Relation {
+            word: word.into(),
+            link: WikiLink::parse(&format!("[[{target}]]")).unwrap(),
+        }
+    }
+
+    #[test]
+    fn relations_go_at_the_end_of_their_section() {
+        let body = "\n## Faits\n\n- Aime le thé.\n\n## Relations\n\n- ami : [[paul]]\n\n## Notes\n\nMa note.\n";
+        let out = add_relations(body, &[relation("mère", "marie-dupont")], Language::Fr);
+        assert_eq!(
+            out,
+            "\n## Faits\n\n- Aime le thé.\n\n## Relations\n\n- ami : [[paul]]\n- mère : [[marie-dupont]]\n\n## Notes\n\nMa note.\n"
+        );
+        let parsed = parse(&out);
+        assert_eq!(parsed.relations.len(), 2);
+        assert_eq!(parsed.notes.as_deref(), Some("Ma note."));
+    }
+
+    #[test]
+    fn a_relations_section_is_added_when_there_is_none() {
+        let hint = owner_hint(Language::Fr);
+        let out = add_relations(&hint, &[relation("sœur", "lea")], Language::Fr);
+        assert_eq!(out, format!("{hint}\n## Relations\n\n- sœur : [[lea]]\n"));
+
+        let with_notes = "\n## Notes\n\n```\n## Relations\n```\n";
+        let out = add_relations(with_notes, &[relation("friend", "ana")], Language::En);
+        assert_eq!(
+            out, "\n## Relations\n\n- friend: [[ana]]\n\n## Notes\n\n```\n## Relations\n```\n",
+            "a heading inside a code block is not a section"
+        );
+
+        let out = add_relations("Texte", &[relation("ami", "paul")], Language::Fr);
+        assert_eq!(out, "Texte\n\n## Relations\n\n- ami : [[paul]]\n");
+    }
+
+    #[test]
+    fn an_empty_relations_section_is_filled() {
+        let out = add_relations(
+            "## Relations\n## Notes\nx\n",
+            &[relation("ami", "paul")],
+            Language::Fr,
+        );
+        assert_eq!(out, "## Relations\n\n- ami : [[paul]]\n\n## Notes\nx\n");
+        assert_eq!(
+            add_relations("## Relations", &[relation("ami", "paul")], Language::Fr),
+            "## Relations\n\n- ami : [[paul]]\n"
+        );
     }
 }

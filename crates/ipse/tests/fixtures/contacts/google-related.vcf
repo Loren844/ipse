@@ -1,0 +1,29 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Camille Durand
+N:Durand;Camille;;;
+TEL;TYPE=CELL:+33 6 98 76 54 32
+item1.X-ABRELATEDNAMES:Tom Durand
+item1.X-ABLabel:_$!<Brother>!$_
+item2.X-ABRELATEDNAMES:Sam
+item2.X-ABLabel:_$!<Spouse>!$_
+item3.X-ABRELATEDNAMES:Tante Jo
+item3.X-ABLabel:RELATIVE
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Tom Durand
+N:Durand;Tom;;;
+EMAIL;TYPE=INTERNET:tom.durand@example.org
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Samuel Petit
+N:Petit;Samuel;;;
+NICKNAME:Sam
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Tante Jo
+N:;Tante Jo;;;
+END:VCARD

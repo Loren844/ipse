@@ -98,9 +98,13 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     // The person's own edits are recorded first, so that the import never hides them.
     let history = vault.history()?;
     let mut change = history.change(Source::Connector(instance.to_owned()));
+    let mut relations = 0;
+    let mut owner = false;
     let (line, conflicts, deleted) = match kind {
         Kind::Contacts => {
             let summary = contacts_to_people(&vault, &journal, instance, &mut change)?;
+            relations = summary.relations;
+            owner = summary.owner;
             (summary_line(summary), summary.conflicts, summary.deleted)
         }
         Kind::Calendar => {
@@ -126,7 +130,23 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     if deleted > 0 {
         println!("{}", deleted_line(deleted));
     }
+    if owner {
+        println!("{OWNER_LINE}");
+    }
+    if relations > 0 {
+        println!("{}", relations_line(relations));
+    }
     Ok(())
+}
+
+pub(crate) const OWNER_LINE: &str = "Your own contact card completed your file.";
+
+pub(crate) fn relations_line(n: u64) -> String {
+    if n == 1 {
+        "1 relation added to your own file, from your contact card.".to_owned()
+    } else {
+        format!("{n} relations added to your own file, from your contact card.")
+    }
 }
 
 pub(crate) fn events_line(s: EventsSummary) -> String {
@@ -205,6 +225,8 @@ mod tests {
             skipped: 0,
             conflicts: 0,
             deleted: 0,
+            relations: 0,
+            owner: false,
         };
         assert_eq!(summary_line(s(4, 0, 0)), "4 people added, 0 updated.");
         assert_eq!(summary_line(s(1, 2, 3)), "1 person added, 2 updated.");

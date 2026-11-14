@@ -11,6 +11,7 @@
 
 mod contacts;
 mod events;
+mod relations;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -18,6 +19,7 @@ use std::path::{Path, PathBuf};
 
 pub use contacts::{PeopleSummary, contacts_to_people};
 pub use events::{EventsSummary, calendar_to_events};
+pub use relations::ADDED_FILE;
 use serde_json::Value;
 
 use crate::journal::Journal;

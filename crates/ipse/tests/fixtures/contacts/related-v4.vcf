@@ -1,0 +1,18 @@
+BEGIN:VCARD
+VERSION:4.0
+FN:Camille Durand
+EMAIL:camille.durand@example.org
+RELATED;TYPE=parent:urn:uuid:3e7a1c52-9b0d-4f18-a6c4-2d8e5f7b9a01
+RELATED;VALUE=text;TYPE=co-worker:Marc Leroy
+UID:urn:uuid:5c0d2e14-7f3a-4b96-8e21-a4c6b8d0f2e3
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:Papa
+UID:urn:uuid:3e7a1c52-9b0d-4f18-a6c4-2d8e5f7b9a01
+END:VCARD
+BEGIN:VCARD
+VERSION:4.0
+FN:Marc Leroy
+UID:urn:uuid:9a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d
+END:VCARD

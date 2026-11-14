@@ -61,6 +61,9 @@ impl<R: BufRead> Lines<R> {
 
 /// One content line: `[group.]NAME[;param=value…]:value`, borrowed from the line.
 pub(crate) struct Property<'a> {
+    /// The group before the name (`item1` in `item1.X-ABLABEL`), which ties properties
+    /// together.
+    pub(crate) group: Option<&'a str>,
     /// Upper case, without the group.
     pub(crate) name: Cow<'a, str>,
     /// Values without their quotes. Compare names with [`Property::param`].
@@ -74,7 +77,11 @@ impl<'a> Property<'a> {
         let colon = unquoted(line, ':').next()?;
         let (head, value) = (&line[..colon], &line[colon + 1..]);
         let mut parts = split_unquoted(head, ';');
-        let name = parts.next()?.rsplit('.').next()?.trim();
+        let full = parts.next()?;
+        let (group, name) = match full.rsplit_once('.') {
+            Some((group, name)) => (Some(group.trim()).filter(|g| !g.is_empty()), name.trim()),
+            None => (None, full.trim()),
+        };
         if name.is_empty() {
             return None;
         }
@@ -90,6 +97,7 @@ impl<'a> Property<'a> {
             })
             .collect();
         Some(Self {
+            group,
             name,
             params,
             value,
@@ -223,12 +231,13 @@ mod tests {
     }
 
     #[test]
-    fn groups_are_dropped_and_names_upper_cased() {
+    fn groups_are_kept_apart_and_names_upper_cased() {
         let p = Property::parse("item1.email;type=INTERNET:a@example.org").unwrap();
         assert_eq!(
-            (p.name.as_ref(), p.param("TYPE")),
-            ("EMAIL", Some("INTERNET"))
+            (p.group, p.name.as_ref(), p.param("TYPE")),
+            (Some("item1"), "EMAIL", Some("INTERNET"))
         );
+        assert_eq!(Property::parse("FN:Ana").unwrap().group, None);
         assert!(Property::parse("no colon").is_none());
         assert!(Property::parse(":value").is_none());
     }
