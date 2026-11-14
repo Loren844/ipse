@@ -27,7 +27,9 @@ fn help_lists_the_commands() {
     let out = ipse(&["--help"]);
     assert!(out.status.success());
     let help = String::from_utf8_lossy(&out.stdout);
-    for command in ["init", "import", "calendar", "sync", "client", "mcp"] {
+    for command in [
+        "init", "import", "calendar", "sync", "check", "client", "mcp",
+    ] {
         assert!(help.contains(command), "help does not list {command}");
     }
 }
@@ -362,10 +364,40 @@ fn an_outlook_export_fills_address_title_and_phones() {
     for expected in [
         "address: \"3 Montée de la Butte, 69001 Lyon, France\"\n",
         "  - \"+33478123456\"\n",
-        "- Organisation : Atelier du Théâtre, Costumes.\n",
-        "- Poste : Costumier en chef.\n",
+        "- Organisation : Atelier du Théâtre, Costumes. ^f-",
+        "- Poste : Costumier en chef. ^f-",
         "Préfère qu’on l’appelle le matin.",
     ] {
         assert!(rene.contains(expected), "{expected:?} in {rene}");
     }
+}
+
+#[test]
+fn check_says_what_to_fix() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&["init", vault, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+    let ok = ipse(&["check", "--vault", vault]);
+    assert!(ok.status.success());
+    assert!(String::from_utf8_lossy(&ok.stdout).contains("Every file reads well (1 file)."));
+
+    let owner = dir.path().join("people/camille-durand.md");
+    let text = std::fs::read_to_string(&owner).unwrap();
+    std::fs::write(
+        &owner,
+        format!("{text}- Aime le thé. ^f-3k9w\n- Aime le café. ^f-3k9w\n"),
+    )
+    .unwrap();
+    let out = ipse(&["check", "--vault", vault]);
+    assert!(!out.status.success());
+    let said = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        said.contains("camille-durand.md: the fact id ^f-3k9w"),
+        "{said}"
+    );
+    assert!(!said.contains("thé"), "the file is not quoted");
 }

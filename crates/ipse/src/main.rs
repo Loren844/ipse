@@ -62,6 +62,12 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Say which files of the memory need fixing; changes nothing
+    Check {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Connect, list or remove an AI
     Client {
         #[command(subcommand)]
@@ -165,6 +171,7 @@ fn main() -> ExitCode {
             CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
         },
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
+        Command::Check { vault } => cmd::check::run(vault),
         Command::Client { action } => match action {
             ClientAction::Add { name, local, vault } => cmd::client::add(&name, local, vault),
             ClientAction::List { vault } => cmd::client::list(vault),

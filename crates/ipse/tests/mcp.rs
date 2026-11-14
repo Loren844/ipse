@@ -271,7 +271,7 @@ async fn an_allowed_ai_reads_people_without_what_is_hidden() {
     assert_eq!(entry["facts"], json!(["Voisine de [[paul-durand]]."]));
     assert_eq!(
         entry["relations"],
-        json!([{ "word": "ami", "target": "[[paul-durand]]" }])
+        json!([{ "word": "ami", "target": "[[paul-durand]]", "kind": "friend" }])
     );
     let text = marie.to_string();
     for leak in ["lea", "Léa", "Cousine", "sœur", "hôpital"] {

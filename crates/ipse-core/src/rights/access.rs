@@ -249,6 +249,10 @@ pub struct RelationOut {
     pub word: String,
     /// `[[target]]`.
     pub target: String,
+    /// The word's kind in the fixed vocabulary (`parent`, `works_at`…); left out for a
+    /// free relation.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<&'static str>,
 }
 
 impl<'g> Access<'g> {
@@ -641,6 +645,7 @@ impl<'g> Access<'g> {
                 .map(|r| RelationOut {
                     word: r.word.clone(),
                     target: r.link.to_string(),
+                    kind: r.kind().map(crate::vault::RelationKind::as_str),
                 })
                 .collect(),
             notes: sections

@@ -6,6 +6,7 @@
 
 mod atomic;
 pub mod body;
+mod check;
 mod emit;
 pub mod event;
 pub mod fields;
@@ -20,7 +21,8 @@ mod store;
 mod yaml;
 
 pub use atomic::{sync_files, write_atomic, write_atomic_unsynced};
-pub use body::{Body, Fact, FactId, Relation, Section};
+pub use body::{Body, Fact, FactId, Relation, RelationKind, Section};
+pub use check::{Problem, Report, check};
 pub use event::{EventFields, EventStatus, EventTime};
 pub use fields::{
     Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
