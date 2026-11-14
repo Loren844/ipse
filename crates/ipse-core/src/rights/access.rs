@@ -8,6 +8,8 @@
 //!   so that nothing shows that something is hidden;
 //! - the category is checked again on the file as it is when read, not only in the index.
 
+use std::cell::RefCell;
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -16,7 +18,9 @@ use jiff::civil::Date;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, ToSpan, Zoned};
 
+use super::Categories;
 use super::clients::{Client, Clients};
+use super::log::AccessLog;
 use crate::search::{EventRef, Results, SearchIndex};
 use crate::vault::state::{Seen, Status, Subject, Topic, parse_table};
 use crate::vault::{DateTime, EventTime, FileType, Id, LinkOrText, MemoryFile, Vault};
@@ -41,6 +45,8 @@ pub struct Gateway {
     vault: Vault,
     index: SearchIndex,
     clients: Clients,
+    categories: Categories,
+    log: AccessLog,
     /// When every file was last checked for edits.
     checked: std::time::Instant,
 }
@@ -56,6 +62,8 @@ impl Gateway {
         let index = SearchIndex::load(vault.root())?;
         let clients = Clients::load(vault.root())?;
         Ok(Self {
+            categories: Categories::of(vault.settings()),
+            log: AccessLog::new(vault.root()),
             vault,
             index,
             clients,
@@ -118,15 +126,18 @@ impl Gateway {
         Ok(Access {
             gateway: self,
             client,
+            read: RefCell::new(BTreeSet::new()),
         })
     }
 }
 
-/// Reads on behalf of one connected AI.
-#[derive(Debug, Clone, Copy)]
+/// Reads on behalf of one connected AI, for one request. It remembers the categories
+/// of what it returned, for the access log ([`Access::log`]).
+#[derive(Debug)]
 pub struct Access<'g> {
     gateway: &'g Gateway,
     client: &'g Client,
+    read: RefCell<BTreeSet<String>>,
 }
 
 /// One entity or event, as an AI receives it.
@@ -240,16 +251,53 @@ impl<'g> Access<'g> {
         self.client
     }
 
+    /// The categories of what these reads returned so far.
+    #[must_use]
+    pub fn categories_read(&self) -> BTreeSet<String> {
+        self.read.borrow().clone()
+    }
+
+    /// Logs this request in the access log: the tool, the categories of what it
+    /// returned and how many results. Never its arguments or content.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when the log cannot be written.
+    pub fn log(&self, tool: &str, results: usize) -> Result<()> {
+        let now = Timestamp::now().to_zoned(self.time_zone().clone());
+        self.gateway
+            .log
+            .record(&now, &self.client.id, tool, &self.read.borrow(), results)
+    }
+
     /// Entities matching `query`, best first, among the categories this AI may read.
     /// `limit` is clamped to 1–50.
     #[must_use]
     pub fn search(&self, query: &str, limit: usize) -> Results {
-        self.gateway.index.search_with(
+        let results = self.gateway.index.search_with(
             query,
             limit,
-            |c| self.client.reads(c.as_str()),
+            |c| self.reads(c.as_str()),
             |text| self.hides(text).then(|| self.strip(text)),
-        )
+        );
+        for hit in &results.hits {
+            self.returned(hit.category.as_str());
+        }
+        results
+    }
+
+    /// True when this AI may read `category`.
+    fn reads(&self, category: &str) -> bool {
+        self.client.reads(category, &self.gateway.categories)
+    }
+
+    /// Remembers that something of `category` was returned.
+    fn returned(&self, category: &str) {
+        let category = self.gateway.categories.effective(category);
+        let mut read = self.read.borrow_mut();
+        if !read.contains(category) {
+            read.insert(category.to_owned());
+        }
     }
 
     /// The entity with this id, if this AI may read it.
@@ -259,7 +307,7 @@ impl<'g> Access<'g> {
         let path = self
             .gateway
             .index
-            .path_of(&id, |c| self.client.reads(c.as_str()))?;
+            .path_of(&id, |c| self.reads(c.as_str()))?;
         self.entry(path)
     }
 
@@ -269,7 +317,7 @@ impl<'g> Access<'g> {
     pub fn get_by_name(&self, name: &str) -> Vec<Entry> {
         self.gateway
             .index
-            .named(name, |c| self.client.reads(c.as_str()))
+            .named(name, |c| self.reads(c.as_str()))
             .into_iter()
             .filter_map(|path| self.entry(path))
             .collect()
@@ -326,10 +374,10 @@ impl<'g> Access<'g> {
         };
         let mut events = Vec::with_capacity(limit);
         let mut more = false;
-        let found = self.gateway.index.events(
-            |c| self.client.reads(c.as_str()),
-            |e| overlaps(e) && with_them(e),
-        );
+        let found = self
+            .gateway
+            .index
+            .events(|c| self.reads(c.as_str()), |e| overlaps(e) && with_them(e));
         for event in found {
             if events.len() == limit {
                 more = true;
@@ -349,13 +397,13 @@ impl<'g> Access<'g> {
         let mut states = Vec::new();
         for topic in self.topics(topics) {
             let window = self.window(&topic);
-            for (row, _) in self.rows(&topic, &years) {
+            for (row, category) in self.rows(&topic, &years) {
                 if Status::of(&row.last_seen, &now, window) == Status::Current {
-                    states.push(self.state_out(&topic, &row, None));
+                    states.push((self.state_out(&topic, &row, None), category));
                 }
             }
         }
-        cap(states, MAX_STATES)
+        self.cap(states, MAX_STATES)
     }
 
     /// Every state of `topic` seen during `from`–`to`, current, recent or past, with its
@@ -381,7 +429,7 @@ impl<'g> Access<'g> {
         let last = to.date().year();
         let years: Vec<i16> = (first..=last).collect();
         let mut states = Vec::new();
-        for (row, _) in self.rows(&topic, &years) {
+        for (row, category) in self.rows(&topic, &years) {
             let (Some(first_seen), Some(last_seen)) = (
                 seen_instant(&row.first_seen, tz, false),
                 seen_instant(&row.last_seen, tz, true),
@@ -394,10 +442,23 @@ impl<'g> Access<'g> {
                     Status::Recent => "recent",
                     Status::Past => "past",
                 };
-                states.push(self.state_out(&topic, &row, Some(label)));
+                states.push((self.state_out(&topic, &row, Some(label)), category));
             }
         }
-        cap(states, limit.clamp(1, MAX_STATES))
+        self.cap(states, limit.clamp(1, MAX_STATES))
+    }
+
+    /// At most `limit` states, the categories of those kept remembered.
+    fn cap(&self, mut states: Vec<(StateOut, String)>, limit: usize) -> States {
+        let more = states.len() > limit;
+        states.truncate(limit);
+        for (_, category) in &states {
+            self.returned(category);
+        }
+        States {
+            states: states.into_iter().map(|(s, _)| s).collect(),
+            more,
+        }
     }
 
     fn time_zone(&self) -> &TimeZone {
@@ -418,7 +479,7 @@ impl<'g> Access<'g> {
         let path = self
             .gateway
             .index
-            .path_of(&id, |c| self.client.reads(c.as_str()))?;
+            .path_of(&id, |c| self.reads(c.as_str()))?;
         Some(path.file_stem()?.to_string_lossy().into_owned())
     }
 
@@ -438,16 +499,18 @@ impl<'g> Access<'g> {
         found
     }
 
-    /// The rows of `topic` for `years` that this AI may read: files of its categories,
-    /// rows whose subject it may follow. Unreadable files are skipped.
-    fn rows(&self, topic: &Topic, years: &[i16]) -> Vec<(crate::vault::StateRow, i16)> {
+    /// The rows of `topic` for `years` that this AI may read, with the category of
+    /// their file: files of its categories, rows whose subject it may follow.
+    /// Unreadable files are skipped.
+    fn rows(&self, topic: &Topic, years: &[i16]) -> Vec<(crate::vault::StateRow, String)> {
         let mut rows = Vec::new();
         for &year in years {
             let path = crate::vault::naming::state_log_path(self.gateway.vault.root(), topic, year);
             let Ok(file) = MemoryFile::read(&path) else {
                 continue;
             };
-            if !self.client.reads(file.common().category.as_str()) || file.state_log().is_none() {
+            let category = file.common().category.as_str();
+            if !self.reads(category) || file.state_log().is_none() {
                 continue;
             }
             let Ok(table) = parse_table(file.body()) else {
@@ -460,7 +523,7 @@ impl<'g> Access<'g> {
                         Subject::Link(link) => self.follows(&link.target),
                         Subject::Text(_) => true,
                     })
-                    .map(|r| (r, year)),
+                    .map(|r| (r, category.to_owned())),
             );
         }
         rows.sort_by_key(|(r, _)| {
@@ -515,9 +578,10 @@ impl<'g> Access<'g> {
         let path: PathBuf = self.gateway.vault.root().join(relative);
         let file = MemoryFile::read(&path).ok()?;
         let common = file.common();
-        if !self.client.reads(common.category.as_str()) {
+        if !self.reads(common.category.as_str()) {
             return None;
         }
+        self.returned(common.category.as_str());
         if let Some(event) = file.event() {
             return Some(Entry {
                 id: common.id.to_string(),
@@ -613,7 +677,7 @@ impl<'g> Access<'g> {
     /// link to nothing known counts as hidden.
     fn follows(&self, target: &str) -> bool {
         let categories = self.gateway.index.categories_of(target);
-        !categories.is_empty() && categories.iter().all(|c| self.client.reads(c.as_str()))
+        !categories.is_empty() && categories.iter().all(|c| self.reads(c.as_str()))
     }
 }
 
@@ -645,10 +709,4 @@ fn day_start(day: Date, tz: &TimeZone, next: bool) -> Option<Timestamp> {
     };
     let zoned: Zoned = day.to_zoned(tz.clone()).ok()?;
     Some(zoned.timestamp())
-}
-
-fn cap(mut states: Vec<StateOut>, limit: usize) -> States {
-    let more = states.len() > limit;
-    states.truncate(limit);
-    States { states, more }
 }

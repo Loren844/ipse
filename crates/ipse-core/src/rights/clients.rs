@@ -55,10 +55,11 @@ pub struct Client {
 }
 
 impl Client {
-    /// True when the client may read `category`. Unknown categories count as `private`.
+    /// True when the client may read `category`, among the vault's `categories`.
+    /// Unknown categories count as `private`.
     #[must_use]
-    pub fn reads(&self, category: &str) -> bool {
-        let category = super::effective(category);
+    pub fn reads(&self, category: &str, categories: &super::Categories) -> bool {
+        let category = categories.effective(category);
         self.read.iter().any(|c| c == category)
     }
 }
@@ -143,14 +144,21 @@ impl Clients {
         &self.clients
     }
 
-    /// Connects a new AI named `name`, reading every non-sensitive category, and saves.
-    /// Returns it with its access code, which is shown only now.
+    /// Connects a new AI named `name`, reading every category of `categories` that is
+    /// not sensitive, and saves. `local` records that the person said it runs entirely
+    /// on this computer. Returns it with its access code, which is shown only now.
     ///
     /// # Errors
     ///
     /// [`Error::Refused`] for an empty name or when no random code can be made;
     /// [`Error::Io`] when the list cannot be saved.
-    pub fn add(&mut self, name: &str, created: DateTime) -> Result<(Client, Token)> {
+    pub fn add(
+        &mut self,
+        name: &str,
+        created: DateTime,
+        categories: &super::Categories,
+        local: bool,
+    ) -> Result<(Client, Token)> {
         let name = name.trim();
         if name.is_empty() {
             return Err(Error::Refused(
@@ -175,9 +183,9 @@ impl Clients {
             name: name.to_owned(),
             created: created.to_string(),
             token_hash: hash(token.expose()),
-            read: super::default_read(),
+            read: categories.default_read(),
             propose: Vec::new(),
-            local: false,
+            local,
         };
         self.clients.push(client.clone());
         self.save()?;
@@ -268,6 +276,10 @@ mod tests {
     use super::*;
     use crate::time::TimeZone;
 
+    fn none() -> crate::rights::Categories {
+        crate::rights::Categories::default()
+    }
+
     fn now() -> DateTime {
         DateTime::now(&TimeZone::UTC)
     }
@@ -276,7 +288,9 @@ mod tests {
     fn add_authenticate_remove() {
         let dir = tempfile::tempdir().unwrap();
         let mut clients = Clients::load(dir.path()).unwrap();
-        let (client, token) = clients.add("Claude (ordinateur)", now()).unwrap();
+        let (client, token) = clients
+            .add("Claude (ordinateur)", now(), &none(), false)
+            .unwrap();
         assert_eq!(client.id, "claude-ordinateur");
         assert!(token.expose().starts_with("ipse_"));
         assert_eq!(token.expose().len(), 5 + 64);
@@ -310,8 +324,8 @@ mod tests {
     fn ids_are_unique_and_codes_differ() {
         let dir = tempfile::tempdir().unwrap();
         let mut clients = Clients::load(dir.path()).unwrap();
-        let (a, ta) = clients.add("Claude", now()).unwrap();
-        let (b, tb) = clients.add("Claude", now()).unwrap();
+        let (a, ta) = clients.add("Claude", now(), &none(), false).unwrap();
+        let (b, tb) = clients.add("Claude", now(), &none(), false).unwrap();
         assert_eq!((a.id.as_str(), b.id.as_str()), ("claude", "claude-2"));
         assert_ne!(ta.expose(), tb.expose());
         assert_eq!(clients.authenticate(tb.expose()).unwrap().id, "claude-2");
@@ -322,19 +336,30 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (client, _) = Clients::load(dir.path())
             .unwrap()
-            .add("Claude", now())
+            .add("Claude", now(), &none(), false)
             .unwrap();
-        assert!(client.reads("people") && client.reads("identity"));
+        assert!(client.reads("people", &none()) && client.reads("identity", &none()));
         for closed in ["location", "home", "health", "private", "studies"] {
-            assert!(!client.reads(closed), "{closed}");
+            assert!(!client.reads(closed, &none()), "{closed}");
         }
+    }
+
+    #[test]
+    fn local_is_recorded() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut clients = Clients::load(dir.path()).unwrap();
+        let (client, _) = clients.add("Ollama", now(), &none(), true).unwrap();
+        assert!(client.local);
+        assert!(Clients::load(dir.path()).unwrap().list()[0].local);
     }
 
     #[test]
     fn names_with_quotes_are_saved_safely() {
         let dir = tempfile::tempdir().unwrap();
         let mut clients = Clients::load(dir.path()).unwrap();
-        clients.add("Mon \"IA\"\nlocale", now()).unwrap();
+        clients
+            .add("Mon \"IA\"\nlocale", now(), &none(), false)
+            .unwrap();
         let reloaded = Clients::load(dir.path()).unwrap();
         assert_eq!(reloaded.list()[0].name, "Mon \"IA\"\nlocale");
     }
@@ -342,6 +367,11 @@ mod tests {
     #[test]
     fn empty_name_is_refused() {
         let dir = tempfile::tempdir().unwrap();
-        assert!(Clients::load(dir.path()).unwrap().add(" ", now()).is_err());
+        assert!(
+            Clients::load(dir.path())
+                .unwrap()
+                .add(" ", now(), &none(), false)
+                .is_err()
+        );
     }
 }

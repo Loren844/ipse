@@ -185,7 +185,11 @@ details and what they wrote about themselves. Call it once at the start of a con
 Example: about_me {}. Returns {\"me\": {...}}, or {\"me\": null} when there is nothing to show."
     )]
     fn about_me(&self, context: RequestContext<RoleServer>) -> CallToolResult {
-        self.read(&context, |access| json!({ "me": access.about_me() }))
+        self.read(
+            &context,
+            "about_me",
+            |access| json!({ "me": access.about_me() }),
+        )
     }
 
     #[tool(
@@ -201,7 +205,7 @@ right result by its id."
         context: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let limit = request.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
-        self.read(&context, |access| {
+        self.read(&context, "search", |access| {
             let found = access.search(&request.query, limit);
             let results: Vec<Value> = found
                 .hits
@@ -242,11 +246,11 @@ get {\"id\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"}, get {\"name\": \"Marie Dupont\"}."
             .map(link_target)
             .filter(|s| !s.is_empty());
         match (id, name) {
-            (Some(id), None) => self.read(&context, |access| {
+            (Some(id), None) => self.read(&context, "get", |access| {
                 let entries: Vec<_> = access.get(id).into_iter().collect();
                 json!({ "entries": entries, "more": false })
             }),
-            (None, Some(name)) => self.read(&context, |access| {
+            (None, Some(name)) => self.read(&context, "get", |access| {
                 let mut entries = access.get_by_name(name);
                 let more = entries.len() > MAX_NAMED;
                 entries.truncate(MAX_NAMED);
@@ -277,7 +281,7 @@ for \"what do I have tomorrow?\"; events {\"from\": \"2025-11-14\", \"to\": \"20
             return refusal(PERIOD);
         };
         let limit = request.limit.unwrap_or(MAX_EVENTS);
-        self.read(&context, |access| {
+        self.read(&context, "events", |access| {
             let found = access.events(&from, &to, request.with.as_deref(), limit);
             json!({ "events": found.events, "more": found.more })
         })
@@ -293,7 +297,7 @@ with when it was last seen. Example: now {} or now {\"topics\": [\"music\"]}."
         Parameters(request): Parameters<NowRequest>,
         context: RequestContext<RoleServer>,
     ) -> CallToolResult {
-        self.read(&context, |access| {
+        self.read(&context, "now", |access| {
             let found = access.now(&request.topics);
             json!({ "states": found.states, "more": found.more })
         })
@@ -314,7 +318,7 @@ listening to last summer?\"); for now, use `now`. Example: states_history {\"top
             return refusal(PERIOD);
         };
         let limit = request.limit.unwrap_or(MAX_STATES);
-        self.read(&context, |access| {
+        self.read(&context, "states_history", |access| {
             let found = access.states_history(&request.topic, &from, &to, limit);
             json!({ "states": found.states, "more": found.more })
         })
@@ -343,10 +347,12 @@ impl ServerHandler for Server {
 }
 
 impl Server {
-    /// Checks the access code, then runs `query` with what it allows.
+    /// Checks the access code, runs `query` with what it allows, then logs the call
+    /// in the access log: the tool, the categories read, how many results.
     fn read(
         &self,
         context: &RequestContext<RoleServer>,
+        tool: &str,
         query: impl FnOnce(&Access<'_>) -> Value,
     ) -> CallToolResult {
         let token = match &self.token {
@@ -362,7 +368,14 @@ impl Server {
         };
         let mut gateway = self.gateway.lock().unwrap_or_else(PoisonError::into_inner);
         match gateway.fresh_access(Some(&token)) {
-            Ok(access) => CallToolResult::structured(query(&access)),
+            Ok(access) => {
+                let value = query(&access);
+                if let Err(error) = access.log(tool, results(&value)) {
+                    // The answer is not withheld: the log is for the person, not a gate.
+                    eprintln!("The access log could not be written: {error}");
+                }
+                CallToolResult::structured(value)
+            }
             Err(IpseError::Refused(message)) => refusal(&message),
             Err(error) => {
                 // The details name files of the vault: they stay on this computer.
@@ -371,6 +384,15 @@ impl Server {
             }
         }
     }
+}
+
+/// How many results a tool's answer holds: the length of its list, or 1 for `about_me`
+/// when there is something to show.
+fn results(value: &Value) -> usize {
+    ["results", "entries", "events", "states"]
+        .iter()
+        .find_map(|key| value.get(key).and_then(Value::as_array).map(Vec::len))
+        .unwrap_or_else(|| usize::from(value.get("me").is_some_and(|me| !me.is_null())))
 }
 
 fn refusal(message: &str) -> CallToolResult {
@@ -389,7 +411,16 @@ fn link_target(name: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::link_target;
+    use super::{link_target, results};
+    use serde_json::json;
+
+    #[test]
+    fn results_are_counted() {
+        assert_eq!(results(&json!({ "results": [1, 2], "more": true })), 2);
+        assert_eq!(results(&json!({ "entries": [] })), 0);
+        assert_eq!(results(&json!({ "me": { "name": "Camille" } })), 1);
+        assert_eq!(results(&json!({ "me": null })), 0);
+    }
 
     #[test]
     fn link_targets_are_names() {

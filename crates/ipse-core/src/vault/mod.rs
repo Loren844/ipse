@@ -28,6 +28,6 @@ pub use fields::{
 pub use file::MemoryFile;
 pub use history::{Change, History, Source};
 pub use lang::Language;
-pub use settings::Settings;
+pub use settings::{CustomCategory, Settings};
 pub use state::{Seen, StateLogFields, StateRow, Status, Subject, Topic};
 pub use store::{SETTINGS_FILE, Vault};

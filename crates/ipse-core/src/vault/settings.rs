@@ -22,6 +22,18 @@ pub struct Settings {
     time_zone: TimeZone,
     /// State windows set by the person, by topic.
     freshness: BTreeMap<String, SignedDuration>,
+    /// Categories the person declared, by name (`docs/spec/rights.md`, section 1.1).
+    categories: BTreeMap<String, CustomCategory>,
+}
+
+/// A category the person declared in `[categories.<name>]`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CustomCategory {
+    /// The name shown in the interface, if given.
+    pub label: Option<String>,
+    /// Denied to every AI until allowed one by one. When left out, the category is
+    /// sensitive: a category nobody said was safe to share stays closed.
+    pub sensitive: bool,
 }
 
 #[derive(Deserialize)]
@@ -31,6 +43,14 @@ struct Raw {
     time_zone: Option<String>,
     #[serde(default)]
     freshness: BTreeMap<String, String>,
+    #[serde(default)]
+    categories: BTreeMap<String, RawCategory>,
+}
+
+#[derive(Deserialize)]
+struct RawCategory {
+    name: Option<String>,
+    sensitive: Option<bool>,
 }
 
 impl Settings {
@@ -44,6 +64,7 @@ impl Settings {
             time_zone_name: time_zone_name.to_owned(),
             time_zone,
             freshness: BTreeMap::new(),
+            categories: BTreeMap::new(),
         })
     }
 
@@ -62,6 +83,7 @@ impl Settings {
                 time_zone_name: "UTC".to_owned(),
                 time_zone: TimeZone::UTC,
                 freshness: BTreeMap::new(),
+                categories: BTreeMap::new(),
             })
     }
 
@@ -142,6 +164,22 @@ impl Settings {
             })?;
             settings.freshness.insert(topic, window);
         }
+        for (name, raw) in raw.categories {
+            if super::Category::new(&name).is_none() {
+                return Err(invalid(
+                    None,
+                    "a category in `[categories]` must use lowercase letters, digits and dashes",
+                ));
+            }
+            let category = CustomCategory {
+                label: raw
+                    .name
+                    .map(|n| n.trim().to_owned())
+                    .filter(|n| !n.is_empty()),
+                sensitive: raw.sensitive.unwrap_or(true),
+            };
+            settings.categories.insert(name, category);
+        }
         Ok(settings)
     }
 
@@ -173,6 +211,12 @@ impl Settings {
     #[must_use]
     pub fn time_zone_name(&self) -> &str {
         &self.time_zone_name
+    }
+
+    /// The categories the person declared, by name.
+    #[must_use]
+    pub fn categories(&self) -> &BTreeMap<String, CustomCategory> {
+        &self.categories
     }
 
     /// How long a state of `topic` stays current: the person's setting, else the spec's
@@ -264,6 +308,22 @@ mod tests {
         let settings = parse("format = 1\n[categories.studies]\nname = \"Études\"\n").unwrap();
         assert_eq!(settings.language(), Language::En);
         assert_eq!(settings.time_zone_name(), "UTC");
+    }
+
+    #[test]
+    fn categories_the_person_declared() {
+        let settings = parse(
+            "format = 1\n[categories.studies]\nname = \"Études\"\nsensitive = false\n[categories.therapy]\n",
+        )
+        .unwrap();
+        let studies = &settings.categories()["studies"];
+        assert_eq!(studies.label.as_deref(), Some("Études"));
+        assert!(!studies.sensitive);
+        assert!(
+            settings.categories()["therapy"].sensitive,
+            "left out: sensitive"
+        );
+        assert!(parse("format = 1\n[categories.\"Mes Études\"]\n").is_err());
     }
 
     #[test]

@@ -2,7 +2,8 @@
 //! people and 10 000 events, plus a year of music. Prints p50 and p99 of 200 calls.
 //!
 //! Each call includes what `ipse mcp` does before every tool: reloading the connected
-//! AIs, checking the access code and checking whether the vault changed.
+//! AIs, checking the access code and checking whether the vault changed. One line adds
+//! what it does after: writing the call to the access log.
 #![allow(
     missing_docs,
     clippy::unwrap_used,
@@ -84,7 +85,12 @@ fn write_vault(root: &Path) -> String {
     .unwrap();
     let mut clients = Clients::load(root).unwrap();
     let (_, token) = clients
-        .add("Claude", DateTime::now(&jiff::tz::TimeZone::UTC))
+        .add(
+            "Claude",
+            DateTime::now(&jiff::tz::TimeZone::UTC),
+            &ipse_core::rights::Categories::default(),
+            false,
+        )
         .unwrap();
     token.expose().to_owned()
 }
@@ -138,6 +144,11 @@ fn main() {
     measure(&mut gateway, &token, "check only (before each tool)", |_| 0);
     measure(&mut gateway, &token, "about_me", |a| {
         usize::from(a.about_me().is_some())
+    });
+    measure(&mut gateway, &token, "about_me, then the access log", |a| {
+        let n = usize::from(a.about_me().is_some());
+        a.log("about_me", n).unwrap();
+        n
     });
     measure(&mut gateway, &token, "search \"personne 4242\"", |a| {
         a.search("personne 4242", 10).hits.len()

@@ -35,7 +35,12 @@ fn write_vault(root: &Path) -> String {
     }
     let mut clients = Clients::load(root).unwrap();
     let (_, token) = clients
-        .add("Bench", DateTime::now(&jiff::tz::TimeZone::UTC))
+        .add(
+            "Bench",
+            DateTime::now(&jiff::tz::TimeZone::UTC),
+            &ipse_core::rights::Categories::default(),
+            false,
+        )
         .unwrap();
     token.expose().to_owned()
 }
