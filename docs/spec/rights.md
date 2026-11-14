@@ -81,7 +81,11 @@ local = false                   # the person said this AI runs entirely on this 
 
 - Ipse is an MCP server built on `rmcp` (decision 0001).
 - **Local AI apps** start `ipse mcp --vault <folder>` themselves, over standard input and output. The token is passed in the environment variable `IPSE_TOKEN` of that command, set in the AI app's configuration. The code is checked again on every call, so removing an AI or changing its rights applies from its next request.
-- **Online AIs** that cannot start a local program connect over Streamable HTTP on `127.0.0.1` only, with the token as a bearer token. Exposing Ipse beyond the computer is out of scope for 1.0.
+- **AI apps that speak HTTP** connect over Streamable HTTP: `ipse mcp --http [port]` (port 7420 by default) serves `http://127.0.0.1:<port>/mcp`.
+    - It listens on `127.0.0.1` only; any other address is refused before anything starts. Exposing Ipse beyond the computer is out of scope for 1.0.
+    - Every request carries the token as `Authorization: Bearer ipse_…`, checked through the same gateway as standard input and output before the request reaches MCP. A missing or wrong token gets `401` with no detail.
+    - `Host` must be `127.0.0.1` or `localhost` (against DNS rebinding), and an `Origin`, when a browser sends one, must be a page on this computer (`http://127.0.0.1` or `http://localhost`, any port); otherwise `403`.
+    - Each request is answered on its own, in JSON (stateless Streamable HTTP): the tools only answer, so no session is kept.
 - A request without a valid token is refused before any data is read.
 
 ## 4. Tools

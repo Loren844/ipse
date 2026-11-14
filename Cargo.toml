@@ -16,6 +16,10 @@ ipse-core = { path = "crates/ipse-core" }
 ipse-protocol = { path = "crates/ipse-protocol" }
 clap = { version = "4.6", features = ["derive"] }
 getrandom = "0.4"
+# HTTP/1 server for MCP over Streamable HTTP on 127.0.0.1 (rmcp gives the MCP side).
+http-body-util = "0.1"
+hyper = { version = "1.7", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 # Git in pure Rust, for the vault's history (docs/spec/vault.md, section 9).
 gix = { version = "0.90", default-features = false, features = ["excludes", "index", "sha1"] }
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }

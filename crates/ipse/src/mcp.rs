@@ -1,13 +1,17 @@
-//! `ipse mcp`: serves the memory to an AI app over MCP, on standard input and output
-//! (`docs/spec/rights.md`, sections 3 and 4).
+//! `ipse mcp`: serves the memory to an AI app over MCP (`docs/spec/rights.md`, sections
+//! 3 and 4), on standard input and output, or over Streamable HTTP on this computer
+//! (`http`).
 //!
-//! The AI app starts this command itself and passes the access code in `IPSE_TOKEN`.
-//! Every tool goes through [`Gateway::fresh_access`]: the code is checked again on each
-//! call, before anything is read, so that removing an AI or changing its rights applies
-//! from its next request.
+//! On standard input and output, the AI app starts this command itself and passes the
+//! access code in `IPSE_TOKEN`; over HTTP, it sends the code with each request. Every
+//! tool goes through [`Gateway::fresh_access`]: the code is checked again on each call,
+//! before anything is read, so that removing an AI or changing its rights applies from
+//! its next request.
+
+mod http;
 
 use std::path::PathBuf;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use ipse_core::Error as IpseError;
 use ipse_core::rights::{Access, Gateway, MAX_EVENTS, MAX_STATES};
@@ -16,7 +20,8 @@ use ipse_core::vault::EventTime;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{CallToolResult, ContentBlock, Implementation, ServerCapabilities, ServerConfig};
-use rmcp::{ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router};
+use rmcp::service::RequestContext;
+use rmcp::{RoleServer, ServerHandler, ServiceExt, schemars, tool, tool_handler, tool_router};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -35,9 +40,13 @@ series, books), use `now`; `states_history` is only for questions about a past p
 see what the person allowed you to see.";
 
 /// Serves the memory in `vault` (default: the current folder) until the AI app closes
-/// the connection.
-pub(crate) fn run(vault: Option<PathBuf>) -> ipse_core::Result<()> {
+/// the connection; with `http`, over HTTP at that address until stopped.
+pub(crate) fn run(vault: Option<PathBuf>, http: Option<&str>) -> ipse_core::Result<()> {
     let root = vault.unwrap_or_else(|| PathBuf::from("."));
+    if let Some(address) = http {
+        let address = http::address(address)?;
+        return http::serve(Gateway::open(&root)?, address);
+    }
     let gateway = Gateway::open(&root)?;
     let token = std::env::var(TOKEN_VAR)
         .ok()
@@ -58,7 +67,7 @@ pub(crate) fn run(vault: Option<PathBuf>) -> ipse_core::Result<()> {
         .build()
         .map_err(|e| stopped(&e))?;
     runtime.block_on(async {
-        let service = Server::new(gateway, token)
+        let service = Server::new(Arc::new(Mutex::new(gateway)), Token::Fixed(token))
             .serve(rmcp::transport::stdio())
             .await
             .map_err(|e| stopped(&e))?;
@@ -78,11 +87,19 @@ fn no_token() -> String {
     )
 }
 
-/// The MCP server: the vault's gateway and the access code the AI app was started
-/// with.
+/// Where the access code comes from.
+#[derive(Debug, Clone)]
+enum Token {
+    /// Given once, when the AI app started `ipse mcp` (standard input and output).
+    Fixed(Option<String>),
+    /// Sent with each HTTP request, as `Authorization: Bearer <code>`.
+    PerRequest,
+}
+
+/// The MCP server: the vault's gateway and where the access code comes from.
 struct Server {
-    gateway: Mutex<Gateway>,
-    token: Option<String>,
+    gateway: Arc<Mutex<Gateway>>,
+    token: Token,
     tool_router: ToolRouter<Self>,
 }
 
@@ -152,10 +169,11 @@ struct StatesHistoryRequest {
 }
 
 #[tool_router]
+#[allow(clippy::needless_pass_by_value)] // rmcp passes what a tool takes by value
 impl Server {
-    fn new(gateway: Gateway, token: Option<String>) -> Self {
+    fn new(gateway: Arc<Mutex<Gateway>>, token: Token) -> Self {
         Self {
-            gateway: Mutex::new(gateway),
+            gateway,
             token,
             tool_router: Self::tool_router() + Self::time_router(),
         }
@@ -166,8 +184,8 @@ impl Server {
 details and what they wrote about themselves. Call it once at the start of a conversation. \
 Example: about_me {}. Returns {\"me\": {...}}, or {\"me\": null} when there is nothing to show."
     )]
-    fn about_me(&self) -> CallToolResult {
-        self.read(|access| json!({ "me": access.about_me() }))
+    fn about_me(&self, context: RequestContext<RoleServer>) -> CallToolResult {
+        self.read(&context, |access| json!({ "me": access.about_me() }))
     }
 
     #[tool(
@@ -177,9 +195,13 @@ with its id, type, name and a short excerpt; `more` is true when there were more
 Example: when the person mentions \"Marie\", call search {\"query\": \"Marie\"}, then get the \
 right result by its id."
     )]
-    fn search(&self, Parameters(request): Parameters<SearchRequest>) -> CallToolResult {
+    fn search(
+        &self,
+        Parameters(request): Parameters<SearchRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> CallToolResult {
         let limit = request.limit.unwrap_or(DEFAULT_LIMIT).clamp(1, MAX_LIMIT);
-        self.read(|access| {
+        self.read(&context, |access| {
             let found = access.search(&request.query, limit);
             let results: Vec<Value> = found
                 .hits
@@ -204,7 +226,11 @@ Several entities come back when several share that name: ask the person which on
 A relation's target, like \"[[paul-durand]]\", can be passed as `name`. Examples: \
 get {\"id\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"}, get {\"name\": \"Marie Dupont\"}."
     )]
-    fn get(&self, Parameters(request): Parameters<GetRequest>) -> CallToolResult {
+    fn get(
+        &self,
+        Parameters(request): Parameters<GetRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> CallToolResult {
         let id = request
             .id
             .as_deref()
@@ -216,11 +242,11 @@ get {\"id\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"}, get {\"name\": \"Marie Dupont\"}."
             .map(link_target)
             .filter(|s| !s.is_empty());
         match (id, name) {
-            (Some(id), None) => self.read(|access| {
+            (Some(id), None) => self.read(&context, |access| {
                 let entries: Vec<_> = access.get(id).into_iter().collect();
                 json!({ "entries": entries, "more": false })
             }),
-            (None, Some(name)) => self.read(|access| {
+            (None, Some(name)) => self.read(&context, |access| {
                 let mut entries = access.get_by_name(name);
                 let more = entries.len() > MAX_NAMED;
                 entries.truncate(MAX_NAMED);
@@ -232,6 +258,7 @@ get {\"id\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"}, get {\"name\": \"Marie Dupont\"}."
 }
 
 #[tool_router(router = time_router)]
+#[allow(clippy::needless_pass_by_value)] // rmcp passes what a tool takes by value
 impl Server {
     #[tool(
         description = "The person's events in a period, ordered by start: title, start, end, place, \
@@ -241,12 +268,16 @@ true when there were more. Examples: events {\"from\": \"2026-11-14\", \"to\": \
 for \"what do I have tomorrow?\"; events {\"from\": \"2025-11-14\", \"to\": \"2026-11-14\", \
 \"with\": \"01jd5z8x3k4m2n6p7q9r0s1t2v\"} for \"when did I last see Marie?\"."
     )]
-    fn events(&self, Parameters(request): Parameters<EventsRequest>) -> CallToolResult {
+    fn events(
+        &self,
+        Parameters(request): Parameters<EventsRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> CallToolResult {
         let Some((from, to)) = period(&request.from, &request.to) else {
             return refusal(PERIOD);
         };
         let limit = request.limit.unwrap_or(MAX_EVENTS);
-        self.read(|access| {
+        self.read(&context, |access| {
             let found = access.events(&from, &to, request.with.as_deref(), limit);
             json!({ "events": found.events, "more": found.more })
         })
@@ -257,8 +288,12 @@ for \"what do I have tomorrow?\"; events {\"from\": \"2025-11-14\", \"to\": \"20
 the series they watch, the books they read, where they are… Only states that are current, each \
 with when it was last seen. Example: now {} or now {\"topics\": [\"music\"]}."
     )]
-    fn now(&self, Parameters(request): Parameters<NowRequest>) -> CallToolResult {
-        self.read(|access| {
+    fn now(
+        &self,
+        Parameters(request): Parameters<NowRequest>,
+        context: RequestContext<RoleServer>,
+    ) -> CallToolResult {
+        self.read(&context, |access| {
             let found = access.now(&request.topics);
             json!({ "states": found.states, "more": found.more })
         })
@@ -273,12 +308,13 @@ listening to last summer?\"); for now, use `now`. Example: states_history {\"top
     fn states_history(
         &self,
         Parameters(request): Parameters<StatesHistoryRequest>,
+        context: RequestContext<RoleServer>,
     ) -> CallToolResult {
         let Some((from, to)) = period(&request.from, &request.to) else {
             return refusal(PERIOD);
         };
         let limit = request.limit.unwrap_or(MAX_STATES);
-        self.read(|access| {
+        self.read(&context, |access| {
             let found = access.states_history(&request.topic, &from, &to, limit);
             json!({ "states": found.states, "more": found.more })
         })
@@ -308,12 +344,24 @@ impl ServerHandler for Server {
 
 impl Server {
     /// Checks the access code, then runs `query` with what it allows.
-    fn read(&self, query: impl FnOnce(&Access<'_>) -> Value) -> CallToolResult {
-        let Some(token) = self.token.as_deref() else {
+    fn read(
+        &self,
+        context: &RequestContext<RoleServer>,
+        query: impl FnOnce(&Access<'_>) -> Value,
+    ) -> CallToolResult {
+        let token = match &self.token {
+            Token::Fixed(token) => token.clone(),
+            Token::PerRequest => context
+                .extensions
+                .get::<hyper::http::request::Parts>()
+                .and_then(|parts| http::bearer(&parts.headers))
+                .map(str::to_owned),
+        };
+        let Some(token) = token else {
             return refusal(&no_token());
         };
         let mut gateway = self.gateway.lock().unwrap_or_else(PoisonError::into_inner);
-        match gateway.fresh_access(Some(token)) {
+        match gateway.fresh_access(Some(&token)) {
             Ok(access) => CallToolResult::structured(query(&access)),
             Err(IpseError::Refused(message)) => refusal(&message),
             Err(error) => {
