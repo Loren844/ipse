@@ -28,7 +28,14 @@ fn help_lists_the_commands() {
     assert!(out.status.success());
     let help = String::from_utf8_lossy(&out.stdout);
     for command in [
-        "init", "import", "calendar", "sync", "check", "client", "mcp",
+        "init",
+        "import",
+        "calendar",
+        "sync",
+        "check",
+        "proposals",
+        "client",
+        "mcp",
     ] {
         assert!(help.contains(command), "help does not list {command}");
     }
@@ -400,4 +407,106 @@ fn check_says_what_to_fix() {
         "{said}"
     );
     assert!(!said.contains("thé"), "the file is not quoted");
+}
+
+#[test]
+fn review_a_proposal_from_the_command_line() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    let ok = |args: &[&str]| {
+        let out = ipse(args);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8(out.stdout).unwrap()
+    };
+    ok(&[
+        "init",
+        vault_arg,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    assert_eq!(
+        ok(&["proposals", "list", "--vault", vault_arg]).trim(),
+        "Nothing to review."
+    );
+
+    // A proposal as an AI leaves it, in the format of `docs/spec/vault.md` section 12.
+    let proposal = |id: &str, text: &str| {
+        let json = format!(
+            r#"{{"format": 1, "id": "{id}", "by": "client:claude", "created": "2026-11-14T19:02:11+01:00",
+            "reason": "Dit dans la conversation.", "categories": ["people"],
+            "changes": [{{"kind": "add_fact", "file": "people/camille-durand.md", "text": "{text}"}}],
+            "status": {{"state": "waiting"}}}}"#
+        );
+        std::fs::create_dir_all(vault.join(".ipse/proposals")).unwrap();
+        std::fs::write(vault.join(format!(".ipse/proposals/{id}.json")), json).unwrap();
+    };
+    proposal("01jd3k8m2p4q6r8t0v2w4y6z8a", "Joue du violoncelle.");
+    proposal("01jd3k9m2p4q6r8t0v2w4y6z8a", "Parle italien.");
+
+    let listed = ok(&["proposals", "list", "--vault", vault_arg]);
+    assert!(
+        listed.starts_with("01jd3k9m  waiting   client:claude  Dit dans la conversation."),
+        "{listed}"
+    );
+    let shown = ok(&["proposals", "show", "01jd3k8m", "--vault", vault_arg]);
+    assert!(shown.contains("Why: Dit dans la conversation."), "{shown}");
+    assert!(
+        shown.contains("Camille Durand (people/camille-durand.md)\n  + fact: Joue du violoncelle."),
+        "{shown}"
+    );
+
+    assert!(ok(&["proposals", "accept", "01jd3k8m", "--vault", vault_arg]).starts_with("Accepted"));
+    let owner = vault.join("people/camille-durand.md");
+    assert!(
+        std::fs::read_to_string(&owner)
+            .unwrap()
+            .contains("- Joue du violoncelle. ^f-")
+    );
+    assert!(
+        ok(&[
+            "proposals",
+            "refuse",
+            "01jd3k9m",
+            "--comment",
+            "Pas vrai",
+            "--vault",
+            vault_arg
+        ])
+        .starts_with("Refused")
+    );
+    assert!(
+        ok(&["proposals", "show", "01jd3k9m", "--vault", vault_arg]).contains("You said: Pas vrai")
+    );
+    assert!(ok(&["proposals", "undo", "01jd3k8m", "--vault", vault_arg]).starts_with("Undone"));
+    assert!(
+        !std::fs::read_to_string(&owner)
+            .unwrap()
+            .contains("violoncelle")
+    );
+    assert_eq!(
+        ok(&["proposals", "list", "--vault", vault_arg]).trim(),
+        "Nothing to review."
+    );
+    assert_eq!(
+        ok(&["proposals", "list", "--all", "--vault", vault_arg])
+            .lines()
+            .count(),
+        2
+    );
+
+    let out = ipse(&["proposals", "accept", "01jd3k9m", "--vault", vault_arg]);
+    assert!(!out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stderr).trim(),
+        "This proposal is already refused."
+    );
 }

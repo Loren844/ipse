@@ -1,0 +1,332 @@
+//! The changes a proposal is made of, and the checks done when it is submitted.
+
+use std::collections::BTreeMap;
+use std::path::{Component, Path};
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use super::key::{ENTITY_KEYS, EVENT_KEYS};
+use crate::vault::naming::{entity_path, event_path};
+use crate::vault::{Category, EventTime, FactId, FileType, Id, MemoryFile, Vault, WikiLink};
+use crate::{Error, Result};
+
+/// One change to a memory file. Paths are relative to the vault, with `/`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum Change {
+    /// Creates an entity or an event file.
+    Create {
+        /// Its path, chosen when the proposal is submitted.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        file: Option<String>,
+        /// `person`, `place`, `organization`, `project`, `thing`, `topic`, `work` or
+        /// `event`.
+        #[serde(rename = "type")]
+        file_type: String,
+        /// Its category; the type's default when left out.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        category: Option<String>,
+        /// Front-matter keys: `name` for an entity, `title` and `start` for an event
+        /// are required.
+        #[serde(default)]
+        keys: BTreeMap<String, Value>,
+        /// Facts, one sentence each.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        facts: Vec<String>,
+        /// Relations to other files.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        relations: Vec<NewRelation>,
+        /// Free notes.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        notes: Option<String>,
+    },
+    /// Sets one front-matter key, if it still has the value `from`.
+    SetKey {
+        /// The file.
+        file: String,
+        /// The key.
+        key: String,
+        /// Its value when the proposal was made; `null` for none.
+        #[serde(default)]
+        from: Value,
+        /// Its new value; `null` removes it.
+        to: Value,
+    },
+    /// Adds a fact.
+    AddFact {
+        /// The file.
+        file: String,
+        /// The fact, one sentence.
+        text: String,
+    },
+    /// Rewrites a fact, if it still says `from`.
+    EditFact {
+        /// The file.
+        file: String,
+        /// The fact's identifier: `f-xxxx`.
+        fact: String,
+        /// What it said when the proposal was made.
+        from: String,
+        /// What it says now.
+        to: String,
+    },
+    /// Removes a fact, if it still says `text`.
+    RemoveFact {
+        /// The file.
+        file: String,
+        /// The fact's identifier: `f-xxxx`.
+        fact: String,
+        /// What it said when the proposal was made.
+        text: String,
+    },
+    /// Adds a relation: `word : [[target]]`.
+    AddRelation {
+        /// The file.
+        file: String,
+        /// The relation word: `mère`, `works at`.
+        word: String,
+        /// The linked file's stem.
+        target: String,
+        /// Text shown for the link, if not the target's name.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        display: Option<String>,
+    },
+    /// Removes a relation.
+    RemoveRelation {
+        /// The file.
+        file: String,
+        /// The relation word, as written.
+        word: String,
+        /// The linked file's stem.
+        target: String,
+    },
+}
+
+/// A relation of a file a proposal creates.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewRelation {
+    /// The relation word.
+    pub word: String,
+    /// The linked file's stem.
+    pub target: String,
+    /// Text shown for the link, if not the target's name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub display: Option<String>,
+}
+
+impl Change {
+    /// The file it changes; `None` for a file to create that has no path yet.
+    #[must_use]
+    pub fn file(&self) -> Option<&str> {
+        match self {
+            Self::Create { file, .. } => file.as_deref(),
+            Self::SetKey { file, .. }
+            | Self::AddFact { file, .. }
+            | Self::EditFact { file, .. }
+            | Self::RemoveFact { file, .. }
+            | Self::AddRelation { file, .. }
+            | Self::RemoveRelation { file, .. } => Some(file),
+        }
+    }
+}
+
+/// The folders a proposal may write in: entities and events. Summaries come with their
+/// own kind of change; state logs are written by connectors only.
+fn writable(file_type: FileType) -> bool {
+    file_type.is_entity() || file_type == FileType::Event
+}
+
+/// Checks the form of `change` and returns the category of its file. A file to create
+/// gets its path, different from those in `planned`.
+#[allow(clippy::too_many_lines)] // one arm per kind of change
+pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> Result<String> {
+    let refused = |text: String| Err(Error::Refused(text));
+    match change {
+        Change::Create {
+            file,
+            file_type,
+            category,
+            keys,
+            facts,
+            relations,
+            ..
+        } => {
+            let Some(kind) = FileType::parse(file_type).filter(|t| writable(*t)) else {
+                return refused(format!(
+                    "`{file_type}` is not a type of file a proposal can create: use person, place, organization, project, thing, topic, work or event."
+                ));
+            };
+            let allowed: &[&str] = if kind == FileType::Event {
+                &EVENT_KEYS
+            } else {
+                &ENTITY_KEYS
+            };
+            if let Some(key) = keys.keys().find(|k| !allowed.contains(&k.as_str())) {
+                return refused(format!("`{key}` cannot be set on a new {file_type}."));
+            }
+            let text = |key: &str| {
+                keys.get(key)
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+            };
+            let path = if kind == FileType::Event {
+                let (Some(title), Some(start)) = (text("title"), text("start")) else {
+                    return refused("A new event needs `title` and `start`.".to_owned());
+                };
+                let Some(start) = EventTime::parse(start) else {
+                    return refused("`start` must be a day (2026-11-14) or a date and time with its offset (2026-11-14T20:00:00+01:00).".to_owned());
+                };
+                event_path(vault.root(), title, &start, &Id::generate())?
+            } else {
+                let Some(name) = text("name") else {
+                    return refused(format!("A new {file_type} needs a `name`."));
+                };
+                entity_path(vault.root(), kind, Some(name), &Id::generate())?
+            };
+            let rel = relative(vault.root(), &path);
+            if planned.contains(&rel) {
+                return refused(
+                    "Two new files of this proposal would have the same name: make it one."
+                        .to_owned(),
+                );
+            }
+            for fact in facts.iter() {
+                one_line_text("a fact", fact)?;
+            }
+            for relation in relations.iter() {
+                check_relation(&relation.word, &relation.target)?;
+            }
+            let category = match category.as_deref() {
+                None => kind.default_category(),
+                Some(c) => Category::new(c),
+            };
+            let Some(category) = category else {
+                return refused(
+                    "`category` must be a category name, like people or health.".to_owned(),
+                );
+            };
+            *file = Some(rel);
+            Ok(category.as_str().to_owned())
+        }
+        Change::SetKey { file, key, .. } => {
+            let found = existing(vault, file)?;
+            let allowed: &[&str] = if found.event().is_some() {
+                &EVENT_KEYS
+            } else {
+                &ENTITY_KEYS
+            };
+            if !allowed.contains(&key.as_str()) {
+                return refused(format!("`{key}` cannot be set on {file}."));
+            }
+            Ok(found.common().category.as_str().to_owned())
+        }
+        Change::AddFact { file, text } => {
+            one_line_text("a fact", text)?;
+            Ok(category(vault, file)?)
+        }
+        Change::EditFact { file, fact, to, .. } => {
+            fact_id(fact)?;
+            one_line_text("a fact", to)?;
+            Ok(category(vault, file)?)
+        }
+        Change::RemoveFact { file, fact, .. } => {
+            fact_id(fact)?;
+            Ok(category(vault, file)?)
+        }
+        Change::AddRelation {
+            file, word, target, ..
+        } => {
+            check_relation(word, target)?;
+            Ok(category(vault, file)?)
+        }
+        Change::RemoveRelation { file, .. } => Ok(category(vault, file)?),
+    }
+}
+
+/// The identifier of a fact, from its text.
+pub(super) fn fact_id(text: &str) -> Result<FactId> {
+    FactId::parse(text).ok_or_else(|| {
+        Error::Refused(format!(
+            "`{text}` is not a fact identifier: they look like f-3k9x."
+        ))
+    })
+}
+
+fn one_line_text(what: &str, text: &str) -> Result<()> {
+    if text.trim().is_empty() {
+        return Err(Error::Refused(format!("{what} cannot be empty.")));
+    }
+    if text.chars().count() > 2_000 {
+        return Err(Error::Refused(format!(
+            "{what} is too long: keep it under 2 000 characters."
+        )));
+    }
+    Ok(())
+}
+
+fn check_relation(word: &str, target: &str) -> Result<()> {
+    one_line_text("A relation word", word)?;
+    let valid = WikiLink::parse(&format!("[[{target}]]")).is_some_and(|l| l.target == target);
+    if !valid || target.contains('/') {
+        return Err(Error::Refused(format!(
+            "`{target}` is not a file name: give the linked file's name without folder or `.md`, like marie-dupont."
+        )));
+    }
+    Ok(())
+}
+
+fn category(vault: &Vault, file: &str) -> Result<String> {
+    Ok(existing(vault, file)?.common().category.as_str().to_owned())
+}
+
+/// The memory file at `file`, which must exist, in a folder a proposal may write in.
+fn existing(vault: &Vault, file: &str) -> Result<MemoryFile> {
+    let path = memory_path(vault.root(), file)?;
+    if !path.is_file() {
+        return Err(Error::Refused(format!("There is no file {file}.")));
+    }
+    let found = MemoryFile::read(&path)?;
+    if !writable(found.common().file_type) {
+        return Err(Error::Refused(format!(
+            "{file} cannot be changed by a proposal."
+        )));
+    }
+    Ok(found)
+}
+
+/// `file` (relative, with `/`) inside the vault, in an entity or event folder, ending
+/// with `.md`.
+pub(super) fn memory_path(root: &Path, file: &str) -> Result<std::path::PathBuf> {
+    let bad = || {
+        Error::Refused(format!(
+            "{file} is not the path of a memory file: give it relative to the memory, like people/marie-dupont.md."
+        ))
+    };
+    if file.contains('\\') || Path::new(file).extension().is_none_or(|e| e != "md") {
+        return Err(bad());
+    }
+    let path = Path::new(file);
+    if !path.components().all(|c| matches!(c, Component::Normal(_))) {
+        return Err(bad());
+    }
+    let folder = file.split('/').next().unwrap_or_default();
+    if !FileType::ALL
+        .iter()
+        .any(|t| writable(*t) && t.folder() == folder)
+    {
+        return Err(bad());
+    }
+    Ok(root.join(path))
+}
+
+/// `path` relative to `root`, with `/`.
+pub(super) fn relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
+}

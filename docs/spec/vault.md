@@ -311,3 +311,39 @@ The vault is a git repository, invisible to the person: no git word appears in t
 - `format` in `.ipse/vault.toml` is an integer, bumped only for changes an older Ipse cannot read.
 - Ipse migrates older vaults forward in one recorded change, after a backup of the files it will touch.
 - Until 1.0 the format may change between releases; each change is listed in the release notes with its migration.
+
+## 12. Proposals
+
+Decision 0005: anything an AI infers, merges or changes is a **proposal**, which the person accepts or refuses. A proposal is a list of changes to memory files that waits in `.ipse/proposals/<id>.json`, one file per proposal, written atomically. Proposals are not memory: they are left out of history (section 9).
+
+```json
+{
+  "format": 1,
+  "id": "01jd3k8m2p4q6r8t0v2w4y6z8a",
+  "by": "client:claude",
+  "created": "2026-11-14T19:02:11+01:00",
+  "reason": "Marie mentioned her new number in our conversation.",
+  "task": "01jd3k7…",
+  "categories": ["people"],
+  "changes": [
+    { "kind": "set_key", "file": "people/marie-durand.md", "key": "phones",
+      "from": ["+33612345678"], "to": ["+33698765432"] },
+    { "kind": "add_fact", "file": "people/marie-durand.md", "text": "Allergic to nuts." }
+  ],
+  "status": { "state": "waiting" }
+}
+```
+
+- `id` is time-ordered, like a file's `id`. `by` is `client:<id>` for a connected AI, `connector:<instance>` for a source that changed what the person had changed (section 9), or `ipse`. `reason` is the author's own words, shown to the person. `task` is the task the proposal answers, if any. `categories` are those of the files it touches, for rights (`rights.md`).
+- Changes apply in order. Paths are relative to the vault, with `/`, in an entity or event folder:
+    - `create`: a new entity or event: `type`, optional `category` (the type's default otherwise), `keys` (`name` for an entity; `title` and `start` for an event), optional `facts`, `relations` (`word`, `target`, optional `display`) and `notes`. Its `file` is chosen when the proposal is submitted. Its `sources` is `proposal:<id>`.
+    - `set_key`: one front-matter key, with its value when the proposal was made (`from`) and its new value (`to`): a string, a list of strings, or `null` for none. Entities: `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`. Events: `title`, `start`, `end`, `place`, `participants`, `status`. Other keys are not proposed: `id`, `type`, `category`, `owner`… stay as they are.
+    - `add_fact` (`text`), `edit_fact` (`fact`: its `f-xxxx` identifier, `from`, `to`), `remove_fact` (`fact`, `text`).
+    - `add_relation` (`word`, `target`: the linked file's stem, optional `display`), `remove_relation` (`word`, `target`).
+    - Merging two entities (decision 0011) and writing a summary (section 7) are kinds of change added with those features.
+- `status.state`: `waiting`; `accepted` (`at`, `change`: the history change it made); `refused` (`at`, optional `comment`, kept for the AI to try again); `undone` (`at`, `change`); `stale` (`at`, `reason`).
+- **Submitting** checks every change against the files as they are: a key that cannot be proposed, a file that does not exist, a value of the wrong form, a `from` that is no longer true, or a proposal that changes nothing is refused with a message saying what to fix, without quoting values.
+- **Reviewing** shows each file's changes in plain words: before and after, per key, fact and relation. Fact identifiers and front-matter syntax are never shown.
+- **Accepting** first records the person's own edits (section 9), then applies every change in **one change** of history, `Ipse-Source: proposal:<id>`, through the same writing rules as everything else (fact identifiers, atomic writes, layout kept). If any change no longer fits the files (a key or fact that changed since, a file removed or renamed), nothing is written and the proposal becomes `stale`; a stale proposal can only be refused.
+- **Undoing** an accepted proposal reverts its change as a new change by the person; history is never rewritten. It is refused while one of its files changed since, so that the later change is never lost.
+- `ipse proposals list|show|accept|refuse|undo` does the same from the command line.
