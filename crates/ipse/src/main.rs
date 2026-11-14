@@ -37,7 +37,7 @@ enum Command {
         #[arg(long)]
         time_zone: Option<String>,
     },
-    /// Import a file into the memory: contacts (.vcf)
+    /// Import a file into the memory: contacts (.vcf) or a calendar (.ics)
     Import {
         /// The file to import
         file: PathBuf,
