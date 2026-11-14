@@ -109,7 +109,12 @@ fn fixture() -> Fixture {
 
     let mut clients = Clients::load(&root).unwrap();
     let (_, token) = clients
-        .add("Claude", DateTime::now(&TimeZone::UTC))
+        .add(
+            "Claude",
+            DateTime::now(&TimeZone::UTC),
+            &ipse_core::rights::Categories::default(),
+            false,
+        )
         .unwrap();
     Fixture {
         root,

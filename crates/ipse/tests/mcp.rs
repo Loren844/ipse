@@ -11,7 +11,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
-use ipse_core::rights::Clients;
+use ipse_core::rights::{Categories, Clients};
 use ipse_core::time::TimeZone;
 use ipse_core::vault::{
     Body, Category, Common, DateTime, EntityFields, EventFields, EventTime, Fact, FileType,
@@ -114,8 +114,12 @@ fn fixture() -> Fixture {
 
     let mut clients = Clients::load(&root).unwrap();
     let now = || DateTime::now(&TimeZone::UTC);
-    let (_, allowed) = clients.add("Claude", now()).unwrap();
-    let (_, denied) = clients.add("Autre IA", now()).unwrap();
+    let (_, allowed) = clients
+        .add("Claude", now(), &Categories::default(), false)
+        .unwrap();
+    let (_, denied) = clients
+        .add("Autre IA", now(), &Categories::default(), false)
+        .unwrap();
     let file = root.join(".ipse/clients.toml");
     let text = std::fs::read_to_string(&file).unwrap();
     let at = text.find("id = \"autre-ia\"").unwrap();
@@ -711,5 +715,51 @@ fn over_http_only_this_computer() {
         assert!(!out.status.success(), "{address}");
         let said = String::from_utf8_lossy(&out.stderr);
         assert!(said.contains("only on this computer"), "{said}");
+    }
+}
+
+#[tokio::test]
+async fn every_call_is_in_the_access_log_without_what_was_asked() {
+    let f = fixture();
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    read(&ai, "search", json!({ "query": "marie" })).await;
+    read(&ai, "get", json!({ "id": f.marie })).await;
+    read(&ai, "about_me", json!({})).await;
+    ai.cancel().await.unwrap();
+    let denied = connect(&f.root, Some(&f.denied)).await;
+    read(&denied, "search", json!({ "query": "marie" })).await;
+    denied.cancel().await.unwrap();
+
+    let dir = f.root.join(".ipse/access");
+    let text: String = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|e| std::fs::read_to_string(e.unwrap().path()).unwrap())
+        .collect();
+    let lines: Vec<Value> = text
+        .lines()
+        .map(|l| serde_json::from_str(l).unwrap())
+        .collect();
+    let seen: Vec<(&str, &str, Value, u64)> = lines
+        .iter()
+        .map(|l| {
+            (
+                l["client"].as_str().unwrap(),
+                l["tool"].as_str().unwrap(),
+                l["categories"].clone(),
+                l["results"].as_u64().unwrap(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        seen,
+        [
+            ("claude", "search", json!(["people"]), 1),
+            ("claude", "get", json!(["people"]), 1),
+            ("claude", "about_me", json!(["identity"]), 1),
+            ("autre-ia", "search", json!([]), 0),
+        ]
+    );
+    for leak in ["marie", "Marie", "Voisine", &f.marie] {
+        assert!(!text.contains(leak), "{leak} in the access log");
     }
 }

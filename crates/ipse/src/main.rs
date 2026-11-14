@@ -122,6 +122,9 @@ enum ClientAction {
     Add {
         /// A name for this AI, like "Claude"
         name: String,
+        /// This AI runs entirely on this computer (a local model): recorded and shown
+        #[arg(long)]
+        local: bool,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -163,7 +166,7 @@ fn main() -> ExitCode {
         },
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Client { action } => match action {
-            ClientAction::Add { name, vault } => cmd::client::add(&name, vault),
+            ClientAction::Add { name, local, vault } => cmd::client::add(&name, local, vault),
             ClientAction::List { vault } => cmd::client::list(vault),
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },

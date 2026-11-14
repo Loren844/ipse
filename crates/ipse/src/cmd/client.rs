@@ -2,15 +2,22 @@
 
 use std::path::PathBuf;
 
-use ipse_core::rights::{self, Clients};
+use ipse_core::rights::{Categories, Clients};
 use ipse_core::vault::{DateTime, Vault};
 use ipse_core::{Error, Result};
 
-/// Connects a new AI and shows its access code, once.
-pub(crate) fn add(name: &str, vault: Option<PathBuf>) -> Result<()> {
+/// Connects a new AI and shows its access code, once. `local`: the person says it
+/// runs entirely on this computer.
+pub(crate) fn add(name: &str, local: bool, vault: Option<PathBuf>) -> Result<()> {
     let vault = open(vault)?;
+    let categories = Categories::of(vault.settings());
     let mut clients = Clients::load(vault.root())?;
-    let (client, token) = clients.add(name, DateTime::now(vault.settings().time_zone()))?;
+    let (client, token) = clients.add(
+        name,
+        DateTime::now(vault.settings().time_zone()),
+        &categories,
+        local,
+    )?;
     println!(
         "{} can now read your memory: {}.",
         client.name,
@@ -18,8 +25,13 @@ pub(crate) fn add(name: &str, vault: Option<PathBuf>) -> Result<()> {
     );
     println!(
         "Sensitive categories stay closed: {}.",
-        rights::sensitive().join(", ")
+        categories.sensitive().join(", ")
     );
+    if local {
+        println!(
+            "Marked as running entirely on this computer. Ipse cannot check it; to open a sensitive category to it, add the category to its `read` list in .ipse/clients.toml."
+        );
+    }
     println!();
     println!("Its access code, shown only this once:");
     println!();
@@ -39,9 +51,14 @@ pub(crate) fn list(vault: Option<PathBuf>) -> Result<()> {
     }
     for client in clients.list() {
         println!(
-            "{} ({}), connected {}: reads {}",
+            "{} ({}){}, connected {}: reads {}",
             client.name,
             client.id,
+            if client.local {
+                ", on this computer"
+            } else {
+                ""
+            },
             client.created,
             client.read.join(", ")
         );

@@ -50,7 +50,9 @@ Every vault file has one `category` (vault spec, section 2.2). Format version 1 
   sensitive = false       # true: denied to every AI until allowed one by one
   ```
 
-  A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it.
+  - `sensitive` left out counts as `true`: a category nobody said was safe to share stays closed.
+  - The name is lowercase letters, digits and dashes. One of the names above declared again keeps its meaning here.
+  - A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it. Until the interface asks, the person adds it to that AI's `read` list in `.ipse/clients.toml`. AIs connected afterwards get it, as every non-sensitive category.
 - A category used in a file but declared nowhere is treated as `private`.
 
 ## 2. Connected AIs
@@ -81,8 +83,8 @@ local = false                   # the person said this AI runs entirely on this 
 
 - Ipse is an MCP server built on `rmcp` (decision 0001).
 - **Local AI apps** start `ipse mcp --vault <folder>` themselves, over standard input and output. The token is passed in the environment variable `IPSE_TOKEN` of that command, set in the AI app's configuration. The code is checked again on every call, so removing an AI or changing its rights applies from its next request.
-- **AI apps that speak HTTP** connect over Streamable HTTP: `ipse mcp --http [port]` (port 7420 by default) serves `http://127.0.0.1:<port>/mcp`.
-    - It listens on `127.0.0.1` only; any other address is refused before anything starts. Exposing Ipse beyond the computer is out of scope for 1.0.
+- **AI apps that speak HTTP** (they connect to an address rather than start a program) connect over Streamable HTTP: `ipse mcp --http [port]` (port 7420 by default) serves `http://127.0.0.1:<port>/mcp`.
+    - It listens on `127.0.0.1` only; any other address is refused before anything starts. AIs that run online (in a browser tab, on a company's servers) cannot reach it: exposing Ipse beyond the computer is out of scope for 1.0.
     - Every request carries the token as `Authorization: Bearer ipse_…`, checked through the same gateway as standard input and output before the request reaches MCP. A missing or wrong token gets `401` with no detail.
     - `Host` must be `127.0.0.1` or `localhost` (against DNS rebinding), and an `Origin`, when a browser sends one, must be a page on this computer (`http://127.0.0.1` or `http://localhost`, any port); otherwise `403`.
     - Each request is answered on its own, in JSON (stateless Streamable HTTP): the tools only answer, so no session is kept.
@@ -153,7 +155,8 @@ Every request is logged in `.ipse/access/<YYYY-MM>.jsonl`, one line per call:
 
 - The log records **which categories were read and how many results**, never the arguments' text or the content returned.
 - The interface turns it into plain words: "Claude a consulté votre agenda 12 fois aujourd'hui."
-- The access log is kept 12 months, then deleted.
+- `categories` are those of what the call returned (unknown categories counted as `private`); `results` is how many items the answer lists (1 for `about_me` with something to show). A refused code is not logged: it names no client.
+- The access log is kept 12 months, then deleted: when a new month starts, months 12 or more months old are removed.
 
 ## 6. What is checked where
 
