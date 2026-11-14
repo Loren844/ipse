@@ -167,10 +167,19 @@ fn what_the_person_wrote_survives_a_reimport() {
         "name: Élodie Martin\nfavourite_colour: green\n",
     ) + "\n## Relations\n\n- sœur : [[lea-martin]]\n";
     std::fs::write(&path, &text).unwrap();
-    let with_fact = text.replace(
-        "- Organisation : Boulangerie du Coin.\n",
-        "- Organisation : Boulangerie du Coin.\n- Allergique aux noix.\n",
+    assert!(
+        text.contains("- Organisation : Boulangerie du Coin. ^f-"),
+        "{text}"
     );
+    let with_fact: String = text
+        .split_inclusive('\n')
+        .flat_map(|line| {
+            let fact = line
+                .starts_with("- Organisation")
+                .then_some("- Allergique aux noix.\n");
+            std::iter::once(line).chain(fact)
+        })
+        .collect();
     std::fs::write(&path, &with_fact).unwrap();
 
     let mut changed = elodie();
@@ -179,7 +188,10 @@ fn what_the_person_wrote_survives_a_reimport() {
 
     let after = read(&path);
     assert!(after.contains("favourite_colour: green\n"), "{after}");
-    assert!(after.contains("- Allergique aux noix.\n"));
+    assert!(
+        after.contains("- Allergique aux noix. ^f-"),
+        "the person's fact is kept, with an id added: {after}"
+    );
     assert!(after.contains("- sœur : [[lea-martin]]\n"));
     assert!(after.contains("  - elodie.martin@example.org\n"));
     assert!(!after.contains("  - elodie@example.org\n"));

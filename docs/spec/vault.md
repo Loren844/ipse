@@ -131,7 +131,8 @@ A fact is one bullet line in the `Facts` section:
 
 - A fact is one sentence of free text, written for a human.
 - The trailing `^f-xxxx` is an Obsidian block identifier. Ipse adds one to every fact it indexes that has none, so that proposals, history and AIs can point at a single fact. It is 4 characters of lowercase Crockford base 32 after `f-`, unique within the file.
-- A fact the person typed without an identifier is valid; Ipse adds the identifier on its next write to that file, without changing the text.
+- A fact the person typed without an identifier is valid; Ipse adds the identifier on its next write to that file, at the end of the fact's last line, without changing the text or any other byte.
+- An identifier used by two facts of a file is reported by `ipse check`, which says which file to fix; Ipse never renumbers a fact on its own.
 - Provenance of each fact is kept in history (section 9), not on the line, so lines stay readable.
 
 ### 3.3 Relations
@@ -146,7 +147,7 @@ A relation is one bullet line in the `Relations` section: a relation word, a col
 - vit à : [[lyon]]
 ```
 
-- The relation word is free text in the vault's language. Ipse maps common words to a fixed vocabulary for the index (`parent`, `child`, `sibling`, `partner`, `friend`, `colleague`, `works_at`, `lives_in`, `member_of`, `owns`, `located_in`, `part_of`); unknown words are kept as free relations.
+- The relation word is free text in the vault's language. Ipse maps common French and English words to a fixed vocabulary for the index (`parent`, `child`, `sibling`, `partner`, `friend`, `colleague`, `works_at`, `lives_in`, `member_of`, `owns`, `located_in`, `part_of`), ignoring case and accents: `mère` and `father` are `parent`, `travaille chez` is `works_at`. Unknown words, like `parrain`, are kept as free relations. AIs receive the kind next to the word.
 - A relation is written once, on the file where the person wrote it. The index makes it visible from both ends; Ipse **must not** write the reverse line automatically.
 
 ## 4. Events

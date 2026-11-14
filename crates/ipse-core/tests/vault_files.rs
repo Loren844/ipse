@@ -188,7 +188,15 @@ fn new_entity_with_sections_reads_back() {
     assert!(file.write().unwrap());
 
     let text = std::fs::read_to_string(&path).unwrap();
-    assert!(text.contains("name: Zoé Bernard\n---\n\n## Facts\n\n- Works as a nurse.\n\n## Relations\n\n- mother: [[marie-dupont]]\n"));
+    assert!(
+        text.contains("name: Zoé Bernard\n---\n\n## Facts\n\n- Works as a nurse. ^f-"),
+        "{text}"
+    );
+    assert!(text.contains("\n\n## Relations\n\n- mother: [[marie-dupont]]\n"));
     assert!(!text.contains("## Notes"), "empty sections are left out");
-    assert_eq!(MemoryFile::read(&path).unwrap().sections(), sections);
+    let back = MemoryFile::read(&path).unwrap().sections();
+    assert_eq!(back.relations, sections.relations);
+    assert_eq!(back.facts.len(), 1);
+    assert_eq!(back.facts[0].text, "Works as a nurse.");
+    assert!(back.facts[0].id.is_some(), "an id is added on write");
 }

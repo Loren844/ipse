@@ -342,6 +342,11 @@ impl MemoryFile {
     /// [`Error::Invalid`] when a key changed but the front matter's layout could not be
     /// mapped to lines (quoted keys, for example), so it cannot be updated safely.
     pub fn render(&self) -> Result<String> {
+        self.render_with(&self.body)
+    }
+
+    /// As [`MemoryFile::render`], with `body` after the front matter.
+    fn render_with(&self, body: &str) -> Result<String> {
         let (now, old) = match &self.baseline {
             Baseline::Unchanged => (Vec::new(), None),
             Baseline::New => (emit::canonical(&self.keys), None),
@@ -381,12 +386,13 @@ impl MemoryFile {
             out.push_str(&self.trailer);
         }
         out.push_str(&self.closing);
-        out.push_str(&self.body);
+        out.push_str(body);
         Ok(out)
     }
 
     /// Writes the file atomically, unless the file on disk already has this content
-    /// (`\r\n` endings aside). Returns whether it wrote.
+    /// (`\r\n` endings aside). Returns whether it wrote. A fact without an identifier
+    /// gets one (`docs/spec/vault.md`, section 3.2), its text and every other byte kept.
     ///
     /// Before writing, the new text is read back: Ipse never writes a file it could not
     /// read again.
@@ -410,7 +416,9 @@ impl MemoryFile {
     }
 
     fn write_with(&self, sync: bool) -> Result<bool> {
-        let text = self.render()?;
+        let with_ids = super::body::with_fact_ids(&self.body);
+        let body = with_ids.as_deref().unwrap_or(&self.body);
+        let text = self.render_with(body)?;
         match std::fs::read(&self.path) {
             Ok(bytes) => {
                 let current = String::from_utf8_lossy(&bytes);
@@ -430,7 +438,7 @@ impl MemoryFile {
         }
 
         let back = Self::parse(&self.path, &text)?;
-        if back.keys != self.keys || back.body != self.body {
+        if back.keys != self.keys || back.body != body {
             return Err(invalid(
                 &self.path,
                 None,

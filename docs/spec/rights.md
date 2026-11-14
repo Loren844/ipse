@@ -99,7 +99,7 @@ In milestone 1, the gateway is **read-only** and exposes these MCP tools. Every 
 | --- | --- | --- |
 | `about_me` | — | The owner's file: name, well-known attributes, facts. Requires `identity`. |
 | `search` | `query`, `limit` (default 10, max 50) | Matching entities, events and facts, best first, each with its `id`, type and a short excerpt. |
-| `get` | `id`, or `name` (matched against names and aliases, or a link target like `[[marie-dupont]]`) | One entity or event in full: front matter, facts, relations, notes. Several when several share the name (decision 0011), at most 10. |
+| `get` | `id`, or `name` (matched against names and aliases, or a link target like `[[marie-dupont]]`) | One entity or event in full: front matter, facts, relations (each with its word, its target and, when the word is in the fixed vocabulary of the vault spec, section 3.3, its `kind`), notes. Several when several share the name (decision 0011), at most 10. |
 | `events` | `from`, `to` (dates), optional `with` (an entity id) | Events in that period, ordered by start, at most 200. |
 | `now` | optional `topics` | **Current** states only (vault spec, section 5.2), each with its `last_seen`. |
 | `states_history` | `topic`, `from`, `to` | States of that topic in a past period, including recent and past ones. The only way to get them. |
