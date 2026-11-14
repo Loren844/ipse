@@ -282,6 +282,81 @@ impl History {
         Ok(entries)
     }
 
+    /// Undoes the change `id` as a new change by `source`: every file it touched goes
+    /// back to what it was before it, or is removed if it did not exist. History is
+    /// never rewritten. Returns `None` when the files already are as before the change.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when the change is unknown, or when one of its files changed
+    /// since: undoing would lose that later edit. [`Error::Io`] and [`Error::History`]
+    /// as for [`Change::commit`].
+    pub fn undo(&self, id: &str, source: Source, summary: &str) -> Result<Option<Entry>> {
+        let unknown =
+            || Error::Refused("This change is not in the history of this memory.".to_owned());
+        let id = ObjectId::from_hex(id.as_bytes()).map_err(|_| unknown())?;
+        let commit = self.repo.find_commit(id).map_err(|_| unknown())?;
+        let tree = commit.tree_id().map_err(|_| failed("read"))?.detach();
+        let parent_tree = match commit.parent_ids().next() {
+            Some(parent) => Some(
+                self.repo
+                    .find_commit(parent.detach())
+                    .and_then(|c| c.tree_id())
+                    .map_err(|_| failed("read"))?
+                    .detach(),
+            ),
+            None => None,
+        };
+        let touched = self.diff(parent_tree, Some(tree))?;
+        let before = self.flatten(parent_tree)?;
+        let after = self.flatten(Some(tree))?;
+        for rel in &touched {
+            let path = self.root.join(rel);
+            let now = match std::fs::read(&path) {
+                Ok(bytes) => Some(
+                    gix::objs::compute_hash(gix::hash::Kind::Sha1, gix::objs::Kind::Blob, &bytes)
+                        .map_err(|_| failed("read"))?,
+                ),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(source) => {
+                    return Err(Error::Io {
+                        action: "read",
+                        path,
+                        source,
+                    });
+                }
+            };
+            if now.as_ref() != after.get(rel) {
+                return Err(Error::Refused(format!(
+                    "{rel} changed since; undoing would lose that later change. Undo the later change first."
+                )));
+            }
+        }
+        let mut change = self.change(source);
+        for rel in &touched {
+            let path = self.root.join(rel);
+            match before.get(rel) {
+                Some(blob) => {
+                    let object = self.repo.find_object(*blob).map_err(|_| failed("read"))?;
+                    write_atomic(&path, &object.data)?;
+                }
+                None => match std::fs::remove_file(&path) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(source) => {
+                        return Err(Error::Io {
+                            action: "remove",
+                            path,
+                            source,
+                        });
+                    }
+                },
+            }
+            change.touched(&path);
+        }
+        change.commit(summary)
+    }
+
     fn head_tree(&self) -> Result<Option<ObjectId>> {
         match self.repo.head_tree_id() {
             Ok(id) => Ok(Some(id.detach())),

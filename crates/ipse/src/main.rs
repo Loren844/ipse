@@ -68,6 +68,11 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Review what AIs propose to change in your memory
+    Proposals {
+        #[command(subcommand)]
+        action: ProposalsAction,
+    },
     /// Connect, list or remove an AI
     Client {
         #[command(subcommand)]
@@ -115,6 +120,54 @@ enum CalendarAction {
     /// Stop syncing a calendar; its events stay in your memory
     Unsubscribe {
         /// The calendar's id, as `ipse calendar list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ProposalsAction {
+    /// List the proposals waiting for you (all of them with --all)
+    List {
+        /// Also those already accepted, refused or undone
+        #[arg(long)]
+        all: bool,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Show what a proposal would change
+    Show {
+        /// The proposal's id, or its first characters
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Accept a proposal: your memory changes as it says
+    Accept {
+        /// The proposal's id, or its first characters
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Refuse a proposal; nothing changes
+    Refuse {
+        /// The proposal's id, or its first characters
+        id: String,
+        /// Why, for the AI to do better next time
+        #[arg(long)]
+        comment: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Undo a proposal you accepted
+    Undo {
+        /// The proposal's id, or its first characters
         id: String,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
@@ -172,6 +225,15 @@ fn main() -> ExitCode {
         },
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),
+        Command::Proposals { action } => match action {
+            ProposalsAction::List { all, vault } => cmd::proposals::list(all, vault),
+            ProposalsAction::Show { id, vault } => cmd::proposals::show(&id, vault),
+            ProposalsAction::Accept { id, vault } => cmd::proposals::accept(&id, vault),
+            ProposalsAction::Refuse { id, comment, vault } => {
+                cmd::proposals::refuse(&id, comment.as_deref(), vault)
+            }
+            ProposalsAction::Undo { id, vault } => cmd::proposals::undo(&id, vault),
+        },
         Command::Client { action } => match action {
             ClientAction::Add { name, local, vault } => cmd::client::add(&name, local, vault),
             ClientAction::List { vault } => cmd::client::list(vault),

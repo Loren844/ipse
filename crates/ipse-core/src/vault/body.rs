@@ -637,9 +637,6 @@ pub fn section_text(body: &str, section: Section) -> Option<String> {
 /// else is kept byte for byte.
 #[must_use]
 pub fn add_relations(body: &str, relations: &[Relation], language: Language) -> String {
-    if relations.is_empty() {
-        return body.to_owned();
-    }
     let separator = match language {
         Language::Fr => " : ",
         _ => ": ",
@@ -652,12 +649,184 @@ pub fn add_relations(body: &str, relations: &[Relation], language: Language) -> 
         new_lines.push_str(&relation.link.to_string());
         new_lines.push('\n');
     }
+    add_to_section(
+        body,
+        Section::Relations,
+        &new_lines,
+        language,
+        &[Section::Notes],
+    )
+}
 
+/// `body` with `facts` added at the end of its `Facts` section, in any language, without
+/// identifiers (they are added on write). Without one, a section is added before
+/// `Relations` or `Notes`, or at the end. Everything else is kept byte for byte.
+#[must_use]
+pub fn add_facts(body: &str, facts: &[String], language: Language) -> String {
+    let mut new_lines = String::new();
+    for fact in facts {
+        new_lines.push_str("- ");
+        new_lines.push_str(&one_line(fact));
+        new_lines.push('\n');
+    }
+    add_to_section(
+        body,
+        Section::Facts,
+        &new_lines,
+        language,
+        &[Section::Relations, Section::Notes],
+    )
+}
+
+/// `body` with the fact `id` now saying `text`, on one line that keeps its bullet and
+/// identifier. `None` when no fact has this identifier.
+#[must_use]
+pub fn edit_fact(body: &str, id: &FactId, text: &str) -> Option<String> {
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let (range, _) = fact_spans(&lines)
+        .into_iter()
+        .find(|(_, fact)| fact.id.as_ref() == Some(id))?;
+    let first = lines[range.start];
+    let marker = &first[..first.len() - first.trim_start().len() + 2];
+    let last = lines[range.end - 1];
+    let ending = &last[last.trim_end_matches(['\n', '\r']).len()..];
+    let mut out = String::with_capacity(body.len() + text.len());
+    lines[..range.start].iter().for_each(|l| out.push_str(l));
+    out.push_str(marker);
+    out.push_str(&one_line(text));
+    out.push_str(" ^");
+    out.push_str(id.as_str());
+    out.push_str(ending);
+    lines[range.end..].iter().for_each(|l| out.push_str(l));
+    Some(out)
+}
+
+/// `body` without the fact `id` and its continuation lines. `None` when no fact has
+/// this identifier.
+#[must_use]
+pub fn remove_fact(body: &str, id: &FactId) -> Option<String> {
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let (range, _) = fact_spans(&lines)
+        .into_iter()
+        .find(|(_, fact)| fact.id.as_ref() == Some(id))?;
+    let mut out = String::with_capacity(body.len());
+    lines[..range.start].iter().for_each(|l| out.push_str(l));
+    lines[range.end..].iter().for_each(|l| out.push_str(l));
+    Some(out)
+}
+
+/// `body` without the first relation line of `word` to `target` (a file stem). `None`
+/// when there is none.
+#[must_use]
+pub fn remove_relation(body: &str, word: &str, target: &str) -> Option<String> {
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let headings = headings(&lines);
+    let mut found = None;
+    for (at, (start, section)) in headings.iter().enumerate() {
+        if *section != Some(Section::Relations) {
+            continue;
+        }
+        let end = headings.get(at + 1).map_or(lines.len(), |(i, _)| *i);
+        found = (start + 1..end).find(|&i| {
+            bullet(lines[i].trim_end_matches(['\n', '\r']))
+                .and_then(read_relation)
+                .is_some_and(|r| r.word == word && r.link.target == target)
+        });
+        if found.is_some() {
+            break;
+        }
+    }
+    let line = found?;
+    let mut out = String::with_capacity(body.len());
+    lines[..line].iter().for_each(|l| out.push_str(l));
+    lines[line + 1..].iter().for_each(|l| out.push_str(l));
+    Some(out)
+}
+
+/// The lines of each fact, with the fact, in `Facts` sections, outside code blocks and
+/// comments: a bullet line and the indented lines that go on with it.
+fn fact_spans(lines: &[&str]) -> Vec<(std::ops::Range<usize>, Fact)> {
+    let mut spans = Vec::new();
+    let mut section: Option<Section> = None;
+    let mut fence: Option<&str> = None;
+    let mut in_comment = false;
+    let mut open: Option<(usize, usize, String)> = None;
+    let close = |open: &mut Option<(usize, usize, String)>,
+                 spans: &mut Vec<(std::ops::Range<usize>, Fact)>| {
+        if let Some((start, end, text)) = open.take() {
+            spans.push((start..end, split_fact_id(&text)));
+        }
+    };
+    for (i, line) in lines.iter().enumerate() {
+        let line = line.trim_end_matches(['\n', '\r']);
+        let trimmed = line.trim_start();
+        if in_comment || trimmed.starts_with("<!--") {
+            let closes = trimmed.contains("-->")
+                && (in_comment || trimmed.find("-->") > trimmed.find("<!--"));
+            in_comment = !closes;
+            close(&mut open, &mut spans);
+            continue;
+        }
+        if let Some(marker) = fence {
+            if trimmed.starts_with(marker) {
+                fence = None;
+            }
+            continue;
+        }
+        if let Some(heading) = line.strip_prefix("## ") {
+            close(&mut open, &mut spans);
+            section = Section::from_heading(heading);
+            continue;
+        }
+        if line.starts_with("# ") {
+            close(&mut open, &mut spans);
+            section = None;
+            continue;
+        }
+        if let Some(marker) = ["```", "~~~"].into_iter().find(|m| trimmed.starts_with(m)) {
+            close(&mut open, &mut spans);
+            fence = Some(marker);
+            continue;
+        }
+        if section != Some(Section::Facts) {
+            continue;
+        }
+        if let Some(text) = bullet(line) {
+            close(&mut open, &mut spans);
+            if !text.is_empty() {
+                open = Some((i, i + 1, text.to_owned()));
+            }
+        } else if line.starts_with([' ', '\t']) && !trimmed.is_empty() {
+            if let Some((_, end, text)) = open.as_mut() {
+                *end = i + 1;
+                text.push(' ');
+                text.push_str(trimmed);
+            }
+        } else {
+            close(&mut open, &mut spans);
+        }
+    }
+    close(&mut open, &mut spans);
+    spans
+}
+
+/// `body` with `new_lines` at the end of `section`. Without one, a section is added
+/// before the first of `before` the body has, or at the end.
+fn add_to_section(
+    body: &str,
+    section: Section,
+    new_lines: &str,
+    language: Language,
+    before: &[Section],
+) -> String {
+    if new_lines.is_empty() {
+        return body.to_owned();
+    }
     let lines: Vec<&str> = body.split_inclusive('\n').collect();
     let headings = headings(&lines);
     let position = |section| headings.iter().position(|(_, s)| *s == Some(section));
     let mut out = String::with_capacity(body.len() + new_lines.len() + 32);
-    if let Some(at) = position(Section::Relations) {
+    if let Some(at) = position(section) {
         let start = headings[at].0 + 1;
         let end = headings.get(at + 1).map_or(lines.len(), |(i, _)| *i);
         // After the section's last line that is not blank.
@@ -672,27 +841,27 @@ pub fn add_relations(body: &str, relations: &[Relation], language: Language) -> 
         if insert == start {
             out.push('\n');
         }
-        out.push_str(&new_lines);
+        out.push_str(new_lines);
         if insert == end && end < lines.len() {
             out.push('\n');
         }
         lines[insert..].iter().for_each(|l| out.push_str(l));
-    } else if let Some(at) = position(Section::Notes) {
-        let notes = headings[at].0;
-        lines[..notes].iter().for_each(|l| out.push_str(l));
+    } else if let Some(at) = before.iter().find_map(|s| position(*s)) {
+        let next = headings[at].0;
+        lines[..next].iter().for_each(|l| out.push_str(l));
         out.push_str("## ");
-        out.push_str(Section::Relations.heading(language));
+        out.push_str(section.heading(language));
         out.push_str("\n\n");
-        out.push_str(&new_lines);
+        out.push_str(new_lines);
         out.push('\n');
-        lines[notes..].iter().for_each(|l| out.push_str(l));
+        lines[next..].iter().for_each(|l| out.push_str(l));
     } else {
         out.push_str(body);
         if !out.is_empty() && !out.ends_with('\n') {
             out.push('\n');
         }
-        open_section(&mut out, Section::Relations, language);
-        out.push_str(&new_lines);
+        open_section(&mut out, section, language);
+        out.push_str(new_lines);
     }
     out
 }
@@ -1022,5 +1191,41 @@ Rencontrée au club.
             add_relations("## Relations", &[relation("ami", "paul")], Language::Fr),
             "## Relations\n\n- ami : [[paul]]\n"
         );
+    }
+
+    #[test]
+    fn facts_are_added_edited_and_removed_in_place() {
+        let body = "\n## Faits\n\n- Aime le jazz ^f-ab12\n- Né à Lyon,\n  en 1990 ^f-cd34\n\n## Notes\n\nGarder ceci.\n";
+        let added = add_facts(body, &["Allergique aux noix.".to_owned()], Language::Fr);
+        assert_eq!(
+            added,
+            "\n## Faits\n\n- Aime le jazz ^f-ab12\n- Né à Lyon,\n  en 1990 ^f-cd34\n- Allergique aux noix.\n\n## Notes\n\nGarder ceci.\n"
+        );
+        let id = FactId::parse("f-cd34").unwrap();
+        assert_eq!(
+            edit_fact(body, &id, "Né à Lyon en 1991").unwrap(),
+            "\n## Faits\n\n- Aime le jazz ^f-ab12\n- Né à Lyon en 1991 ^f-cd34\n\n## Notes\n\nGarder ceci.\n"
+        );
+        assert_eq!(
+            remove_fact(body, &id).unwrap(),
+            "\n## Faits\n\n- Aime le jazz ^f-ab12\n\n## Notes\n\nGarder ceci.\n"
+        );
+        assert!(edit_fact(body, &FactId::parse("f-zzzz").unwrap(), "x").is_none());
+        // Without a Facts section, one is added before the relations.
+        let body = "\n## Relations\n\n- mère : [[maman]]\n";
+        assert_eq!(
+            add_facts(body, &["Fait".to_owned()], Language::En),
+            "\n## Facts\n\n- Fait\n\n## Relations\n\n- mère : [[maman]]\n"
+        );
+    }
+
+    #[test]
+    fn a_relation_is_removed_by_word_and_target() {
+        let body = "## Relations\n\n- mère : [[maman]]\n- ami : [[paul]]\n";
+        assert_eq!(
+            remove_relation(body, "ami", "paul").unwrap(),
+            "## Relations\n\n- mère : [[maman]]\n"
+        );
+        assert!(remove_relation(body, "ami", "maman").is_none());
     }
 }
