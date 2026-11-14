@@ -332,3 +332,40 @@ fn subscribe_refuses_links_it_cannot_follow_safely() {
         "nothing kept"
     );
 }
+
+#[test]
+fn an_outlook_export_fills_address_title_and_phones() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    let init = ipse(&[
+        "init",
+        vault,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    assert!(init.status.success());
+    let fixture = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/contacts/outlook-v21.vcf"
+    );
+    let out = ipse(&["import", fixture, "--vault", vault]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let rene = std::fs::read_to_string(dir.path().join("people/rene-lefevre.md")).unwrap();
+    for expected in [
+        "address: \"3 Montée de la Butte, 69001 Lyon, France\"\n",
+        "  - \"+33478123456\"\n",
+        "- Organisation : Atelier du Théâtre, Costumes.\n",
+        "- Poste : Costumier en chef.\n",
+        "Préfère qu’on l’appelle le matin.",
+    ] {
+        assert!(rene.contains(expected), "{expected:?} in {rene}");
+    }
+}

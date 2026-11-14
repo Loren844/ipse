@@ -72,6 +72,35 @@ fn records(messages: &[Value]) -> Vec<&Value> {
 }
 
 #[test]
+fn imports_an_outlook_vcard_2_1_export() {
+    let messages = session(&[fixture("outlook-v21.vcf")], 1, "fr");
+    assert_eq!(
+        types(&messages),
+        ["ready", "batch", "done"],
+        "nothing skipped"
+    );
+    let records = records(&messages);
+    let rene = &records[0]["data"];
+    assert_eq!(
+        *rene,
+        json!({
+            "full_name": "René Lefèvre",
+            "given_name": "René",
+            "family_name": "Lefèvre",
+            "birthday": "1978-09-23",
+            "organization": "Atelier du Théâtre, Costumes",
+            "title": "Costumier en chef",
+            "note": "Préfère qu’on l’appelle le matin. Connaît tout le monde au théâtre.",
+            "emails": ["rene.lefevre@example.org"],
+            "phones": ["+33478123456", "+33698765432", "poste 214"],
+            "addresses": ["3 Montée de la Butte, 69001 Lyon, France"],
+        }),
+        "Windows-1252 and quoted-printable decoded; the photo left out"
+    );
+    assert_eq!(records[1]["data"]["phones"], json!(["+33612345678"]));
+}
+
+#[test]
 fn imports_google_and_apple_exports() {
     let files = [fixture("google-v3.vcf"), fixture("apple-v4.vcf")];
     let messages = session(&files, 1, "fr");
@@ -125,7 +154,12 @@ fn imports_google_and_apple_exports() {
         ana["data"]["birthday"], "--07-21",
         "Apple's stand-in year dropped"
     );
-    assert_eq!(ana["data"]["phones"], json!(["+351-912-345-678"]));
+    assert_eq!(ana["data"]["phones"], json!(["+351912345678"]), "E.164");
+    assert_eq!(
+        elodie["data"]["phones"],
+        json!(["+33612345678"]),
+        "a national number, read in the vault's country"
+    );
     assert_eq!(ana["data"]["nicknames"], json!(["Aninha", "Ana S."]));
     assert_eq!(
         ana["external_id"],

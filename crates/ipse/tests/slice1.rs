@@ -129,7 +129,7 @@ async fn ask_your_ai_who_someone_is() {
     assert_eq!(entry["aliases"], json!(["Lolo"]));
     assert_eq!(entry["birthday"], "1990-04-02");
     assert_eq!(entry["emails"], json!(["elodie.martin@example.org"]));
-    assert_eq!(entry["phones"], json!(["06 12 34 56 78"]));
+    assert_eq!(entry["phones"], json!(["+33612345678"]));
     assert!(
         entry["notes"].as_str().unwrap().contains("club d'escalade"),
         "{entry}"
