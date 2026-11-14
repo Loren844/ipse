@@ -28,8 +28,9 @@ pub struct Report {
 }
 
 /// Looks at every file of the vault's folders (`people/`, `events/`, `states/`,
-/// `summaries/`…): files that cannot be read, and fact ids used twice in a file. Other
-/// files, the person's own notes elsewhere included, are left alone.
+/// `summaries/`…): files that cannot be read, and fact ids used twice in a file; and at
+/// the journal's archived months that do not match their checksum. Other files, the
+/// person's own notes elsewhere included, are left alone.
 ///
 /// # Errors
 ///
@@ -46,6 +47,13 @@ pub fn check(root: &Path) -> Result<Report> {
         markdown_files(&folder, &mut files)?;
     }
     files.sort();
+    for path in crate::journal::damaged_segments(root)? {
+        report.problems.push(Problem {
+            path: path.strip_prefix(root).unwrap_or(&path).to_owned(),
+            line: None,
+            message: "this archived month of the journal does not match its checksum: Ipse keeps it as it is and reads the other months; restore it from a backup if you have one".to_owned(),
+        });
+    }
     for path in files {
         report.files += 1;
         let relative = path.strip_prefix(root).unwrap_or(&path).to_owned();

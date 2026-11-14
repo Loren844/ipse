@@ -4,7 +4,6 @@
 pub(crate) mod calendar;
 pub(crate) mod contacts;
 mod content_line;
-mod session;
 
 use ipse_core::{Error, Result};
 

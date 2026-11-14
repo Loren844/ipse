@@ -24,6 +24,9 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 gix = { version = "0.90", default-features = false, features = ["excludes", "index", "sha1"] }
 criterion = { version = "0.7", default-features = false, features = ["cargo_bench_support"] }
 jiff = { version = "0.2", features = ["serde"] }
+# Zstandard in pure Rust, for the journal's sealed months (no C library to build).
+ruzstd = "0.9"
+sha2 = "0.11"
 # Compact binary form of the saved search index (.ipse/index/).
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 # The system keychain: Keychain on macOS, Credential Manager on Windows, Secret Service on Linux.

@@ -29,9 +29,9 @@ use jiff::tz::TimeZone;
 use jiff::{Span, Timestamp, ToSpan, Unit, Zoned};
 use serde_json::{Map, Value, json};
 
-use super::session::{Hello, Session, SessionResult};
 use fetch::{CUT_SHORT, Cursor, Failure, Fetched, NOT_A_CALENDAR};
 use ics::{Event, Item, Items, Person};
+use ipse_protocol::connector::{Hello, Session, SessionResult};
 use rrule::{Rule, Until};
 use time::{Key, When, Zones};
 
@@ -117,7 +117,6 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
     }
 
     let mut import = Import::new(time_zone, now);
-    let mut sent = 0_u64;
     for path in &hello.files {
         let Ok(file) = File::open(path) else {
             return bad_input(session, french);
@@ -128,12 +127,13 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
                 Err(_) => return bad_input(session, french),
             }
             if import.records.len() >= MAX_BATCH_RECORDS {
-                sent += send(&mut session, &mut import.records, None)?;
+                send(&mut session, &mut import.records, None)?;
             }
         }
     }
     import.finish();
-    sent += send(&mut session, &mut import.records, None)?;
+    send(&mut session, &mut import.records, None)?;
+    let sent = session.flush()?.accepted;
     import.done(session, sent, french, false)
 }
 
@@ -187,14 +187,13 @@ fn sync<R: BufRead, W: Write>(
 
     let mut import = Import::new(time_zone, now);
     let mut items = Items::new(body);
-    let mut sent = 0_u64;
     for item in items.by_ref() {
         match item {
             Ok(item) => import.add(item),
             Err(_) => return fail(session, &CUT_SHORT, french),
         }
         if import.records.len() >= MAX_BATCH_RECORDS {
-            sent += send(&mut session, &mut import.records, None)?;
+            send(&mut session, &mut import.records, None)?;
         }
     }
     if !items.whole() {
@@ -207,7 +206,8 @@ fn sync<R: BufRead, W: Write>(
     }
     import.finish();
     let cursor = serde_json::to_value(cursor).ok();
-    sent += send(&mut session, &mut import.records, cursor)?;
+    send(&mut session, &mut import.records, cursor)?;
+    let sent = session.flush()?.accepted;
     import.done(session, sent, french, true)
 }
 
@@ -224,28 +224,18 @@ fn fail<R: BufRead, W: Write>(
     session.finish()
 }
 
-/// Sends `records` in batches; returns how many the core accepted. A `cursor` goes
-/// with the last batch, alone if there is nothing to send: the core saves it only once
-/// everything before it is on disk.
+/// Sends `records` in batches, without waiting for their `ack` (up to 4 at a time). A
+/// `cursor` goes with the last batch, alone if there is nothing to send: the core saves
+/// it only once everything before it is on disk.
 fn send<R: BufRead, W: Write>(
     session: &mut Session<R, W>,
     records: &mut Vec<Record>,
-    mut cursor: Option<Value>,
-) -> SessionResult<u64> {
-    let mut accepted = 0;
-    while !records.is_empty() || cursor.is_some() {
-        let rest = records.split_off(records.len().min(MAX_BATCH_RECORDS));
-        let batch = std::mem::replace(records, rest);
-        let count = batch.len() as u64;
-        let last = if records.is_empty() {
-            cursor.take()
-        } else {
-            None
-        };
-        let rejected = session.batch(batch, last)?;
-        accepted += count - rejected.len() as u64;
+    cursor: Option<Value>,
+) -> SessionResult<()> {
+    if records.is_empty() && cursor.is_none() {
+        return Ok(());
     }
-    Ok(accepted)
+    session.push(std::mem::take(records), cursor)
 }
 
 fn bad_input<R: BufRead, W: Write>(mut session: Session<R, W>, french: bool) -> SessionResult<()> {

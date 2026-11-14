@@ -5,6 +5,7 @@
 //! message types and the line encoding, shared by the core and by connectors written
 //! in Rust. It does not depend on the core.
 
+pub mod connector;
 mod manifest;
 mod message;
 mod record;
