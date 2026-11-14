@@ -173,8 +173,8 @@ fn update_person(
 
 /// Completes the owner's file from their own card, and links it to the card. The file
 /// is the person's: Ipse only adds what the card brought since it last read it (emails,
-/// phones, the card's name and nicknames as other names, a birthday the file lacks),
-/// and never replaces or removes anything. Returns whether the file changed.
+/// phones, the card's name and nicknames as other names, a birthday or an address the
+/// file lacks), and never replaces or removes anything. Returns whether the file changed.
 fn complete_owner(
     path: &Path,
     source: &str,
@@ -228,6 +228,10 @@ fn complete_owner(
     let birthday_new = previous.is_none_or(|p| p.birthday != card.birthday);
     if entity.birthday.is_none() && birthday_new {
         entity.birthday = card.birthday;
+    }
+    let address_new = previous.is_none_or(|p| p.address != card.address);
+    if entity.address.is_none() && address_new {
+        entity.address.clone_from(&card.address);
     }
 
     let linked = file.common().sources.iter().any(|s| s == source);
@@ -307,7 +311,10 @@ struct CardFields {
     emails: Vec<String>,
     phones: Vec<String>,
     birthday: Option<Birthday>,
+    /// The first postal address.
+    address: Option<String>,
     organization: Option<String>,
+    title: Option<String>,
     note: Option<String>,
 }
 
@@ -340,7 +347,9 @@ impl CardFields {
             emails: list("emails"),
             phones: list("phones"),
             birthday: text("birthday").as_deref().and_then(Birthday::parse),
+            address: list("addresses").into_iter().next(),
             organization: text("organization"),
+            title: text("title"),
             note: text("note"),
         })
     }
@@ -352,6 +361,7 @@ impl CardFields {
         entity.emails.clone_from(&self.emails);
         entity.phones.clone_from(&self.phones);
         entity.birthday = self.birthday;
+        entity.address.clone_from(&self.address);
         entity
     }
 
@@ -400,21 +410,34 @@ impl CardFields {
             previous.map(|p| &p.birthday),
             &self.birthday,
         );
+        out.address = merge.key(
+            &current.address,
+            previous.map(|p| &p.address),
+            &self.address,
+        );
         (out, merge.conflict)
     }
 
     /// The body of a new person file. Written once: later imports leave the body alone.
     fn body(&self, language: Language) -> Body {
-        let facts = self
-            .organization
-            .iter()
-            .map(|org| Fact {
-                text: match language {
-                    Language::Fr => format!("Organisation : {org}."),
-                    _ => format!("Organization: {org}."),
-                },
-                id: None,
-            })
+        let fr = language == Language::Fr;
+        let organization = self.organization.iter().map(|org| {
+            if fr {
+                format!("Organisation : {org}.")
+            } else {
+                format!("Organization: {org}.")
+            }
+        });
+        let title = self.title.iter().map(|title| {
+            if fr {
+                format!("Poste : {title}.")
+            } else {
+                format!("Job title: {title}.")
+            }
+        });
+        let facts = organization
+            .chain(title)
+            .map(|text| Fact { text, id: None })
             .collect();
         Body {
             facts,

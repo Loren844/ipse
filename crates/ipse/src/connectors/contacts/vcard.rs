@@ -1,4 +1,6 @@
-//! A streaming reader of vCard 3.0 and 4.0 files (RFC 2426 and RFC 6350).
+//! A streaming reader of vCard 2.1, 3.0 and 4.0 files (RFC 2426 and RFC 6350). vCard
+//! 2.1, as Outlook writes it, may encode values in quoted-printable and another
+//! character set: they are decoded.
 //!
 //! Cards are read one at a time, so a file of any size uses little memory. Only the
 //! properties Ipse uses are kept; photos and the rest are skipped as they are read.
@@ -7,7 +9,9 @@ use std::io::BufRead;
 
 use ipse_core::vault::Birthday;
 
-use crate::connectors::content_line::{Lines, Property, non_empty, split_unescaped, text};
+use crate::connectors::content_line::{
+    Lines, Property, non_empty, quoted_printable, split_unescaped, text, windows_1252,
+};
 
 /// What Ipse keeps from one card.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -22,6 +26,10 @@ pub(crate) struct Card {
     /// `YYYY-MM-DD`, or `--MM-DD` when the year is unknown.
     pub(crate) birthday: Option<String>,
     pub(crate) organization: Option<String>,
+    /// The job title.
+    pub(crate) title: Option<String>,
+    /// Postal addresses, each on one line: `12 Rue des Lilas, 69003 Lyon, France`.
+    pub(crate) addresses: Vec<String>,
     pub(crate) note: Option<String>,
     /// People the card names as related: "mother: Marie Dupont".
     pub(crate) related: Vec<Related>,
@@ -62,6 +70,26 @@ impl<R: BufRead> Cards<R> {
     }
 }
 
+impl<R: BufRead> Cards<R> {
+    /// A quoted-printable value ending with `=` goes on on the next line.
+    fn soft_breaks(&mut self, mut line: String) -> String {
+        let quoted = line
+            .split(':')
+            .next()
+            .is_some_and(|head| head.to_ascii_uppercase().contains("QUOTED-PRINTABLE"));
+        while quoted && line.ends_with('=') {
+            match self.lines.next_line() {
+                Ok(Some(next)) => {
+                    line.pop();
+                    line.push_str(next.trim_start());
+                }
+                _ => break,
+            }
+        }
+        line
+    }
+}
+
 impl<R: BufRead> Iterator for Cards<R> {
     type Item = Result<Card, CardError>;
 
@@ -72,7 +100,7 @@ impl<R: BufRead> Iterator for Cards<R> {
         let mut card: Option<Builder> = None;
         loop {
             let line = match self.lines.next_line() {
-                Ok(Some(line)) => line,
+                Ok(Some(line)) => self.soft_breaks(line),
                 Ok(None) => {
                     self.done = true;
                     return card.map(|_| Err(CardError::Unreadable));
@@ -115,10 +143,14 @@ struct Builder {
 
 impl Builder {
     fn add(&mut self, p: &Property) {
-        // Legacy encodings come with the complete version (#13).
-        if p.param("ENCODING").is_some() || p.param("CHARSET").is_some() {
-            return;
+        match decoded(p) {
+            Decoded::Skip => {}
+            Decoded::As(value) => self.add_decoded(&p.with_value(&value)),
+            Decoded::Plain => self.add_decoded(p),
         }
+    }
+
+    fn add_decoded(&mut self, p: &Property) {
         let card = &mut self.card;
         match p.name.as_ref() {
             "UID" => card.uid = text(p.value),
@@ -154,6 +186,8 @@ impl Builder {
                 }
             }
             "NOTE" => card.note = text(p.value),
+            "TITLE" => card.title = text(p.value),
+            "ADR" => card.addresses.extend(address(p.value)),
             "RELATED" => card.related.extend(related(p)),
             "X-ABRELATEDNAMES" => {
                 if let Some(name) = text(p.value) {
@@ -197,6 +231,67 @@ impl Builder {
         }
         (!card.full_name.is_empty()).then_some(card)
     }
+}
+
+/// A value as it is to be read.
+enum Decoded {
+    /// As written.
+    Plain,
+    /// Decoded from quoted-printable and its character set.
+    As(String),
+    /// Binary (a photo, a key): not read.
+    Skip,
+}
+
+/// How to read the value of `p`: quoted-printable decoded in its `CHARSET` (UTF-8 by
+/// default, Windows-1252 for Western European sets), base64 values skipped.
+fn decoded(p: &Property) -> Decoded {
+    let encoding = p.param("ENCODING");
+    let base64 = encoding
+        .is_some_and(|e| e.eq_ignore_ascii_case("b") || e.eq_ignore_ascii_case("base64"))
+        || p.has_param_value("BASE64");
+    if base64 {
+        return Decoded::Skip;
+    }
+    let quoted = encoding.is_some_and(|e| e.eq_ignore_ascii_case("quoted-printable"))
+        || p.has_param_value("QUOTED-PRINTABLE");
+    if !quoted {
+        return Decoded::Plain;
+    }
+    let bytes = quoted_printable(p.value);
+    let utf8 = p
+        .param("CHARSET")
+        .is_none_or(|c| c.eq_ignore_ascii_case("utf-8") || c.eq_ignore_ascii_case("utf8"));
+    let text = match (utf8, String::from_utf8(bytes)) {
+        (true, Ok(text)) => text,
+        (_, Ok(text)) if text.is_ascii() => text,
+        (_, Ok(text)) => windows_1252(text.as_bytes()),
+        (_, Err(e)) => windows_1252(e.as_bytes()),
+    };
+    Decoded::As(text)
+}
+
+/// A postal address (`ADR`: post office box; extended; street; locality; region;
+/// postal code; country) on one line: `12 Rue des Lilas, 69003 Lyon, France`.
+fn address(value: &str) -> Option<String> {
+    let parts: Vec<String> = split_unescaped(value, ';')
+        .into_iter()
+        .map(|p| p.split_whitespace().collect::<Vec<_>>().join(" "))
+        .collect();
+    let part = |i: usize| parts.get(i).map(String::as_str).filter(|s| !s.is_empty());
+    let town = match (part(5), part(3)) {
+        (Some(code), Some(town)) => Some(format!("{code} {town}")),
+        (code, town) => code.or(town).map(str::to_owned),
+    };
+    let lines: Vec<String> = [part(0), part(1), part(2)]
+        .into_iter()
+        .flatten()
+        .map(str::to_owned)
+        .chain(town)
+        .chain(part(4).map(str::to_owned))
+        .chain(part(6).map(str::to_owned))
+        .collect();
+    (!lines.is_empty()).then(|| lines.join(", "))
 }
 
 /// A vCard 4 `RELATED`: text with `VALUE=text`, or the `urn:uuid:` of another card.
@@ -432,9 +527,37 @@ mod tests {
     }
 
     #[test]
-    fn legacy_encodings_are_not_read_yet() {
-        let text = "BEGIN:VCARD\nVERSION:2.1\nFN;ENCODING=QUOTED-PRINTABLE:L=C3=A9a\nN:Moreau;L\nEND:VCARD\n";
-        assert_eq!(ok(text)[0].full_name, "L Moreau");
+    fn vcard_2_1_quoted_printable_and_character_sets() {
+        let text = "BEGIN:VCARD\r\nVERSION:2.1\r\nN;CHARSET=UTF-8;ENCODING=QUOTED-PRINTABLE:Moreau;L=C3=A9a\r\n\
+                    FN;ENCODING=QUOTED-PRINTABLE;CHARSET=UTF-8:L=C3=A9a Moreau\r\n\
+                    NOTE;CHARSET=Windows-1252;ENCODING=QUOTED-PRINTABLE:Rencontr=E9e au caf=E9, l=92=E9t=E9 =\r\n\
+                    dernier.\r\nTITLE;QUOTED-PRINTABLE:Ing=C3=A9nieure\r\n\
+                    PHOTO;ENCODING=BASE64;TYPE=JPEG:/9j/4AAQSkZJRgABAQ\r\nEND:VCARD\r\n";
+        let card = &ok(text)[0];
+        assert_eq!(card.full_name, "Léa Moreau");
+        assert_eq!(card.given_name.as_deref(), Some("Léa"));
+        assert_eq!(
+            card.note.as_deref(),
+            Some("Rencontrée au café, l’été dernier."),
+            "a soft line break joins the next line"
+        );
+        assert_eq!(card.title.as_deref(), Some("Ingénieure"));
+    }
+
+    #[test]
+    fn addresses_on_one_line() {
+        let text = "BEGIN:VCARD\nVERSION:3.0\nFN:A\n\
+                    ADR;TYPE=HOME:;Bâtiment B;12 Rue des Lilas;Lyon;;69003;France\n\
+                    item1.ADR;type=WORK:;;8 Place\\, Bellecour;Lyon;Rhône;69002;\n\
+                    ADR:;;;;;;\nEND:VCARD\n";
+        assert_eq!(
+            ok(text)[0].addresses,
+            [
+                "Bâtiment B, 12 Rue des Lilas, 69003 Lyon, France",
+                "8 Place, Bellecour, 69002 Lyon, Rhône",
+            ],
+            "an empty address is left out"
+        );
     }
 
     #[test]

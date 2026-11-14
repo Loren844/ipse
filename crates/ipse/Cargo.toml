@@ -38,6 +38,10 @@ name = "calendar"
 harness = false
 
 [[bench]]
+name = "contacts"
+harness = false
+
+[[bench]]
 name = "mcp_transport"
 harness = false
 

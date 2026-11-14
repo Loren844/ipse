@@ -25,7 +25,8 @@ impl<R: BufRead> Lines<R> {
     }
 
     /// The next logical line: physical lines joined where a line starts with a space
-    /// or a tab (folding). Invalid UTF-8 is replaced, never fatal.
+    /// or a tab (folding). A line that is not UTF-8 is read as Windows-1252, as older
+    /// Windows and Outlook files are written; never fatal.
     ///
     /// # Errors
     ///
@@ -39,7 +40,10 @@ impl<R: BufRead> Lines<R> {
             if self.input.read_until(b'\n', &mut self.raw)? == 0 {
                 return Ok(self.pending.take());
             }
-            let text = String::from_utf8_lossy(&self.raw);
+            let text = match std::str::from_utf8(&self.raw) {
+                Ok(text) => Cow::Borrowed(text),
+                Err(_) => Cow::Owned(windows_1252(&self.raw)),
+            };
             let text = text.trim_end_matches(['\n', '\r']);
             if let Some(rest) = text.strip_prefix([' ', '\t'])
                 && let Some(pending) = &mut self.pending
@@ -104,6 +108,24 @@ impl<'a> Property<'a> {
         })
     }
 
+    /// The same property with another value, such as its value once decoded.
+    pub(crate) fn with_value<'b>(&'b self, value: &'b str) -> Property<'b> {
+        Property {
+            group: self.group,
+            name: Cow::Borrowed(self.name.as_ref()),
+            params: self.params.clone(),
+            value,
+        }
+    }
+
+    /// True when a parameter is `value`, as `ENCODING=QUOTED-PRINTABLE` or, in vCard
+    /// 2.1, a bare `QUOTED-PRINTABLE`; ignoring case.
+    pub(crate) fn has_param_value(&self, value: &str) -> bool {
+        self.params
+            .iter()
+            .any(|(_, v)| v.eq_ignore_ascii_case(value))
+    }
+
     /// The value of the parameter `key` (upper case), if present; names are compared
     /// ignoring case.
     pub(crate) fn param(&self, key: &str) -> Option<&'a str> {
@@ -147,6 +169,49 @@ fn split_unquoted(text: &str, separator: char) -> impl Iterator<Item = &str> + '
             Some(&text[start..])
         }
     })
+}
+
+/// `bytes` read as Windows-1252, which is also ISO-8859-1 for every printable letter.
+pub(crate) fn windows_1252(bytes: &[u8]) -> String {
+    /// The characters of bytes 0x80 to 0x9F, where Windows-1252 and ISO-8859-1 differ.
+    const HIGH: [char; 32] = [
+        '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8d}', 'Ž',
+        '\u{8f}', '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9d}',
+        'ž', 'Ÿ',
+    ];
+    bytes
+        .iter()
+        .map(|&b| match b {
+            0x80..=0x9f => HIGH[usize::from(b - 0x80)],
+            _ => char::from(b),
+        })
+        .collect()
+}
+
+/// The bytes of a quoted-printable value (RFC 2045): `=C3=A9` is two bytes, a final
+/// `=` joined the next line and is dropped. A malformed `=` is kept as it is.
+pub(crate) fn quoted_printable(value: &str) -> Vec<u8> {
+    let bytes = value.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'=' {
+            let hex = bytes
+                .get(i + 1..i + 3)
+                .and_then(|h| std::str::from_utf8(h).ok());
+            if let Some(byte) = hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                out.push(byte);
+                i += 3;
+                continue;
+            }
+            if i + 1 == bytes.len() {
+                break;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    out
 }
 
 /// An unescaped, trimmed value; `None` when empty.
@@ -240,6 +305,29 @@ mod tests {
         assert_eq!(Property::parse("FN:Ana").unwrap().group, None);
         assert!(Property::parse("no colon").is_none());
         assert!(Property::parse(":value").is_none());
+    }
+
+    #[test]
+    fn windows_files_are_read() {
+        let mut lines = Lines::new(&b"FN:Caf\xe9 \x80 l\x92\xe9t\xe9\r\nNOTE:ok\r\n"[..]);
+        assert_eq!(
+            lines.next_line().unwrap().as_deref(),
+            Some("FN:Café € l’été")
+        );
+        assert_eq!(lines.next_line().unwrap().as_deref(), Some("NOTE:ok"));
+    }
+
+    #[test]
+    fn quoted_printable_values() {
+        assert_eq!(quoted_printable("L=C3=A9a"), "Léa".as_bytes());
+        assert_eq!(quoted_printable("caf=E9"), b"caf\xe9");
+        assert_eq!(
+            quoted_printable("a=\nb"),
+            b"a=\nb",
+            "only a final = is a soft break"
+        );
+        assert_eq!(quoted_printable("fin="), b"fin");
+        assert_eq!(quoted_printable("x=ZZ"), b"x=ZZ");
     }
 
     #[test]

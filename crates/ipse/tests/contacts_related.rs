@@ -141,7 +141,7 @@ fn your_own_card_completes_your_file() {
         text.contains("name: Camille Durand\n"),
         "your name stays: {text}"
     );
-    assert!(text.contains("phones:\n  - +33 6 55 44 33 22\n"), "{text}");
+    assert!(text.contains("phones:\n  - \"+33655443322\"\n"), "{text}");
     assert!(text.contains("aliases:\n  - Cam\n"), "{text}");
     assert!(text.contains("birthday: 1992-05-17\n"), "{text}");
     assert!(
@@ -157,12 +157,12 @@ fn your_own_card_completes_your_file() {
     // You remove the phone: importing again does not bring it back.
     std::fs::write(
         owner_path(dir.path()),
-        text.replace("phones:\n  - +33 6 55 44 33 22\n", ""),
+        text.replace("phones:\n  - \"+33655443322\"\n", ""),
     )
     .unwrap();
     let again = import(dir.path(), "apple-related.vcf");
     assert!(!again.contains("completed"), "{again}");
-    assert!(!owner(dir.path()).contains("+33 6 55 44 33 22"));
+    assert!(!owner(dir.path()).contains("+33655443322"));
     assert!(!dir.path().join("people/camille-durand-2.md").exists());
 }
 

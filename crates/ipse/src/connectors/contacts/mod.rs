@@ -3,6 +3,7 @@
 //! Rung 4 of decision 0008: contacts apps export vCard files; this connector reads them
 //! without any network access or account.
 
+mod phone;
 mod vcard;
 
 use std::fs::File;
@@ -17,6 +18,7 @@ use jiff::Timestamp;
 use serde_json::{Map, Value, json};
 
 use super::session::{Session, SessionResult};
+use phone::{Country, e164};
 use vcard::{Card, CardError, Cards};
 
 /// The connector's identifier.
@@ -82,6 +84,8 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
     session.wait_start()?;
 
     let observed_at = Timestamp::now();
+    // National phone numbers are read with the country of the vault's time zone.
+    let country = Country::of_time_zone(&hello.time_zone);
     let mut batch = Vec::with_capacity(MAX_BATCH_RECORDS);
     let mut sent = 0_u64;
     let mut skipped = 0_u64;
@@ -92,7 +96,7 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
         for card in Cards::new(BufReader::new(file)) {
             match card {
                 Ok(card) => {
-                    batch.push(record(card, observed_at));
+                    batch.push(record(card, country, observed_at));
                     if batch.len() == MAX_BATCH_RECORDS {
                         sent += send(&mut session, &mut batch)?;
                     }
@@ -151,8 +155,8 @@ fn say(french: bool, en: &str, fr: &str) -> String {
 /// A card as a `contact.card` record. Its identifier is the card's `UID`, or a hash of
 /// its content when it has none, so that importing the same file twice gives the same
 /// identifiers.
-fn record(card: Card, observed_at: Timestamp) -> Record {
-    let data = data(&card);
+fn record(card: Card, country: Option<Country>, observed_at: Timestamp) -> Record {
+    let data = data(&card, country);
     let external_id = card.uid.unwrap_or_else(|| data_hash(&data));
     Record {
         kind: KIND.to_owned(),
@@ -163,8 +167,9 @@ fn record(card: Card, observed_at: Timestamp) -> Record {
     }
 }
 
-/// The `data` of a `contact.card` record. Empty fields are left out.
-fn data(card: &Card) -> Value {
+/// The `data` of a `contact.card` record. Empty fields are left out; phones in E.164
+/// when they can be read with certainty.
+fn data(card: &Card, country: Option<Country>) -> Value {
     let mut map = Map::new();
     map.insert("full_name".into(), json!(card.full_name));
     let optional = [
@@ -172,6 +177,7 @@ fn data(card: &Card) -> Value {
         ("family_name", &card.family_name),
         ("birthday", &card.birthday),
         ("organization", &card.organization),
+        ("title", &card.title),
         ("note", &card.note),
     ];
     for (key, value) in optional {
@@ -179,10 +185,12 @@ fn data(card: &Card) -> Value {
             map.insert(key.into(), json!(value));
         }
     }
+    let phones: Vec<String> = card.phones.iter().map(|p| e164(p, country)).collect();
     let lists = [
         ("nicknames", &card.nicknames),
         ("emails", &card.emails),
-        ("phones", &card.phones),
+        ("phones", &phones),
+        ("addresses", &card.addresses),
     ];
     for (key, values) in lists {
         if !values.is_empty() {
@@ -233,7 +241,7 @@ mod tests {
             ..Card::default()
         };
         assert_eq!(
-            data(&card),
+            data(&card, None),
             json!({"full_name": "Ana Silva", "emails": ["ana@example.org"]})
         );
     }
@@ -257,8 +265,30 @@ mod tests {
             ..Card::default()
         };
         assert_eq!(
-            data(&card)["related"],
+            data(&card, None)["related"],
             json!([{"name": "Marie Dupont", "kind": "mother"}, {"uid": "urn:uuid:7d1e"}])
+        );
+    }
+
+    #[test]
+    fn phones_in_e164_with_the_vaults_country() {
+        let card = Card {
+            full_name: "Ana Silva".into(),
+            phones: vec![
+                "06 12 34 56 78".into(),
+                "+351 912 345 678".into(),
+                "3615".into(),
+            ],
+            ..Card::default()
+        };
+        assert_eq!(
+            data(&card, Country::of_time_zone("Europe/Paris"))["phones"],
+            json!(["+33612345678", "+351912345678", "3615"])
+        );
+        assert_eq!(
+            data(&card, None)["phones"],
+            json!(["06 12 34 56 78", "+351912345678", "3615"]),
+            "without a country, a national number stays as written"
         );
     }
 
@@ -269,8 +299,8 @@ mod tests {
             ..Card::default()
         };
         let now = Timestamp::now();
-        let a = record(card.clone(), now);
-        let b = record(card, now);
+        let a = record(card.clone(), None, now);
+        let b = record(card, None, now);
         assert_eq!(a.external_id, b.external_id);
         assert!(a.external_id.unwrap().starts_with("b3:"));
     }
