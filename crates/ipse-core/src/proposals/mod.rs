@@ -391,6 +391,14 @@ impl<'v> Proposals<'v> {
         }
     }
 
+    /// What `proposal` says it changes, as it was written, file by file: for one
+    /// already decided, whose changes the files now hold or never did. Reads nothing
+    /// but the names of its files.
+    #[must_use]
+    pub fn described(&self, proposal: &Proposal) -> Preview {
+        apply::described(self.vault, proposal)
+    }
+
     /// What `proposal` would change in the files as they are now, file by file, and
     /// why it no longer applies if it does not.
     ///

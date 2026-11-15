@@ -347,6 +347,7 @@ Decision 0005: anything an AI infers, merges or changes is a **proposal**, which
 - **Reviewing** shows each file's changes in plain words: before and after, per key, fact and relation. Fact identifiers and front-matter syntax are never shown.
 - **Accepting** first records the person's own edits (section 9), then applies every change in **one change** of history, `Ipse-Source: proposal:<id>`, through the same writing rules as everything else (fact identifiers, atomic writes, layout kept). If any change no longer fits the files (a key or fact that changed since, a file removed or renamed), nothing is written and the proposal becomes `stale`; a stale proposal can only be refused.
 - **Undoing** an accepted proposal reverts its change as a new change by the person; history is never rewritten. It is refused while one of its files changed since, so that the later change is never lost.
+- **The review inbox** of `ipse ui` lists the waiting proposals newest first, with who made them, why, and the files they touch; one that no longer applies is marked so. Several can be accepted in one action, each still accepted on its own (one change of history each). A refusal takes an optional comment of at most 2 000 characters. The last 20 decided proposals stay listed, to read them again or undo an accepted one. A decided or stale proposal is shown as it was written; a waiting one, as it would change the files now.
 - `ipse proposals list|show|accept|refuse|undo` does the same from the command line.
 
 ## 13. Tasks

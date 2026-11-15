@@ -7,13 +7,20 @@ import { join, resolve } from 'node:path';
 const exe = process.platform === 'win32' ? 'ipse.exe' : 'ipse';
 export const IPSE = process.env.IPSE_BIN ?? resolve(import.meta.dirname, '../../target/debug', exe);
 
-/** `startup`: milliseconds from starting `ipse ui` to its address being printed. */
-export type Running = { url: string; origin: string; startup: number; stop: () => void };
+/** `startup`: milliseconds from starting `ipse ui` to its address being printed;
+ * `vault`: the memory folder, to check what the interface wrote. */
+export type Running = { url: string; origin: string; vault: string; startup: number; stop: () => void };
 
 const FIXTURES = resolve(import.meta.dirname, '../../crates/ipse/tests/fixtures');
 
-/** Starts `ipse ui` on a new memory; with `imported`, the test contacts and calendar in it. */
-export async function startIpse(name = 'Inès Roux', language = 'fr', imported = false): Promise<Running> {
+/** Starts `ipse ui` on a new memory; with `imported`, the test contacts and calendar in
+ * it; `prepare` completes the memory folder before `ipse ui` starts. */
+export async function startIpse(
+	name = 'Inès Roux',
+	language = 'fr',
+	imported = false,
+	prepare: (vault: string) => void = () => {}
+): Promise<Running> {
 	const dir = mkdtempSync(join(tmpdir(), 'ipse-ui-'));
 	const vault = join(dir, 'memoire');
 	execFileSync(IPSE, ['init', vault, '--name', name, '--language', language, '--time-zone', 'Europe/Paris']);
@@ -21,6 +28,7 @@ export async function startIpse(name = 'Inès Roux', language = 'fr', imported =
 		for (const file of ['contacts/google-v3.vcf', 'calendar/google.ics'])
 			execFileSync(IPSE, ['import', join(FIXTURES, file), '--vault', vault]);
 	}
+	prepare(vault);
 	const startedAt = Date.now();
 	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'] });
 	const url = await new Promise<string>((ok, fail) => {
@@ -35,6 +43,7 @@ export async function startIpse(name = 'Inès Roux', language = 'fr', imported =
 	return {
 		url,
 		origin: new URL(url).origin,
+		vault,
 		startup: Date.now() - startedAt,
 		stop: () => {
 			child.kill();

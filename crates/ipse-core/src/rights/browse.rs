@@ -185,6 +185,18 @@ impl Access<'_> {
         })
     }
 
+    /// The file at `file`, relative to the vault with `/`, resolved like a link: its
+    /// name, id and type; `None` when there is none this client may read.
+    #[must_use]
+    pub fn at(&self, file: &str) -> Option<LinkOut> {
+        let listed = self.gateway.index.at(file, |c| self.reads(c.as_str()))?;
+        Some(LinkOut {
+            name: listed.name.to_owned(),
+            id: Some(listed.id.to_string()),
+            file_type: type_of(listed.path),
+        })
+    }
+
     /// A link or a plain text, resolved: the linked file's name and id when this client
     /// may read it, otherwise the text as written.
     #[must_use]
@@ -207,16 +219,7 @@ impl Access<'_> {
                             .clone()
                             .unwrap_or_else(|| listed.name.to_owned()),
                         id: Some(listed.id.to_string()),
-                        file_type: listed
-                            .path
-                            .parent()
-                            .and_then(|p| p.file_name())
-                            .and_then(|f| {
-                                FileType::ALL
-                                    .into_iter()
-                                    .find(|t| t.folder() == f.to_string_lossy())
-                            })
-                            .map(|t| t.as_str().to_owned()),
+                        file_type: type_of(listed.path),
                     },
                     None => LinkOut {
                         name: link.display.clone().unwrap_or_else(|| link.target.clone()),
@@ -227,4 +230,13 @@ impl Access<'_> {
             }
         }
     }
+}
+
+/// The type of the file at `path`, from its folder.
+fn type_of(path: &std::path::Path) -> Option<String> {
+    let folder = path.parent()?.file_name()?.to_string_lossy();
+    FileType::ALL
+        .into_iter()
+        .find(|t| t.folder() == folder)
+        .map(|t| t.as_str().to_owned())
 }

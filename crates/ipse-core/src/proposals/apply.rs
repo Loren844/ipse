@@ -526,3 +526,140 @@ fn shown(value: &Value) -> Option<String> {
 fn one_line(text: &str) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ")
 }
+
+/// What `proposal` says it changes, as written when it was made, without the files as
+/// they are now: for a decided proposal, whose changes are already in the files or
+/// were never applied. The names come from the files when they still exist.
+pub(super) fn described(vault: &Vault, proposal: &Proposal) -> Preview {
+    let mut files: Vec<FileDiff> = Vec::new();
+    for change in &proposal.changes {
+        let rel = change.file().unwrap_or_default().to_owned();
+        let (items, created) = described_items(change);
+        if let Some(diff) = files.iter_mut().find(|d| !rel.is_empty() && d.file == rel) {
+            diff.items.extend(items);
+            continue;
+        }
+        let existing = (!rel.is_empty())
+            .then(|| memory_path(vault.root(), &rel).ok())
+            .flatten()
+            .and_then(|path| MemoryFile::read(path).ok());
+        let (name, file_type, category) = match (change, &existing) {
+            (
+                Change::Create {
+                    file_type,
+                    category,
+                    keys,
+                    ..
+                },
+                _,
+            ) => (
+                keys.get("name")
+                    .or_else(|| keys.get("title"))
+                    .and_then(Value::as_str)
+                    .map_or_else(|| display_stem(&rel), str::to_owned),
+                file_type.clone(),
+                category.clone().unwrap_or_default(),
+            ),
+            (_, Some(file)) => (
+                display_name(&rel, file),
+                file.common().file_type.as_str().to_owned(),
+                file.common().category.as_str().to_owned(),
+            ),
+            (_, None) => (display_stem(&rel), String::new(), String::new()),
+        };
+        files.push(FileDiff {
+            file: rel,
+            name,
+            file_type,
+            category,
+            created,
+            items,
+        });
+    }
+    Preview { files, stale: None }
+}
+
+fn display_stem(rel: &str) -> String {
+    rel.rsplit('/')
+        .next()
+        .unwrap_or(rel)
+        .trim_end_matches(".md")
+        .to_owned()
+}
+
+/// One change as written, in plain words; and whether it creates its file.
+fn described_items(change: &Change) -> (Vec<DiffItem>, bool) {
+    let relation = |word: &str, target: &str, display: Option<&str>| {
+        format!("{word}: {}", display.unwrap_or(target))
+    };
+    match change {
+        Change::Create {
+            keys,
+            facts,
+            relations,
+            notes,
+            ..
+        } => {
+            let mut items: Vec<DiffItem> = keys
+                .iter()
+                .filter_map(|(key, value)| shown(value).map(|v| added(What::Key(key.clone()), v)))
+                .collect();
+            items.extend(facts.iter().map(|f| added(What::Fact, one_line(f))));
+            items.extend(relations.iter().map(|r| {
+                added(
+                    What::Relation,
+                    relation(&r.word, &r.target, r.display.as_deref()),
+                )
+            }));
+            if let Some(notes) = notes {
+                items.push(added(What::Notes, notes.clone()));
+            }
+            (items, true)
+        }
+        Change::SetKey { key, from, to, .. } => (
+            vec![DiffItem {
+                what: What::Key(key.clone()),
+                before: shown(from),
+                after: shown(to),
+            }],
+            false,
+        ),
+        Change::AddFact { text, .. } => (vec![added(What::Fact, one_line(text))], false),
+        Change::EditFact { from, to, .. } => (
+            vec![DiffItem {
+                what: What::Fact,
+                before: Some(one_line(from)),
+                after: Some(one_line(to)),
+            }],
+            false,
+        ),
+        Change::RemoveFact { text, .. } => (
+            vec![DiffItem {
+                what: What::Fact,
+                before: Some(one_line(text)),
+                after: None,
+            }],
+            false,
+        ),
+        Change::AddRelation {
+            word,
+            target,
+            display,
+            ..
+        } => (
+            vec![added(
+                What::Relation,
+                relation(word, target, display.as_deref()),
+            )],
+            false,
+        ),
+        Change::RemoveRelation { word, target, .. } => (
+            vec![DiffItem {
+                what: What::Relation,
+                before: Some(relation(word, target, None)),
+                after: None,
+            }],
+            false,
+        ),
+    }
+}

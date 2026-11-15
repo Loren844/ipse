@@ -79,3 +79,22 @@ export function hrefOf(link: { id: string | null; kind: string | null }): string
 	if (!link.id) return null;
 	return link.kind === 'event' ? `/agenda/${link.id}` : `/people/${link.id}`;
 }
+
+/** "il y a 2 heures", "hier", or the day for anything older than a week. */
+export function ago(text: string, now: Date = new Date()): string {
+	const then = new Date(text);
+	const seconds = Math.round((then.getTime() - now.getTime()) / 1000);
+	const format = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
+	const abs = Math.abs(seconds);
+	if (abs < 60) return format.format(0, 'second');
+	if (abs < 3600) return format.format(Math.round(seconds / 60), 'minute');
+	if (abs < 86400) return format.format(Math.round(seconds / 3600), 'hour');
+	if (abs < 7 * 86400) return format.format(Math.round(seconds / 86400), 'day');
+	const today = dayOf(now.toISOString());
+	return i18n.t.onDay(longDay(dayOf(text), today).replace(/^./, (c) => c.toLocaleLowerCase()));
+}
+
+/** Who made a proposal, in words: "Claude", "vos contacts", "Ipse". */
+export function authorName(by: { kind: string; name: string }): string {
+	return by.kind === 'source' ? sources([by.name]) : by.name;
+}

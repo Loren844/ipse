@@ -619,6 +619,20 @@ impl SearchIndex {
         found.into_iter().map(|(_, listed)| listed).collect()
     }
 
+    /// The entity or event at `path`, relative to the vault with `/`, if its category
+    /// is allowed.
+    #[must_use]
+    pub fn at(&self, path: &str, allowed: impl Fn(&Category) -> bool) -> Option<Listed<'_>> {
+        let d = self.document(*self.by_path.get(path)?)?;
+        allowed(&d.category).then(|| Listed {
+            id: &d.id,
+            name: &d.name.text,
+            aliases: d.aliases.iter().map(|a| a.text.as_str()).collect(),
+            category: &d.category,
+            path: &d.path,
+        })
+    }
+
     /// The entity a `[[stem]]` link points to, among the allowed categories: the first
     /// one when several folders hold that stem.
     #[must_use]

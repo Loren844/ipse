@@ -302,3 +302,23 @@ fn an_index_saved_in_another_language_is_read_again() {
         ["Marie Dupont"]
     );
 }
+
+#[test]
+fn a_file_is_found_by_its_path_within_the_categories_allowed() {
+    let dir = vault("fr");
+    let open = person(dir.path(), "people", "Marie Dupont", &[], &[]);
+    let hidden = person(dir.path(), "health", "Marie Secret", &[], &[]);
+    let index = SearchIndex::load(dir.path()).unwrap();
+    let relative = |path: &Path| {
+        path.strip_prefix(dir.path())
+            .unwrap()
+            .to_string_lossy()
+            .replace('\\', "/")
+    };
+    let people = |c: &Category| c.as_str() == "people";
+    let found = index.at(&relative(&open), people).unwrap();
+    assert_eq!(found.name, "Marie Dupont");
+    assert!(index.at(&relative(&hidden), people).is_none(), "hidden");
+    assert!(index.at(&relative(&hidden), |_| true).is_some());
+    assert!(index.at("people/personne.md", |_| true).is_none());
+}

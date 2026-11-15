@@ -12,6 +12,11 @@
 	--thread-faint: #e8c9cd;
 	--focus: #9b2c3a;
 	--on-thread: #ffffff;
+	/* What a change adds, and warnings: never the thread's red, never colour alone. */
+	--added: #2f6f4f;
+	--added-soft: #e6f2eb;
+	--warn: #7a5300;
+	--warn-soft: #faf0d9;
 
 	--display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
 	--text-font: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
@@ -38,6 +43,10 @@
 		--thread-faint: #5a3238;
 		--focus: #cf6874;
 		--on-thread: #171314;
+		--added: #8fd1ad;
+		--added-soft: #1c3127;
+		--warn: #ecc46f;
+		--warn-soft: #382d14;
 		color-scheme: dark;
 	}
 }
@@ -757,6 +766,301 @@ a {
 	position: relative;
 }
 
+/* The review inbox. */
+.live:empty {
+	/* The announcement region stays in place, without its gap while it says nothing. */
+	margin-top: -2.5rem;
+}
+
+.live:focus {
+	outline: none;
+}
+
+.inbox {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.proposal {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.2rem 0.9rem;
+	align-items: start;
+	padding: 0.95rem 1.1rem;
+	background: var(--surface);
+	border: 1.5px solid var(--line);
+	border-radius: 12px;
+}
+
+.proposal:has(input:checked) {
+	border-color: var(--thread);
+}
+
+.proposal input[type='checkbox'] {
+	margin: 0.3rem 0 0;
+	width: 1.1rem;
+	height: 1.1rem;
+	accent-color: var(--thread);
+}
+
+.proposal .spacer {
+	width: 1.1rem;
+}
+
+.proposal .body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	min-width: 0;
+}
+
+.proposal .reason {
+	font-weight: 700;
+	color: var(--text);
+	text-decoration: none;
+}
+
+.proposal .reason:hover {
+	color: var(--thread-ink);
+	text-decoration: underline;
+}
+
+.proposal .meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem 1rem;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.proposal .touches {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem;
+	margin: 0.2rem 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.proposal.decided {
+	background: transparent;
+	grid-template-columns: 1fr;
+}
+
+.badge.warn {
+	border-color: var(--warn);
+	color: var(--warn);
+}
+
+.toolbar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.75rem 1.25rem;
+}
+
+.toolbar label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	color: var(--muted);
+}
+
+.toolbar input {
+	accent-color: var(--thread);
+	width: 1.05rem;
+	height: 1.05rem;
+}
+
+.button {
+	font: inherit;
+	font-weight: 700;
+	padding: 0.55rem 1.15rem;
+	border-radius: 999px;
+	border: 1.5px solid var(--line-strong);
+	background: transparent;
+	color: var(--text);
+	cursor: pointer;
+}
+
+.button:hover:not(:disabled) {
+	border-color: var(--thread);
+}
+
+.button.primary {
+	background: var(--thread);
+	border-color: var(--thread);
+	color: var(--on-thread);
+}
+
+.button.primary:hover:not(:disabled) {
+	background: var(--thread-ink);
+	border-color: var(--thread-ink);
+}
+
+.button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+	align-items: center;
+}
+
+.notice {
+	display: flex;
+	gap: 0.6rem;
+	align-items: flex-start;
+	margin: 0;
+	padding: 0.8rem 1rem;
+	border-radius: 12px;
+	background: var(--added-soft);
+	color: var(--text);
+	max-width: none;
+}
+
+.notice svg {
+	flex: none;
+	margin-top: 0.15rem;
+	color: var(--added);
+}
+
+.notice.warn {
+	background: var(--warn-soft);
+}
+
+.notice.warn svg {
+	color: var(--warn);
+}
+
+.why {
+	margin: 0;
+	padding-left: 1rem;
+	border-left: 3px solid var(--thread-faint);
+	font-size: var(--step-1);
+	max-width: 60ch;
+}
+
+/* What a proposal changes: added on green with "+", removed struck through with "−". */
+.diff-file h2 {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+}
+
+.diff-file h2 a {
+	color: inherit;
+	text-decoration-color: var(--thread-faint);
+	text-underline-offset: 0.2em;
+}
+
+.diff {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: minmax(7rem, max-content) 1fr;
+}
+
+.diff li {
+	display: contents;
+}
+
+.diff .what,
+.diff .sides {
+	padding: 0.6rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.diff .what {
+	color: var(--muted);
+	padding-right: 1.5rem;
+}
+
+.diff .sides {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
+.diff .sides p {
+	display: flex;
+	gap: 0.55rem;
+	margin: 0;
+	padding: 0.2rem 0.6rem;
+	border-radius: 8px;
+	overflow-wrap: anywhere;
+	max-width: none;
+}
+
+.diff .sign {
+	font-weight: 700;
+	flex: none;
+	width: 0.8rem;
+}
+
+.diff .added {
+	background: var(--added-soft);
+}
+
+.diff .added .sign {
+	color: var(--added);
+}
+
+.diff ins {
+	text-decoration: none;
+}
+
+.diff .removed {
+	color: var(--muted);
+}
+
+.diff del {
+	text-decoration-thickness: 1.5px;
+}
+
+.refuse {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	max-width: 36rem;
+}
+
+.refuse label {
+	font-weight: 700;
+}
+
+.refuse textarea {
+	font: inherit;
+	color: var(--text);
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: 10px;
+	padding: 0.6rem 0.8rem;
+	min-height: 5rem;
+	resize: vertical;
+}
+
+.refuse textarea:focus {
+	outline: none;
+	border-color: var(--thread);
+}
+
+.refuse .hint {
+	color: var(--muted);
+	font-size: 0.9rem;
+	margin: 0;
+}
+
 /* Phones and narrow windows: the navigation becomes a band at the top. */
 @media (max-width: 760px) {
 	.frame {
@@ -824,6 +1128,15 @@ a {
 
 	nav a {
 		white-space: nowrap;
+	}
+
+	.diff {
+		grid-template-columns: 1fr;
+	}
+
+	.diff .what {
+		border-bottom: 0;
+		padding-bottom: 0;
 	}
 }
 
