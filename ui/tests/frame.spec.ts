@@ -10,9 +10,12 @@ test.afterEach(() => ipse.stop());
 test('the frame opens in the vault language, in under a second', async ({ page }) => {
 	const requests: string[] = [];
 	page.on('request', (request) => requests.push(request.url()));
+	// From starting `ipse ui` to the frame on screen: the server's start, then the page's
+	// load in a browser already open (the browser's own start is not Ipse's).
+	const asked = Date.now();
 	await page.goto(ipse.url);
 	await expect(page.getByTestId('memory-name')).toHaveText('Inès Roux');
-	const firstScreen = Date.now() - ipse.startedAt;
+	const firstScreen = ipse.startup + (Date.now() - asked);
 	console.log(`ipse ui to the first screen: ${firstScreen} ms`);
 	expect(firstScreen).toBeLessThan(1000);
 

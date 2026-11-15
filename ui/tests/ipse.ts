@@ -7,7 +7,8 @@ import { join, resolve } from 'node:path';
 const exe = process.platform === 'win32' ? 'ipse.exe' : 'ipse';
 export const IPSE = process.env.IPSE_BIN ?? resolve(import.meta.dirname, '../../target/debug', exe);
 
-export type Running = { url: string; origin: string; startedAt: number; stop: () => void };
+/** `startup`: milliseconds from starting `ipse ui` to its address being printed. */
+export type Running = { url: string; origin: string; startup: number; stop: () => void };
 
 export async function startIpse(name = 'Inès Roux', language = 'fr'): Promise<Running> {
 	const dir = mkdtempSync(join(tmpdir(), 'ipse-ui-'));
@@ -27,7 +28,7 @@ export async function startIpse(name = 'Inès Roux', language = 'fr'): Promise<R
 	return {
 		url,
 		origin: new URL(url).origin,
-		startedAt,
+		startup: Date.now() - startedAt,
 		stop: () => {
 			child.kill();
 			rmSync(dir, { recursive: true, force: true });
