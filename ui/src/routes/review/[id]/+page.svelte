@@ -76,18 +76,17 @@
 	}
 </script>
 
-<svelte:head><title>{i18n.t.inbox} · Ipse</title></svelte:head>
+<svelte:head><title>{line ? line.reason : i18n.t.inbox} · Ipse</title></svelte:head>
 
 {#if view && line}
 	<article class="screen">
 		<header class="page-head">
 			<p class="quiet-link" style:margin="0"><a href="/review">← {i18n.t.backToInbox}</a></p>
-			<h1>{by}</h1>
+			<h1 class="proposal-title">{line.reason}</h1>
 			<p class="date">
-				<span>{ago(line.created)}</span>
+				<span>{by}, {ago(line.created)}</span>
 				{#if line.status !== 'waiting'}<span class="badge" class:warn={line.status === 'stale'}>{i18n.t.status[line.status]}</span>{/if}
 			</p>
-			<blockquote class="why">{line.reason}</blockquote>
 		</header>
 
 		<div class="live" role="status" aria-live="polite" tabindex="-1" bind:this={status}>

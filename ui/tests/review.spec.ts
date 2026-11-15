@@ -61,7 +61,9 @@ test('review proposals: accept, refuse with a comment, accept several, undo', as
 
 	// One proposal in plain words: added in green with +, never a fact id or front matter.
 	await page.getByRole('link', { name: 'Marc l’a dit pendant notre conversation.' }).click();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Proposée par Claude Desktop');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marc l’a dit pendant notre conversation.');
+	await expect(page.getByText(/^Proposée par Claude Desktop, il y a 50 minutes$/)).toBeVisible();
+	await expect(page).toHaveTitle('Marc l’a dit pendant notre conversation. · Ipse');
 	await expect(page.getByRole('heading', { level: 2, name: 'Marc Leroy' })).toBeVisible();
 	const added = page.locator('.diff .added');
 	await expect(added).toHaveText([/Joue au tennis le jeudi\./, /\+33 6 12 34 56 78/]);

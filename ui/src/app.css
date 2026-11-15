@@ -940,12 +940,14 @@ a {
 	color: var(--warn);
 }
 
-.why {
+/* A proposal's title is its reason, in its author's words: it can be a long sentence. */
+h1.proposal-title {
+	font-size: clamp(1.75rem, 3.6vw, 2.5rem);
+	letter-spacing: -0.025em;
+	line-height: 1.12;
+	max-width: 30ch;
+	text-wrap: balance;
 	margin: 0;
-	padding-left: 1rem;
-	border-left: 3px solid var(--thread-faint);
-	font-size: var(--step-1);
-	max-width: 60ch;
 }
 
 /* What a proposal changes: added on green with "+", removed struck through with "−". */
