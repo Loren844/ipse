@@ -40,7 +40,7 @@ tempfile = "3.27"
 thiserror = "2.0"
 tokio = { version = "1.48", default-features = false, features = ["rt"] }
 # TypeScript types for the interface, from the Rust types of its API (decision 0013).
-ts-rs = { version = "12.0", default-features = false }
+ts-rs = "12.0"
 toml = { version = "1.2", default-features = false, features = ["parse", "serde", "std"] }
 ulid = "3.0"
 # HTTP for connectors that fetch a link, with rustls (no OpenSSL).

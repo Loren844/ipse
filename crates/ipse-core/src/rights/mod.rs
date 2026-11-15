@@ -5,6 +5,7 @@
 //! anything else, and never hints that hidden data exists.
 
 mod access;
+mod browse;
 mod clients;
 mod log;
 mod work;
@@ -13,6 +14,7 @@ pub use access::{
     Access, Entry, Events, FULL_CHECK_EVERY, Gateway, MAX_EVENTS, MAX_STATES, RelationOut,
     StateOut, States,
 };
+pub use browse::{Details, Line, Lines, LinkOut, MAX_LISTED, RelationLink};
 pub use clients::{Client, Clients, Token};
 pub use log::{ACCESS_DIR, KEEP_MONTHS};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};

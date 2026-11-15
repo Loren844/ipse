@@ -10,10 +10,17 @@ export const IPSE = process.env.IPSE_BIN ?? resolve(import.meta.dirname, '../../
 /** `startup`: milliseconds from starting `ipse ui` to its address being printed. */
 export type Running = { url: string; origin: string; startup: number; stop: () => void };
 
-export async function startIpse(name = 'Inès Roux', language = 'fr'): Promise<Running> {
+const FIXTURES = resolve(import.meta.dirname, '../../crates/ipse/tests/fixtures');
+
+/** Starts `ipse ui` on a new memory; with `imported`, the test contacts and calendar in it. */
+export async function startIpse(name = 'Inès Roux', language = 'fr', imported = false): Promise<Running> {
 	const dir = mkdtempSync(join(tmpdir(), 'ipse-ui-'));
 	const vault = join(dir, 'memoire');
 	execFileSync(IPSE, ['init', vault, '--name', name, '--language', language, '--time-zone', 'Europe/Paris']);
+	if (imported) {
+		for (const file of ['contacts/google-v3.vcf', 'calendar/google.ics'])
+			execFileSync(IPSE, ['import', join(FIXTURES, file), '--vault', vault]);
+	}
 	const startedAt = Date.now();
 	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'] });
 	const url = await new Promise<string>((ok, fail) => {

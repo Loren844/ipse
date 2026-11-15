@@ -8,6 +8,7 @@
 	import { i18n, type Language } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
 	import Mark from '#lib/Mark.svelte';
+	import { initials } from '#lib/format.ts';
 
 	let { children } = $props();
 
@@ -19,17 +20,23 @@
 		document.documentElement.lang = i18n.language;
 	});
 
-	const sections = $derived([
-		{ href: '/', label: i18n.t.inbox, icon: icons.inbox },
-		{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
-		{ href: '/history', label: i18n.t.history, icon: icons.history }
+	const groups = $derived([
+		[
+			{ href: '/', label: i18n.t.home, icon: icons.home },
+			{ href: '/people', label: i18n.t.people, icon: icons.people },
+			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda }
+		],
+		[
+			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },
+			{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
+			{ href: '/history', label: i18n.t.history, icon: icons.history }
+		]
 	]);
 
-	/** Up to two initials of a name, for the owner's badge. */
-	function initials(name: string): string {
-		const words = name.split(/\s+/).filter(Boolean);
-		const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words;
-		return letters.map((w) => w[0]?.toLocaleUpperCase() ?? '').join('');
+	/** The section a page belongs to: a person's page is under People. */
+	function isCurrent(href: string): boolean {
+		const path = page.url.pathname;
+		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
 	}
 
 	const languages: { code: Language; label: string; name: string }[] = [
@@ -51,20 +58,22 @@
 				<span class="wordmark">ipse</span>
 			</a>
 			<nav aria-label={i18n.t.navLabel}>
-				<ul>
-					{#each sections as section (section.href)}
-						{@const current = page.url.pathname === section.href}
-						<li>
-							<a href={section.href} aria-current={current ? 'page' : undefined}>
-								<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={section.icon} /></svg>
-								<span>{section.label}</span>
-								{#if section.href === '/' && info.waiting > 0}
-									<span class="count" aria-label={i18n.t.waiting(info.waiting)}>{info.waiting}</span>
-								{/if}
-							</a>
-						</li>
-					{/each}
-				</ul>
+				{#each groups as group, g (g)}
+					<ul>
+						{#each group as section (section.href)}
+							{@const current = isCurrent(section.href)}
+							<li>
+								<a href={section.href} aria-current={current ? 'page' : undefined}>
+									<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={section.icon} /></svg>
+									<span>{section.label}</span>
+									{#if section.href === '/review' && info.waiting > 0}
+										<span class="count" aria-label={i18n.t.waiting(info.waiting)}>{info.waiting}</span>
+									{/if}
+								</a>
+							</li>
+						{/each}
+					</ul>
+				{/each}
 			</nav>
 			<div class="foot">
 				<p class="owner">

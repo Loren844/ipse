@@ -28,33 +28,17 @@ use hyper::body::{Bytes, Incoming};
 use hyper::header::{self, HeaderMap, HeaderValue};
 use hyper::{Method, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
-use ipse_core::proposals::{Proposals, Status};
 use ipse_core::rights::Gateway;
 use ipse_core::{Error, Result};
 use serde::Serialize;
+
+mod api;
 
 mod assets {
     include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
 }
 
 type Body = BoxBody<Bytes, Infallible>;
-
-/// What the interface shows in its frame.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-#[cfg_attr(
-    test,
-    derive(ts_rs::TS),
-    ts(export, export_to = "../../../ui/src/lib/types/")
-)]
-pub(crate) struct AppInfo {
-    /// The owner's name: whose memory this is.
-    name: String,
-    /// The vault's language, `fr` or `en`: the interface speaks it until the person
-    /// picks another.
-    language: String,
-    /// Proposals waiting for the person, stale ones included.
-    waiting: usize,
-}
 
 /// Who may use this server: the one-time code, then the sessions it opened.
 struct Keys {
@@ -187,7 +171,7 @@ fn answer(request: &Request<Incoming>, state: &State) -> Response<Body> {
         };
     }
     if let Some(api) = path.strip_prefix("/api/") {
-        return api_answer(request.method(), api, state);
+        return api_answer(request.method(), api, request.uri().query(), state);
     }
     if request.method() != Method::GET && request.method() != Method::HEAD {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
@@ -284,40 +268,78 @@ fn has_session(headers: &HeaderMap, state: &State) -> bool {
         })
 }
 
-/// The JSON API.
-fn api_answer(method: &Method, path: &str, state: &State) -> Response<Body> {
-    match (method, path) {
-        (&Method::GET, "app") => match app_info(state) {
-            Ok(info) => json(StatusCode::OK, &info),
-            Err(error) => {
-                // The details name files of the vault: they stay in this terminal.
-                eprintln!("{error}");
-                json_error(
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    "Ipse could not read the memory folder. The terminal says why.",
-                )
-            }
+/// The JSON API: `GET` only, every answer read with the owner's rights.
+fn api_answer(method: &Method, path: &str, query: Option<&str>, state: &State) -> Response<Body> {
+    if method != Method::GET {
+        return refused(StatusCode::METHOD_NOT_ALLOWED);
+    }
+    let param = |name: &str| parameter(query.unwrap_or_default(), name);
+    let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
+    let gateway = &mut *gateway;
+    let answer = match path {
+        "app" => api::app(gateway).map(|v| Some(to_json(&v))),
+        "home" => api::home(gateway).map(|v| Some(to_json(&v))),
+        "people" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            api::people(gateway, param("q").as_deref(), offset).map(|v| Some(to_json(&v)))
+        }
+        "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
+            .map(|v| Some(to_json(&v))),
+        _ => match path.strip_prefix("file/") {
+            Some(id) => api::file(gateway, id).map(|v| v.map(|v| to_json(&v))),
+            None => Ok(None),
         },
-        (_, "app") => refused(StatusCode::METHOD_NOT_ALLOWED),
-        _ => json_error(StatusCode::NOT_FOUND, "There is nothing at this address."),
+    };
+    match answer {
+        Ok(Some(body)) => json_body(StatusCode::OK, body),
+        Ok(None) => json_error(StatusCode::NOT_FOUND, "There is nothing at this address."),
+        Err(Error::Refused(message)) => json_error(StatusCode::BAD_REQUEST, &message),
+        Err(error) => {
+            // The details name files of the vault: they stay in this terminal.
+            eprintln!("{error}");
+            json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Ipse could not read the memory folder. The terminal says why.",
+            )
+        }
     }
 }
 
-fn app_info(state: &State) -> Result<AppInfo> {
-    let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
-    let language = gateway.settings().language().code().to_owned();
-    let waiting = Proposals::new(gateway.vault())
-        .list()?
-        .iter()
-        .filter(|p| matches!(p.status, Status::Waiting | Status::Stale { .. }))
-        .count();
-    let owner = gateway.fresh_owner()?;
-    let name = owner.about_me().and_then(|me| me.name).unwrap_or_default();
-    Ok(AppInfo {
-        name,
-        language,
-        waiting,
-    })
+/// The value of `name` in a query string, percent-decoded (`+` is a space).
+fn parameter(query: &str, name: &str) -> Option<String> {
+    query
+        .split('&')
+        .filter_map(|pair| pair.split_once('='))
+        .find(|(key, _)| *key == name)
+        .map(|(_, value)| decode(value))
+}
+
+fn decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'+' => out.push(b' '),
+            b'%' if i + 2 < bytes.len() => {
+                let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).ok();
+                match hex.and_then(|h| u8::from_str_radix(h, 16).ok()) {
+                    Some(byte) => {
+                        out.push(byte);
+                        i += 2;
+                    }
+                    None => out.push(b'%'),
+                }
+            }
+            byte => out.push(byte),
+        }
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+fn to_json(value: &impl Serialize) -> Vec<u8> {
+    serde_json::to_vec(value).unwrap_or_default()
 }
 
 /// A file of the interface; any other page is the interface's own `index.html`, which
@@ -366,7 +388,10 @@ fn closed_page() -> Response<Body> {
 }
 
 fn json(status: StatusCode, value: &impl Serialize) -> Response<Body> {
-    let body = serde_json::to_vec(value).unwrap_or_default();
+    json_body(status, to_json(value))
+}
+
+fn json_body(status: StatusCode, body: Vec<u8>) -> Response<Body> {
     let mut response = Response::new(Full::new(Bytes::from(body)).boxed());
     *response.status_mut() = status;
     let headers = response.headers_mut();
@@ -483,6 +508,21 @@ mod tests {
             !from_the_interface(&post, &HeaderMap::new(), 5000),
             "a change says where it comes from"
         );
+    }
+
+    #[test]
+    fn query_parameters_are_decoded() {
+        assert_eq!(
+            parameter("q=%C3%A9lodie+m&offset=10", "q").as_deref(),
+            Some("élodie m")
+        );
+        assert_eq!(
+            parameter("q=%C3%A9lodie+m&offset=10", "offset").as_deref(),
+            Some("10")
+        );
+        assert_eq!(parameter("q=50%", "q").as_deref(), Some("50%"));
+        assert_eq!(parameter("q=%zz", "q").as_deref(), Some("%zz"));
+        assert_eq!(parameter("", "q"), None);
     }
 
     #[test]

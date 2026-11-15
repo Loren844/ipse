@@ -43,7 +43,7 @@ pub const FULL_CHECK_EVERY: std::time::Duration = std::time::Duration::from_secs
 #[derive(Debug)]
 pub struct Gateway {
     pub(super) vault: Vault,
-    index: SearchIndex,
+    pub(super) index: SearchIndex,
     clients: Clients,
     pub(super) categories: Categories,
     log: AccessLog,

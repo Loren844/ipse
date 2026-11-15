@@ -126,6 +126,12 @@ p {
 	line-height: 1;
 }
 
+nav {
+	display: flex;
+	flex-direction: column;
+	gap: 1.1rem;
+}
+
 nav ul {
 	list-style: none;
 	margin: 0;
@@ -213,6 +219,7 @@ nav a[aria-current='page'] svg {
 	color: var(--on-thread);
 	font-weight: 700;
 	font-size: 0.8rem;
+	line-height: 1;
 }
 
 .who {
@@ -269,16 +276,19 @@ main:focus {
 }
 
 /* An empty screen: a knot at the start of a thread still to come. */
-.empty {
+.empty,
+.screen {
 	max-width: 42rem;
 }
 
-.empty .thread {
+.empty .thread,
+.empty-thread {
 	position: relative;
 	padding-left: 2rem;
 }
 
-.empty .thread::before {
+.empty .thread::before,
+.empty-thread::before {
 	content: '';
 	position: absolute;
 	left: 0.4rem;
@@ -289,7 +299,8 @@ main:focus {
 	background: linear-gradient(var(--thread-faint), transparent);
 }
 
-.empty .thread::after {
+.empty .thread::after,
+.empty-thread::after {
 	content: '';
 	position: absolute;
 	left: 0;
@@ -301,13 +312,14 @@ main:focus {
 	background: var(--ground);
 }
 
-.empty .lead {
+.lead {
 	font-size: var(--step-1);
 	font-weight: 700;
 	color: var(--text);
 }
 
-.empty p {
+.empty p:not(.lead),
+.empty-thread p:not(.lead) {
 	color: var(--muted);
 }
 
@@ -322,6 +334,427 @@ main:focus {
 
 .quiet {
 	color: var(--muted);
+}
+
+/* Screens of the memory. */
+.screen {
+	max-width: 46rem;
+	display: flex;
+	flex-direction: column;
+	gap: 2.5rem;
+}
+
+.screen h1 {
+	margin: 0;
+}
+
+.screen h2 {
+	font-family: var(--display);
+	font-size: 1.3rem;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	margin: 0 0 1rem;
+}
+
+.page-head {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+
+.date {
+	color: var(--muted);
+	margin: 0;
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+}
+
+.quiet-link a,
+.source,
+.quiet {
+	color: var(--muted);
+}
+
+.source {
+	margin: 0;
+	font-size: 0.9rem;
+}
+
+a {
+	color: var(--thread-ink);
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+.banner {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.9rem 1.1rem;
+	border: 1.5px solid var(--thread);
+	border-radius: 12px;
+	color: var(--text);
+	text-decoration: none;
+	font-weight: 700;
+}
+
+.banner .action {
+	color: var(--thread-ink);
+	white-space: nowrap;
+}
+
+.banner:hover {
+	background: var(--thread-soft);
+}
+
+/* The thread: events as knots on one line. */
+.thread {
+	list-style: none;
+	margin: 0;
+	padding: 0 0 0 1.85rem;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 1.4rem;
+}
+
+.thread::before {
+	content: '';
+	position: absolute;
+	left: 0.4rem;
+	top: 0.55rem;
+	bottom: 0.55rem;
+	width: 2px;
+	border-radius: 2px;
+	background: var(--thread-faint);
+}
+
+.knot {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 0.2rem;
+}
+
+.knot::before {
+	content: '';
+	position: absolute;
+	left: -1.85rem;
+	top: 0.3rem;
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 50%;
+	border: 2.5px solid var(--thread);
+	background: var(--ground);
+}
+
+.knot.past::before {
+	border-color: var(--thread-faint);
+}
+
+.knot.cancelled .title {
+	text-decoration: line-through;
+	color: var(--muted);
+}
+
+.when {
+	color: var(--muted);
+	font-size: 0.9rem;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.knot .title {
+	font-weight: 700;
+	color: var(--text);
+	text-decoration: none;
+	align-self: flex-start;
+}
+
+.knot .title:hover {
+	text-decoration: underline;
+	text-decoration-color: var(--thread);
+	text-underline-offset: 3px;
+}
+
+.badge {
+	font-size: 0.75rem;
+	font-weight: 700;
+	padding: 0 0.5rem;
+	border-radius: 999px;
+	border: 1.5px solid var(--line-strong);
+	color: var(--muted);
+}
+
+.mentions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0.25rem 0 0;
+}
+
+.mention {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	padding: 0.1rem 0.6rem 0.1rem 0.15rem;
+	border-radius: 999px;
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+	text-decoration: none;
+	font-weight: 500;
+	font-size: 0.9rem;
+	line-height: 1.4;
+}
+
+.mention:hover {
+	outline: 1.5px solid var(--thread);
+}
+
+.mention.plain {
+	padding-left: 0.6rem;
+	background: transparent;
+	border: 1.5px solid var(--line-strong);
+	color: var(--muted);
+}
+
+.place {
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+/* People. */
+.search label {
+	display: block;
+	font-weight: 700;
+	margin-bottom: 0.45rem;
+}
+
+.search .field {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	padding: 0 0.9rem;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 12px;
+	background: var(--surface);
+}
+
+.search .field:focus-within {
+	border-color: var(--thread);
+}
+
+.search svg,
+.lock,
+.sensitive svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	color: var(--muted);
+}
+
+.search input {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	background: transparent;
+	color: var(--text);
+	font: inherit;
+	padding: 0.75rem 0;
+}
+
+.search input:focus {
+	outline: none;
+}
+
+.people {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.people a {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	padding: 0.6rem 0.5rem;
+	border-bottom: 1px solid var(--line);
+	color: var(--text);
+	text-decoration: none;
+}
+
+.people a:hover {
+	background: var(--thread-soft);
+}
+
+.people .who {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	min-width: 0;
+	line-height: 1.3;
+}
+
+.people .name {
+	font-weight: 700;
+}
+
+.people .aliases {
+	color: var(--muted);
+	font-size: 0.875rem;
+}
+
+.more {
+	align-self: flex-start;
+	font: inherit;
+	font-weight: 700;
+	color: var(--thread-ink);
+	background: transparent;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 999px;
+	padding: 0.45rem 1rem;
+	cursor: pointer;
+}
+
+.more:hover {
+	border-color: var(--thread);
+}
+
+/* A person. */
+.person-head {
+	display: flex;
+	align-items: center;
+	gap: 1.4rem;
+}
+
+.person-head .face {
+	font-size: 1.5rem;
+}
+
+.person-head > div {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.props,
+.relations {
+	display: grid;
+	grid-template-columns: minmax(7rem, max-content) 1fr;
+	margin: 0;
+}
+
+.props dt,
+.props dd,
+.relations dt,
+.relations dd {
+	margin: 0;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.props dt,
+.relations dt {
+	color: var(--muted);
+	padding-right: 1.5rem;
+}
+
+.props dd {
+	overflow-wrap: anywhere;
+}
+
+.props dd.mentions {
+	margin: 0;
+}
+
+.facts {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+
+.facts li {
+	padding: 0.7rem 1rem;
+	background: var(--surface);
+	border: 1.5px solid var(--line);
+	border-radius: 12px;
+}
+
+.notes {
+	white-space: pre-line;
+	margin: 0;
+}
+
+.sensitive {
+	display: flex;
+	gap: 0.6rem;
+	align-items: flex-start;
+	margin: 0;
+	padding: 0.8rem 1rem;
+	border-radius: 12px;
+	background: var(--line);
+	color: var(--text);
+	font-size: 0.95rem;
+}
+
+.sensitive svg {
+	margin-top: 0.15rem;
+	color: var(--text);
+}
+
+/* The agenda: one thread, each day opening with its name. */
+.thread.agenda {
+	gap: 1.1rem;
+}
+
+.day-label h2 {
+	font-size: 1.05rem;
+	margin: 1.1rem 0 0;
+	color: var(--muted);
+}
+
+.day-label:first-child h2 {
+	margin-top: 0;
+}
+
+.day-label.today h2 {
+	color: var(--thread-ink);
+}
+
+.day-label.today::before {
+	content: '';
+	position: absolute;
+	left: -1.85rem;
+	top: 0.45rem;
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 50%;
+	background: var(--thread);
+}
+
+.day-label {
+	position: relative;
 }
 
 /* Phones and narrow windows: the navigation becomes a band at the top. */
@@ -379,9 +812,14 @@ main:focus {
 		grid-area: nav;
 	}
 
+	nav {
+		flex-direction: row;
+		gap: 0.25rem;
+		overflow-x: auto;
+	}
+
 	nav ul {
 		flex-direction: row;
-		overflow-x: auto;
 	}
 
 	nav a {
