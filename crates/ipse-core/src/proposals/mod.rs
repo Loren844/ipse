@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 pub use apply::{DiffItem, FileDiff, Preview, What};
 pub use change::{Change, NewRelation};
 
+use crate::tasks::Tasks;
 use crate::vault::{DateTime, Id, Source, Vault, write_atomic};
 use crate::{Error, Result};
 
@@ -190,6 +191,11 @@ impl<'v> Proposals<'v> {
                 "A proposal needs at least one change.".to_owned(),
             ));
         }
+        let tasks = Tasks::new(self.vault);
+        let task = match task {
+            Some(id) => Some(tasks.check_open(&id)?),
+            None => None,
+        };
         let mut categories = Vec::new();
         let mut planned = Vec::new();
         for change in &mut changes {
@@ -228,6 +234,9 @@ impl<'v> Proposals<'v> {
             ));
         }
         self.save(&proposal)?;
+        if let Some(task) = &proposal.task {
+            tasks.proposed(task, &proposal.id)?;
+        }
         Ok(proposal)
     }
 
@@ -324,6 +333,12 @@ impl<'v> Proposals<'v> {
                 reason: reason.clone(),
             };
             self.save(&proposal)?;
+            if let Some(task) = &proposal.task {
+                Tasks::new(self.vault).reopen(
+                    task,
+                    Some(format!("The last proposal no longer applied: {reason}")),
+                )?;
+            }
             return Ok(Accepted::Stale(reason));
         }
         let mut change = history.change(Source::Proposal(proposal.id.clone()));
@@ -335,6 +350,9 @@ impl<'v> Proposals<'v> {
             change: change.clone(),
         };
         self.save(&proposal)?;
+        if let Some(task) = &proposal.task {
+            Tasks::new(self.vault).done(task, &proposal.id)?;
+        }
         Ok(Accepted::Applied(change))
     }
 
@@ -349,14 +367,18 @@ impl<'v> Proposals<'v> {
         if !matches!(proposal.status, Status::Waiting | Status::Stale { .. }) {
             return Err(not_waiting(&proposal));
         }
+        let comment = comment
+            .map(str::trim)
+            .filter(|c| !c.is_empty())
+            .map(str::to_owned);
         proposal.status = Status::Refused {
             at: self.now(),
-            comment: comment
-                .map(str::trim)
-                .filter(|c| !c.is_empty())
-                .map(str::to_owned),
+            comment: comment.clone(),
         };
         self.save(&proposal)?;
+        if let Some(task) = &proposal.task {
+            Tasks::new(self.vault).reopen(task, comment)?;
+        }
         Ok(proposal)
     }
 
@@ -389,6 +411,12 @@ impl<'v> Proposals<'v> {
             change: undone,
         };
         self.save(&proposal)?;
+        if let Some(task) = &proposal.task {
+            Tasks::new(self.vault).reopen(
+                task,
+                Some("The person undid the proposal they had accepted.".to_owned()),
+            )?;
+        }
         Ok(proposal)
     }
 

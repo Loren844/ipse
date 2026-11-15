@@ -142,7 +142,7 @@ Decision 0010: the person's own AI does the work that needs a language model. Th
 | `propose` | `task` (optional), `changes`, `reason` | Submits a proposal: create or update an entity or event, add or edit a fact, merge two entities, write a summary. Returns the proposal id. Nothing is written until the person accepts it. |
 | `proposal` | `id` | Status of a proposal: waiting, accepted, refused (with the person's comment if any). |
 
-- A task is done when a proposal covering it is accepted or refused; a refused proposal reopens the task with the person's comment, so the AI can try again.
+- A task is `proposed` while a proposal answering it waits, and `done` once the person accepts it; a refused proposal opens the task again with the person's comment, so the AI can try again (`vault.md`, section 13).
 - When the client supports MCP sampling and the person enabled it for that client, Ipse may send `summary` tasks to the client's model directly.
 - Every tool here has an `ipse` command doing the same thing (`ipse tasks`, `ipse propose`…), so that an agent or a script on the same computer can run them on a schedule.
 

@@ -27,13 +27,14 @@ const TRAILER: &str = "Ipse-Source:";
 
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
 /// indexes, the connected AIs and what they read) and editors' scratch files.
-const IGNORED: [&str; 11] = [
+const IGNORED: [&str; 12] = [
     "journal/",
     ".ipse/materialized.toml",
     ".ipse/added-relations.toml",
     ".ipse/sync.toml",
     ".ipse/index/",
     ".ipse/proposals/",
+    ".ipse/tasks/",
     ".ipse/access/",
     ".ipse/clients.toml",
     ".obsidian/workspace*",
@@ -526,6 +527,15 @@ impl Change<'_> {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.paths.is_empty()
+    }
+
+    /// The files touched so far, as absolute paths.
+    #[must_use]
+    pub fn paths(&self) -> Vec<PathBuf> {
+        self.paths
+            .iter()
+            .map(|rel| self.history.root.join(rel))
+            .collect()
     }
 
     /// The history this change goes into.

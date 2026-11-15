@@ -41,7 +41,8 @@ Settled on 2026-11-12. These choices are hard to undo after 1.0.
 └── .ipse/                  Ipse's own data — never memory
     ├── vault.toml          vault settings (format version, language, freshness windows)
     ├── index/              derived index: may be deleted, Ipse rebuilds it (search.bin: the search index)
-    └── proposals/          AI proposals waiting for review
+    ├── proposals/          AI proposals waiting for review (section 12)
+    └── tasks/              work left for the person's AI (section 13)
 ```
 
 - Folder names are fixed and in English in every language, so that tools and documentation stay the same everywhere.
@@ -295,7 +296,7 @@ The vault is a git repository, invisible to the person: no git word appears in t
     - The owner's own contact card completes the owner's file instead of making a second one: Ipse only adds what the card brought since it last read it, never replaces or removes anything.
     - Relations taken from the owner's own contact card are added once: `.ipse/added-relations.toml` lists them, so that one the person removes is not added again (`docs/connectors/contacts.md`).
 - `ipse init` in a folder that already holds notes records them first, as the person's, then its own files as one change. A vault created before its history starts one, its files recorded as `ipse`.
-- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/materialized.toml`, `.ipse/added-relations.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
+- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/materialized.toml`, `.ipse/added-relations.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/tasks/`, `.ipse/access/`, `.ipse/clients.toml`, and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
 - After each commit the git index is rewritten, so that a person who opens the folder with git sees a clean state.
 - "Undo" in the interface reverts one change by creating a new commit; history is never rewritten.
 
@@ -347,3 +348,30 @@ Decision 0005: anything an AI infers, merges or changes is a **proposal**, which
 - **Accepting** first records the person's own edits (section 9), then applies every change in **one change** of history, `Ipse-Source: proposal:<id>`, through the same writing rules as everything else (fact identifiers, atomic writes, layout kept). If any change no longer fits the files (a key or fact that changed since, a file removed or renamed), nothing is written and the proposal becomes `stale`; a stale proposal can only be refused.
 - **Undoing** an accepted proposal reverts its change as a new change by the person; history is never rewritten. It is refused while one of its files changed since, so that the later change is never lost.
 - `ipse proposals list|show|accept|refuse|undo` does the same from the command line.
+
+## 13. Tasks
+
+Decision 0010: the work that needs a language model is left for the person's own AI, as **tasks** it reads through MCP (`rights.md`, section 4.2) and answers with a proposal (section 12). Tasks wait in `.ipse/tasks/<id>.json`, one file per task; they are not memory and are left out of history.
+
+```json
+{
+  "format": 1,
+  "id": "01jd3k7m2p4q6r8t0v2w4y6z8a",
+  "kind": "extract",
+  "created": "2026-11-14T19:02:11+01:00",
+  "description": "Read the notes of 20 files and propose the facts and relations they hold.",
+  "categories": ["people"],
+  "items": [
+    { "file": "people/marie-durand.md", "category": "people", "hash": "9f2c…" }
+  ],
+  "status": { "state": "open" },
+  "comment": "Too vague: say which hospital."
+}
+```
+
+- `kind` is `extract`, `merge`, `question` or `summary`. `description` is one line without personal data. `items` (at most 100) name the files the task covers, with the hash of what in them it is about; the text itself is read from the files when an AI opens the task, so that it is never copied and always current. `categories` are those of the items, for rights.
+- An AI opening a task gets what is expected in plain words, the items as they are now (file, name, type, category, text) and an example of a good proposal.
+- `status.state` is `open`, `proposed` (with the `proposal` waiting for the person) or `done` (with the accepted `proposal`). One proposal at a time answers a task. When the person refuses it, the task is open again with their `comment`; when it no longer applies, or the person undoes it, the task is open again saying so.
+- **`extract`:** after each import or sync, the notes of the files it wrote (a contact's notes, an event's description) that are new or changed since a task last covered them become tasks of 20 items. `.ipse/tasks/extract.json` remembers the hash of the notes each file had then, so the same notes are never asked twice. The AI is asked for lasting facts and relations, in the vault's language.
+- The other kinds come with their features: possible duplicates (`merge`), people known only by a nickname (`question`), summaries (`summary`).
+- `ipse tasks list|show` shows them from the command line, as an AI reads them.

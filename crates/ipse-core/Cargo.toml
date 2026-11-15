@@ -67,3 +67,7 @@ harness = false
 [[bench]]
 name = "proposals"
 harness = false
+
+[[bench]]
+name = "tasks"
+harness = false

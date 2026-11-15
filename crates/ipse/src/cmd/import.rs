@@ -8,6 +8,7 @@ use ipse_core::journal::Journal;
 use ipse_core::materialize::{
     EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people,
 };
+use ipse_core::tasks::Tasks;
 use ipse_core::vault::{Source, Vault};
 use ipse_core::{Error, Result};
 
@@ -122,7 +123,9 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         Kind::Contacts => "Import contacts",
         Kind::Calendar => "Import calendar",
     };
+    let touched = change.paths();
     change.commit(summary)?;
+    let tasks = Tasks::new(&vault).extract_from(&touched)?;
     println!("{line}");
     if conflicts > 0 {
         println!("{}", conflicts_line(conflicts));
@@ -136,7 +139,19 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     if relations > 0 {
         println!("{}", relations_line(relations));
     }
+    if tasks > 0 {
+        println!("{}", tasks_line(tasks));
+    }
     Ok(())
+}
+
+pub(crate) fn tasks_line(n: usize) -> String {
+    let tasks = if n == 1 {
+        "1 task"
+    } else {
+        &format!("{n} tasks")
+    };
+    format!("{tasks} for your AI: notes to turn into facts (`ipse tasks list`).")
 }
 
 pub(crate) const OWNER_LINE: &str = "Your own contact card completed your file.";

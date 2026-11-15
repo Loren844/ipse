@@ -73,6 +73,11 @@ enum Command {
         #[command(subcommand)]
         action: ProposalsAction,
     },
+    /// What is left for your AI to do: notes to read, people to tell apart
+    Tasks {
+        #[command(subcommand)]
+        action: TasksAction,
+    },
     /// Connect, list or remove an AI
     Client {
         #[command(subcommand)]
@@ -176,6 +181,27 @@ enum ProposalsAction {
 }
 
 #[derive(Debug, Subcommand)]
+enum TasksAction {
+    /// List the open tasks (all of them with --all)
+    List {
+        /// Also those proposed or done
+        #[arg(long)]
+        all: bool,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Show a task in full, as an AI reads it
+    Show {
+        /// The task's id, or its first characters
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum ClientAction {
     /// Connect an AI and show its access code, once
     Add {
@@ -233,6 +259,10 @@ fn main() -> ExitCode {
                 cmd::proposals::refuse(&id, comment.as_deref(), vault)
             }
             ProposalsAction::Undo { id, vault } => cmd::proposals::undo(&id, vault),
+        },
+        Command::Tasks { action } => match action {
+            TasksAction::List { all, vault } => cmd::tasks::list(all, vault),
+            TasksAction::Show { id, vault } => cmd::tasks::show(&id, vault),
         },
         Command::Client { action } => match action {
             ClientAction::Add { name, local, vault } => cmd::client::add(&name, local, vault),

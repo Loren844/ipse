@@ -210,7 +210,7 @@ fn a_new_person_and_a_new_event() {
         .submit(
             by(),
             "Léa est mentionnée dans les notes de Marie.",
-            Some("t-1".into()),
+            None,
             vec![
                 Change::Create {
                     file: None,
