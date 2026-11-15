@@ -46,7 +46,7 @@ Each contact becomes a file in `people/`, each event a file in `events/`. Import
 ipse client add "Claude" --vault ~/Ipse
 ```
 
-Ipse shows what this AI may read and an access code starting with `ipse_`, **shown only once**: copy it. Sensitive categories (location, home, health, private) stay closed.
+Ipse shows what this AI may read and an access code starting with `ipse_`, **shown only once**: copy it. Sensitive categories (location, home, health, private) stay closed. (You can also connect it from `ipse ui`, step 7, which fills in the configuration below for you.)
 
 In Claude Desktop, **Settings → Developer → Edit Config** opens `claude_desktop_config.json`. Add Ipse with **full paths** (`~` does not work here; on Windows, `"C:\\Users\\you\\Ipse"`):
 

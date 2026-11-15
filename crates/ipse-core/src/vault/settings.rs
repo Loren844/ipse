@@ -1,6 +1,7 @@
 //! The vault's settings, `.ipse/vault.toml` (`docs/spec/vault.md`, section 8).
 
 use std::collections::BTreeMap;
+use std::fmt::Write as _;
 use std::path::Path;
 
 use jiff::tz::TimeZone;
@@ -34,6 +35,8 @@ pub struct CustomCategory {
     /// Denied to every AI until allowed one by one. When left out, the category is
     /// sensitive: a category nobody said was safe to share stays closed.
     pub sensitive: bool,
+    /// The person wrote `sensitive`; when not, the interface says that it was left out.
+    pub said: bool,
 }
 
 #[derive(Deserialize)]
@@ -177,9 +180,56 @@ impl Settings {
                     .map(|n| n.trim().to_owned())
                     .filter(|n| !n.is_empty()),
                 sensitive: raw.sensitive.unwrap_or(true),
+                said: raw.sensitive.is_some(),
             };
             settings.categories.insert(name, category);
         }
+        Ok(settings)
+    }
+
+    /// Declares the category `name` in the settings file at `path`, with the name
+    /// `label` shown in the interface, by adding a `[categories.<name>]` table at its
+    /// end: the rest of the file, comments included, is kept as it is. Returns the
+    /// settings as they now are.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when `name` is not lowercase letters, digits and dashes, or
+    /// is already declared; errors of [`Settings::read`]; [`Error::Io`] when the file
+    /// cannot be written.
+    pub fn declare_category(
+        path: &Path,
+        name: &str,
+        label: Option<&str>,
+        sensitive: bool,
+    ) -> Result<Self> {
+        if super::Category::new(name).is_none() {
+            return Err(Error::Refused(
+                "A category's name uses lowercase letters, digits and dashes.".to_owned(),
+            ));
+        }
+        let mut text = std::fs::read_to_string(path).map_err(|source| Error::Io {
+            action: "read",
+            path: path.to_owned(),
+            source,
+        })?;
+        if Self::parse(path, &text)?.categories.contains_key(name) {
+            return Err(Error::Refused(format!(
+                "There is already a category `{name}`."
+            )));
+        }
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        let _ = write!(text, "\n[categories.{name}]\n");
+        if let Some(label) = label.map(str::trim).filter(|l| !l.is_empty()) {
+            // A JSON string is a TOML basic string; parsed again below before writing.
+            let quoted = serde_json::to_string(label).unwrap_or_else(|_| "\"\"".to_owned());
+            let _ = writeln!(text, "name = {quoted}");
+        }
+        let _ = writeln!(text, "sensitive = {sensitive}");
+        let settings = Self::parse(path, &text)?;
+        super::write_atomic(path, text.as_bytes())?;
         Ok(settings)
     }
 

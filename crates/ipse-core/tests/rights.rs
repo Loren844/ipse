@@ -304,3 +304,60 @@ fn fresh_access_sees_new_rights_and_new_files() {
         Err(Error::Refused(_))
     ));
 }
+
+#[test]
+fn a_category_declared_while_serving_applies_from_the_next_request() {
+    let f = fixture();
+    let mut gateway = Gateway::open(&f.root).unwrap();
+    let settings = f.root.join(".ipse/vault.toml");
+    let before = std::fs::read_to_string(&settings).unwrap();
+    assert!(
+        gateway
+            .fresh_access(Some(&f.token))
+            .unwrap()
+            .search("martin", 10)
+            .hits
+            .is_empty(),
+        "undeclared: private"
+    );
+
+    let categories = ipse_core::rights::Categories::default();
+    let name = ipse_core::rights::Categories::declare(&f.root, "Studies", false).unwrap();
+    assert_eq!(name, "studies");
+    let after = std::fs::read_to_string(&settings).unwrap();
+    assert!(after.starts_with(&before), "the rest of the file is kept");
+    assert!(after.ends_with("\n[categories.studies]\nname = \"Studies\"\nsensitive = false\n"));
+    assert!(matches!(
+        ipse_core::rights::Categories::declare(&f.root, "studies", true),
+        Err(Error::Refused(_))
+    ));
+    assert!(matches!(
+        ipse_core::rights::Categories::declare(&f.root, "Health", false),
+        Err(Error::Refused(_))
+    ));
+
+    // Declared, but not opened to an AI already connected: still hidden.
+    assert!(
+        gateway
+            .fresh_access(Some(&f.token))
+            .unwrap()
+            .search("martin", 10)
+            .hits
+            .is_empty()
+    );
+    let mut clients = Clients::load(&f.root).unwrap();
+    let id = clients.list()[0].id.clone();
+    let mut read = clients.list()[0].read.clone();
+    read.push("studies".into());
+    let declared = ipse_core::rights::Categories::of(&Settings::read(&settings).unwrap());
+    assert!(
+        clients
+            .set_rights(&id, Some(read.clone()), None, &categories)
+            .is_err()
+    );
+    clients
+        .set_rights(&id, Some(read), None, &declared)
+        .unwrap();
+    let access = gateway.fresh_access(Some(&f.token)).unwrap();
+    assert_eq!(names(&access.search("martin", 10).hits), ["Prof Martin"]);
+}

@@ -20,6 +20,8 @@ A request without the code, or with a wrong one, is refused before anything is r
 
 ## Changing what an AI sees
 
+The simplest way: `ipse ui --vault ~/Ipse`, then **IA connectées** (**Connected AIs**). Each AI has a switch per category, to read and to propose; a sensitive category asks before opening. You can also connect an AI there (its code is shown once, with what to paste in Claude Desktop or LM Studio), disconnect one, and add your own categories. From the command line:
+
 - `ipse client list --vault ~/Ipse` shows the connected AIs and what each may read.
 - `ipse client add "Ollama" --local` connects an AI that runs entirely on your computer, such as a local model: it is shown as such. It still reads only the non-sensitive categories until you open others to it.
 - Every call an AI makes is written to `.ipse/access/<month>.jsonl`: which categories it read and how many results, never what it asked or what it got. Ipse keeps 12 months.

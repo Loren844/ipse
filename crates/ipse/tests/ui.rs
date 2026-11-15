@@ -526,3 +526,129 @@ fn the_review_through_the_api() {
         404
     );
 }
+
+/// The category `name` of the AIs' screen.
+fn category(view: &serde_json::Value, name: &str) -> serde_json::Value {
+    view["categories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["name"] == name)
+        .cloned()
+        .unwrap_or_default()
+}
+
+/// True when the AI `id` of the AIs' screen reads `etudes`.
+fn reads(view: &serde_json::Value, id: &str) -> bool {
+    view["ais"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["id"] == id)
+        .unwrap()["read"]
+        .as_array()
+        .unwrap()
+        .contains(&"etudes".into())
+}
+
+#[test]
+fn the_ais_and_their_rights_through_the_api() {
+    let ui = start_with(|vault| {
+        let out = Command::new(IPSE)
+            .args(["client", "add", "Claude Desktop", "--propose", "people"])
+            .args(["--vault", vault.to_str().unwrap()])
+            .output()
+            .unwrap();
+        assert!(out.status.success());
+        std::fs::create_dir_all(vault.join(".ipse/access")).unwrap();
+        std::fs::write(
+            vault.join(".ipse/access/2026-11.jsonl"),
+            "{\"at\":\"2026-11-12T20:41:03+01:00\",\"client\":\"claude-desktop\",\"tool\":\"now\",\"categories\":[],\"results\":0}\n",
+        )
+        .unwrap();
+        let settings = vault.join(".ipse/vault.toml");
+        let mut text = std::fs::read_to_string(&settings).unwrap();
+        text.push_str("\n[categories.club]\nname = \"Club\"\n");
+        std::fs::write(&settings, text).unwrap();
+    });
+    let cookie = login(&ui);
+    let clients = || std::fs::read_to_string(ui.vault.join(".ipse/clients.toml")).unwrap();
+
+    let (status, view) = api(&ui, &cookie, "/api/ais");
+    assert_eq!(status, 200);
+    let ai = &view["ais"][0];
+    assert_eq!(ai["name"], "Claude Desktop");
+    assert_eq!(ai["last_access"], "2026-11-12T20:41:03+01:00");
+    assert_eq!(ai["propose"], serde_json::json!(["people"]));
+    let club = category(&view, "club");
+    assert_eq!(club["sensitive"], true, "left out: sensitive");
+    assert_eq!(club["implicit"], true);
+    assert_eq!(club["label"], "Club");
+    assert_eq!(category(&view, "health")["sensitive"], true);
+    assert_eq!(category(&view, "health")["custom"], false);
+
+    // Connecting: the code is shown once, never written.
+    let (status, connected) = post(
+        &ui,
+        &cookie,
+        "/api/ais",
+        r#"{"name": "LM Studio", "local": true}"#,
+    );
+    assert_eq!(status, 200, "{connected}");
+    let code = connected["code"].as_str().unwrap();
+    assert!(code.starts_with("ipse_"));
+    assert!(!clients().contains(code));
+    assert!(clients().contains("id = \"lm-studio\"") && clients().contains("local = true"));
+    assert!(std::path::Path::new(connected["program"].as_str().unwrap()).is_file());
+    assert!(std::path::Path::new(connected["vault"].as_str().unwrap()).is_dir());
+    assert_eq!(post(&ui, &cookie, "/api/ais", r#"{"name": "  "}"#).0, 409);
+
+    // Opening a sensitive category to one AI, then closing it.
+    let rights = "/api/ais/lm-studio/rights";
+    let (status, _) = post(
+        &ui,
+        &cookie,
+        rights,
+        r#"{"read": ["people", "health"], "propose": ["people"]}"#,
+    );
+    assert_eq!(status, 200);
+    assert!(clients().contains("read = [\"people\", \"health\"]\npropose = [\"people\"]"));
+    let (status, refused) = post(
+        &ui,
+        &cookie,
+        rights,
+        r#"{"read": ["people"], "propose": ["health"]}"#,
+    );
+    assert_eq!(status, 409, "proposes only where it reads: {refused}");
+    assert_eq!(
+        post(
+            &ui,
+            &cookie,
+            rights,
+            r#"{"read": ["sport"], "propose": []}"#
+        )
+        .0,
+        409
+    );
+
+    // A category of the person's own, opened to the AIs they choose.
+    let (status, view) = post(
+        &ui,
+        &cookie,
+        "/api/categories",
+        r#"{"label": "Études", "sensitive": false, "open_to": ["claude-desktop"]}"#,
+    );
+    assert_eq!(status, 200, "{view}");
+    let etudes = category(&view, "etudes");
+    assert_eq!(
+        (&etudes["label"], &etudes["sensitive"], &etudes["implicit"]),
+        (&"Études".into(), &false.into(), &false.into())
+    );
+    assert!(reads(&view, "claude-desktop") && !reads(&view, "lm-studio"));
+
+    let (status, view) = post(&ui, &cookie, "/api/ais/lm-studio/remove", "");
+    assert_eq!(status, 200);
+    assert_eq!(view["ais"].as_array().unwrap().len(), 1);
+    assert!(!clients().contains("lm-studio"));
+    assert_eq!(post(&ui, &cookie, "/api/ais/lm-studio/remove", "").0, 409);
+}

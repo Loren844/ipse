@@ -16,12 +16,15 @@ pub use access::{
 };
 pub use browse::{Details, Line, Lines, LinkOut, MAX_LISTED, RelationLink};
 pub use clients::{Client, Clients, Token};
-pub use log::{ACCESS_DIR, KEEP_MONTHS};
+pub use log::{ACCESS_DIR, KEEP_MONTHS, last_access};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
-use crate::vault::Settings;
+use crate::slug::to_file_stem;
+use crate::vault::{SETTINGS_FILE, Settings};
+use crate::{Error, Result};
 
 /// The categories of rights format 1, and whether each is sensitive.
 pub const CATEGORIES: [(&str, bool); 12] = [
@@ -108,6 +111,30 @@ impl Categories {
 }
 
 impl Categories {
+    /// Declares a category of the person's own in the vault at `root`, named after
+    /// `label` (`Études` becomes `etudes`), and returns its name. `sensitive`: closed to
+    /// every AI until the person opens it to one. Connected AIs do not get it: the
+    /// interface asks the person for each (`docs/spec/rights.md`, section 1.1).
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when `label` makes no name, or names a category that exists;
+    /// errors of [`Settings::declare_category`].
+    pub fn declare(root: &Path, label: &str, sensitive: bool) -> Result<String> {
+        let Some(name) = to_file_stem(label) else {
+            return Err(Error::Refused(
+                "Give the category a name with letters or digits.".to_owned(),
+            ));
+        };
+        if is_builtin(&name) {
+            return Err(Error::Refused(format!(
+                "There is already a category `{name}`."
+            )));
+        }
+        Settings::declare_category(&root.join(SETTINGS_FILE), &name, Some(label), sensitive)?;
+        Ok(name)
+    }
+
     /// True when `category` is one of the vault's categories, built in or declared.
     #[must_use]
     pub fn known(&self, category: &str) -> bool {

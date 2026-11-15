@@ -5,14 +5,14 @@
 //! Lines go to `.ipse/access/<YYYY-MM>.jsonl`, by month in the vault's time zone.
 //! Months older than [`KEEP_MONTHS`] are deleted when a new month starts.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::{File, OpenOptions};
-use std::io::Write as _;
+use std::io::{BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, PoisonError};
 
 use jiff::Zoned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::vault::DateTime;
 use crate::{Error, Result};
@@ -123,6 +123,71 @@ impl AccessLog {
     }
 }
 
+/// When each of the AIs `ids` last called a tool, from the access log, as written
+/// there (RFC 3339 in the vault's time zone). An AI with no call in the months kept is
+/// left out. Months are read newest first, line by line, and reading stops once every
+/// AI is found.
+///
+/// # Errors
+///
+/// [`Error::Io`] when the log's folder or one of its months exists but cannot be read.
+/// A line that is not valid is skipped.
+pub fn last_access(root: &Path, ids: &[&str]) -> Result<HashMap<String, String>> {
+    #[derive(Deserialize)]
+    struct Call<'a> {
+        #[serde(borrow)]
+        at: std::borrow::Cow<'a, str>,
+        #[serde(borrow)]
+        client: std::borrow::Cow<'a, str>,
+    }
+    let dir = root.join(ACCESS_DIR);
+    let io = |path: &Path, source| Error::Io {
+        action: "read",
+        path: path.to_owned(),
+        source,
+    };
+    let mut months: Vec<(i32, PathBuf)> = match std::fs::read_dir(&dir) {
+        Ok(entries) => entries
+            .flatten()
+            .filter_map(|e| {
+                let name = e.file_name();
+                let month = month_index(name.to_str()?.strip_suffix(".jsonl")?)?;
+                Some((month, e.path()))
+            })
+            .collect(),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(source) => return Err(io(&dir, source)),
+    };
+    months.sort_unstable_by_key(|m| std::cmp::Reverse(m.0));
+    let mut found: HashMap<String, String> = HashMap::with_capacity(ids.len());
+    let mut line = String::new();
+    for (_, path) in months {
+        if found.len() == ids.len() {
+            break;
+        }
+        // Lines are in the order of the calls: the last one of an AI in the newest
+        // month that has it is its last call.
+        let mut month: HashMap<&str, String> = HashMap::new();
+        let mut reader = BufReader::new(File::open(&path).map_err(|e| io(&path, e))?);
+        loop {
+            line.clear();
+            if reader.read_line(&mut line).map_err(|e| io(&path, e))? == 0 {
+                break;
+            }
+            let Ok(call) = serde_json::from_str::<Call<'_>>(&line) else {
+                continue;
+            };
+            if let Some(id) = ids.iter().find(|id| **id == call.client)
+                && !found.contains_key(*id)
+            {
+                month.insert(id, call.at.into_owned());
+            }
+        }
+        found.extend(month.into_iter().map(|(id, at)| (id.to_owned(), at)));
+    }
+    Ok(found)
+}
+
 /// `2026-11` as a count of months.
 fn month_index(text: &str) -> Option<i32> {
     let (year, month) = text.split_once('-')?;
@@ -195,5 +260,38 @@ mod tests {
             ["2025-12.jsonl", "2026-11.jsonl", "notes.jsonl"],
             "12 months kept; files Ipse did not name are left alone"
         );
+    }
+
+    #[test]
+    fn the_last_access_of_each_ai_is_its_last_call() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join(ACCESS_DIR);
+        assert!(
+            last_access(dir.path(), &["claude"]).unwrap().is_empty(),
+            "no log yet"
+        );
+        std::fs::create_dir_all(&folder).unwrap();
+        let call = |at: &str, client: &str| {
+            format!(
+                "{{\"at\":\"{at}\",\"client\":\"{client}\",\"tool\":\"now\",\"categories\":[],\"results\":0}}\n"
+            )
+        };
+        std::fs::write(
+            folder.join("2026-10.jsonl"),
+            call("2026-10-02T10:00:00+02:00", "claude")
+                + &call("2026-10-30T10:00:00+01:00", "lm-studio"),
+        )
+        .unwrap();
+        std::fs::write(
+            folder.join("2026-11.jsonl"),
+            call("2026-11-01T09:00:00+01:00", "claude")
+                + "not json\n"
+                + &call("2026-11-12T20:41:03+01:00", "claude"),
+        )
+        .unwrap();
+        let last = last_access(dir.path(), &["claude", "lm-studio", "ollama"]).unwrap();
+        assert_eq!(last["claude"], "2026-11-12T20:41:03+01:00");
+        assert_eq!(last["lm-studio"], "2026-10-30T10:00:00+01:00");
+        assert!(!last.contains_key("ollama"));
     }
 }
