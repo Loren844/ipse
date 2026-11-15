@@ -12,7 +12,7 @@ use serde_json::Value;
 use super::relations::{
     OwnerCandidate, Related, add_owner_relations, name_key, owner_card, phone_key,
 };
-use super::{Ledger, Merge, Outcome, versions};
+use super::{Ledger, Merge, Outcome, conflict_changes, propose_conflicts, versions};
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
@@ -34,8 +34,8 @@ pub struct PeopleSummary {
     pub unchanged: u64,
     /// Records without a name, ignored.
     pub skipped: u64,
-    /// People whose name, emails, phones or birthday the person changed, left as they
-    /// are although the card changed.
+    /// People whose other names, emails, phones, birthday or address the person
+    /// changed, left as they are although the card changed them too.
     pub conflicts: u64,
     /// People files the person deleted, not created again.
     pub deleted: u64,
@@ -43,6 +43,9 @@ pub struct PeopleSummary {
     pub relations: u64,
     /// The owner's own card completed the owner's file.
     pub owner: bool,
+    /// Proposals waiting for the person after this import, with what the card says
+    /// where the person had changed it.
+    pub proposals: u64,
 }
 
 /// Creates or updates one `people/` file per contact from `instance`'s records.
@@ -62,6 +65,7 @@ pub fn contacts_to_people(
     let existing = people_by_source(vault.root(), instance)?;
     let mut summary = PeopleSummary::default();
     let mut written = Vec::new();
+    let mut conflicts = Vec::new();
 
     let mut cards = Vec::with_capacity(items.len());
     let mut candidates = Vec::with_capacity(items.len());
@@ -117,11 +121,12 @@ pub fn contacts_to_people(
                 change.touched(path);
                 written.push(path.clone());
                 summary.updated += 1;
-            } else if !outcome.conflict {
+            } else if !outcome.conflict() {
                 summary.unchanged += 1;
             }
-            if outcome.conflict {
+            if outcome.conflict() {
                 summary.conflicts += 1;
+                conflicts.push(outcome.conflicts);
             }
         } else if versions.materialized {
             // The person deleted the file Ipse made: it stays deleted.
@@ -138,6 +143,7 @@ pub fn contacts_to_people(
         summary.relations = add_owner_relations(vault, instance, &candidates[i].related, change)?;
     }
     ledger.save(instance, last)?;
+    summary.proposals = propose_conflicts(vault, instance, conflicts)?;
     Ok(summary)
 }
 
@@ -153,11 +159,20 @@ fn update_person(
     let Some(current) = file.entity().cloned() else {
         return Ok(Outcome::default());
     };
-    let (wanted, conflict) = card.merge(&current, previous);
+    let (wanted, keys) = card.merge(&current, previous);
+    let conflicts = if keys.is_empty() {
+        Vec::new()
+    } else {
+        let mut source = file.clone();
+        if let Some(entity) = source.entity_mut() {
+            *entity = card.apply_to(current.clone());
+        }
+        conflict_changes(vault, &file, &source, &keys)
+    };
     if wanted == current {
         return Ok(Outcome {
             written: false,
-            conflict,
+            conflicts,
         });
     }
     if let Some(entity) = file.entity_mut() {
@@ -167,7 +182,7 @@ fn update_person(
     file.write_unsynced()?;
     Ok(Outcome {
         written: true,
-        conflict,
+        conflicts,
     })
 }
 
@@ -371,7 +386,11 @@ impl CardFields {
     /// A name the person gave is theirs: the card's name, often a nickname such as
     /// "Maman", then becomes one of the person's other names, so that it is still
     /// understood.
-    fn merge(&self, current: &EntityFields, previous: Option<&CardFields>) -> (EntityFields, bool) {
+    fn merge(
+        &self,
+        current: &EntityFields,
+        previous: Option<&CardFields>,
+    ) -> (EntityFields, Vec<&'static str>) {
         let mut merge = Merge::default();
         let mut out = current.clone();
         let card_name = Some(self.name.clone());
@@ -395,6 +414,7 @@ impl CardFields {
                 .collect()
         };
         let mut aliases = merge.key(
+            "aliases",
             &without_names(&current.aliases),
             previous.map(|p| without_names(&p.nicknames)).as_ref(),
             &without_names(&self.nicknames),
@@ -403,19 +423,31 @@ impl CardFields {
             aliases.push(self.name.clone());
         }
         out.aliases = aliases;
-        out.emails = merge.key(&current.emails, previous.map(|p| &p.emails), &self.emails);
-        out.phones = merge.key(&current.phones, previous.map(|p| &p.phones), &self.phones);
+        out.emails = merge.key(
+            "emails",
+            &current.emails,
+            previous.map(|p| &p.emails),
+            &self.emails,
+        );
+        out.phones = merge.key(
+            "phones",
+            &current.phones,
+            previous.map(|p| &p.phones),
+            &self.phones,
+        );
         out.birthday = merge.key(
+            "birthday",
             &current.birthday,
             previous.map(|p| &p.birthday),
             &self.birthday,
         );
         out.address = merge.key(
+            "address",
             &current.address,
             previous.map(|p| &p.address),
             &self.address,
         );
-        (out, merge.conflict)
+        (out, merge.conflicts)
     }
 
     /// The body of a new person file. Written once: later imports leave the body alone.

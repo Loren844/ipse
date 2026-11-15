@@ -106,7 +106,11 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
             let summary = contacts_to_people(&vault, &journal, instance, &mut change)?;
             relations = summary.relations;
             owner = summary.owner;
-            (summary_line(summary), summary.conflicts, summary.deleted)
+            (
+                summary_line(summary),
+                (summary.conflicts, summary.proposals),
+                summary.deleted,
+            )
         }
         Kind::Calendar => {
             let summary = calendar_to_events(
@@ -116,7 +120,11 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
                 &mut change,
                 jiff::Timestamp::now(),
             )?;
-            (events_line(summary), summary.conflicts, summary.deleted)
+            (
+                events_line(summary),
+                (summary.conflicts, summary.proposals),
+                summary.deleted,
+            )
         }
     };
     let summary = match kind {
@@ -127,7 +135,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     change.commit(summary)?;
     let tasks = Tasks::new(&vault).extract_from(&touched)?;
     println!("{line}");
-    if conflicts > 0 {
+    if conflicts.0 > 0 {
         println!("{}", conflicts_line(conflicts));
     }
     if deleted > 0 {
@@ -198,15 +206,21 @@ pub(crate) fn deleted_line(n: u64) -> String {
     }
 }
 
-pub(crate) fn conflicts_line(n: u64) -> String {
-    if n == 1 {
+/// The files where the source changed what the person had changed, and the proposals
+/// that wait for them.
+pub(crate) fn conflicts_line((n, proposals): (u64, u64)) -> String {
+    let mut line = if n == 1 {
         "1 file: the source changed a detail you had changed yourself; your version was kept."
             .to_owned()
     } else {
         format!(
             "{n} files: the source changed details you had changed yourself; your versions were kept."
         )
+    };
+    if proposals > 0 {
+        line.push_str(" What the source says waits for you: `ipse proposals list`.");
     }
+    line
 }
 
 pub(crate) fn summary_line(s: PeopleSummary) -> String {
@@ -242,6 +256,7 @@ mod tests {
             deleted: 0,
             relations: 0,
             owner: false,
+            proposals: 0,
         };
         assert_eq!(summary_line(s(4, 0, 0)), "4 people added, 0 updated.");
         assert_eq!(summary_line(s(1, 2, 3)), "1 person added, 2 updated.");

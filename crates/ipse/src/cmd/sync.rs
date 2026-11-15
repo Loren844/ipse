@@ -77,7 +77,7 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
             lines.push(events_line(s));
         }
         if s.conflicts > 0 {
-            lines.push(conflicts_line(s.conflicts));
+            lines.push(conflicts_line((s.conflicts, s.proposals)));
         }
         if s.deleted > 0 {
             lines.push(deleted_line(s.deleted));
@@ -88,7 +88,7 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
             lines.push(summary_line(s));
         }
         if s.conflicts > 0 {
-            lines.push(conflicts_line(s.conflicts));
+            lines.push(conflicts_line((s.conflicts, s.proposals)));
         }
         if s.owner {
             lines.push(OWNER_LINE.to_owned());

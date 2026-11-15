@@ -33,7 +33,7 @@ pub(super) fn normalized(key: &str, value: &Value) -> Value {
 }
 
 /// The current value of `key` in `file`; `None` when the file has no such key.
-pub(super) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
+pub(crate) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
     let text = |t: Option<String>| t.map_or(Value::Null, Value::String);
     let list = |l: &[String]| Value::Array(l.iter().cloned().map(Value::String).collect());
     if let Some(e) = file.entity() {

@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use jiff::Timestamp;
 use serde_json::Value;
 
-use super::{Ledger, Merge, Outcome, entity_files, versions};
+use super::{Ledger, Merge, Outcome, conflict_changes, entity_files, propose_conflicts, versions};
 use crate::Result;
 use crate::journal::Journal;
 use crate::vault::{
@@ -45,6 +45,9 @@ pub struct EventsSummary {
     pub deleted: u64,
     /// Records that cannot become an event (no title or no start), ignored.
     pub skipped: u64,
+    /// Proposals waiting for the person after this import, with what the calendar
+    /// says where the person had changed it.
+    pub proposals: u64,
 }
 
 /// Creates or updates one `events/` file per event of `instance`, and records every
@@ -66,6 +69,7 @@ pub fn calendar_to_events(
     let people = People::read(vault)?;
     let mut summary = EventsSummary::default();
     let mut written = Vec::new();
+    let mut conflicts = Vec::new();
 
     for (external_id, versions) in items {
         let source = format!("{instance}:{external_id}");
@@ -83,8 +87,9 @@ pub fn calendar_to_events(
                     written.push(path.clone());
                     summary.cancelled += 1;
                 }
-                if outcome.conflict {
+                if outcome.conflict() {
                     summary.conflicts += 1;
+                    conflicts.push(outcome.conflicts);
                 }
             }
             continue;
@@ -103,11 +108,12 @@ pub fn calendar_to_events(
                 change.touched(path);
                 written.push(path.clone());
                 summary.updated += 1;
-            } else if !outcome.conflict {
+            } else if !outcome.conflict() {
                 summary.unchanged += 1;
             }
-            if outcome.conflict {
+            if outcome.conflict() {
                 summary.conflicts += 1;
+                conflicts.push(outcome.conflicts);
             }
         } else if versions.materialized {
             // The person deleted the file Ipse made: it stays deleted.
@@ -122,6 +128,7 @@ pub fn calendar_to_events(
     // Made durable before the ledger says they are in the vault.
     sync_files(&written)?;
     ledger.save(instance, last)?;
+    summary.proposals = propose_conflicts(vault, instance, conflicts)?;
     Ok(summary)
 }
 
@@ -142,9 +149,13 @@ fn cancel(
     }
     let applied = previous.map(|(p, removal)| p.status(removal, event.status));
     if applied.is_some_and(|a| a != event.status) {
+        let mut source = file.clone();
+        if let Some(event) = source.event_mut() {
+            event.status = Some(EventStatus::Cancelled);
+        }
         return Ok(Outcome {
             written: false,
-            conflict: true,
+            conflicts: conflict_changes(vault, &file, &source, &["status"]),
         });
     }
     if let Some(event) = file.event_mut() {
@@ -154,7 +165,7 @@ fn cancel(
     file.write_unsynced()?;
     Ok(Outcome {
         written: true,
-        conflict: false,
+        conflicts: Vec::new(),
     })
 }
 
@@ -178,12 +189,21 @@ fn update(
     let Some(current) = file.event().cloned() else {
         return Ok(Outcome::default());
     };
-    let (wanted, conflict) = record.merge(&current, previous);
+    let (wanted, keys) = record.merge(&current, previous);
+    let conflicts = if keys.is_empty() {
+        Vec::new()
+    } else {
+        let mut theirs = file.clone();
+        if let Some(event) = theirs.event_mut() {
+            *event = record.source_fields(&current);
+        }
+        conflict_changes(vault, &file, &theirs, &keys)
+    };
     let has_source = file.common().sources.iter().any(|s| s == source);
     if wanted == current && has_source {
         return Ok(Outcome {
             written: false,
-            conflict,
+            conflicts,
         });
     }
     if let Some(event) = file.event_mut() {
@@ -197,7 +217,7 @@ fn update(
     file.write_unsynced()?;
     Ok(Outcome {
         written: true,
-        conflict,
+        conflicts,
     })
 }
 
@@ -368,6 +388,19 @@ impl EventRecord {
         event
     }
 
+    /// `current` with every key the calendar fills set to the calendar's value: what
+    /// the person is offered when the calendar changed what they had changed.
+    fn source_fields(&self, current: &EventFields) -> EventFields {
+        let mut out = current.clone();
+        out.title.clone_from(&self.title);
+        out.start = self.start;
+        out.end = self.end;
+        out.place = self.location.clone().map(LinkOrText::Text);
+        out.participants.clone_from(&self.participants);
+        out.status = self.status(false, None);
+        out
+    }
+
     /// The status Ipse writes: cancelled when the calendar says so or the event was
     /// removed; otherwise none. After a removal, `current` may be either, depending on
     /// whether the event had happened.
@@ -384,16 +417,21 @@ impl EventRecord {
     /// `current` with the keys taken from the calendar merged in, one by one (see
     /// [`Merge`]), and whether the calendar changed a key the person had changed. A
     /// place the person linked to a file stays.
-    fn merge(&self, current: &EventFields, previous: Option<(&Self, bool)>) -> (EventFields, bool) {
+    fn merge(
+        &self,
+        current: &EventFields,
+        previous: Option<(&Self, bool)>,
+    ) -> (EventFields, Vec<&'static str>) {
         let mut merge = Merge::default();
         let prev = previous.map(|(p, _)| p);
         let mut out = current.clone();
-        out.title = merge.key(&current.title, prev.map(|p| &p.title), &self.title);
-        out.start = merge.key(&current.start, prev.map(|p| &p.start), &self.start);
-        out.end = merge.key(&current.end, prev.map(|p| &p.end), &self.end);
+        out.title = merge.key("title", &current.title, prev.map(|p| &p.title), &self.title);
+        out.start = merge.key("start", &current.start, prev.map(|p| &p.start), &self.start);
+        out.end = merge.key("end", &current.end, prev.map(|p| &p.end), &self.end);
         if current.place.as_ref().and_then(LinkOrText::link).is_none() {
             let text = |l: &Option<String>| l.clone().map(LinkOrText::Text);
             out.place = merge.key(
+                "place",
                 &current.place,
                 prev.map(|p| text(&p.location)).as_ref(),
                 &text(&self.location),
@@ -412,10 +450,15 @@ impl EventRecord {
         if prev.is_none_or(untouched) {
             out.participants.clone_from(&self.participants);
         } else if !untouched(self) {
-            merge.conflict = true;
+            merge.conflicts.push("participants");
         }
         let applied = previous.map(|(p, removal)| p.status(removal, current.status));
-        out.status = merge.key(&current.status, applied.as_ref(), &self.status(false, None));
-        (out, merge.conflict)
+        out.status = merge.key(
+            "status",
+            &current.status,
+            applied.as_ref(),
+            &self.status(false, None),
+        );
+        (out, merge.conflicts)
     }
 }

@@ -48,7 +48,7 @@ pub struct Client {
     token_hash: String,
     /// Categories it may read.
     pub read: Vec<String>,
-    /// Categories it may submit proposals for (milestone 2).
+    /// Categories it may submit proposals for; each must also be in `read`.
     pub propose: Vec<String>,
     /// The person said this AI runs entirely on this computer.
     pub local: bool,
