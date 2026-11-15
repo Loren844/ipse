@@ -51,3 +51,34 @@ jobs:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
       - run: cargo bench --workspace --no-run
+
+  interface:
+    name: Interface
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: Swatinem/rust-cache@v2
+      - run: npm ci
+        working-directory: ui
+      - run: npm run check
+        working-directory: ui
+      - name: The committed build matches the sources
+        working-directory: ui
+        run: |
+          npm run build
+          test -z "$(git status --porcelain -- build)" || { git status --porcelain -- build; echo "Run npm run build in ui/ and commit ui/build."; exit 1; }
+      - name: The TypeScript types match the Rust ones
+        run: |
+          cargo test -p ipse --bin ipse
+          test -z "$(git status --porcelain -- ui/src/lib/types)" || { git status --porcelain -- ui/src/lib/types; echo "Run cargo test -p ipse and commit ui/src/lib/types."; exit 1; }
+      - run: cargo build -p ipse
+      - run: npx playwright install --with-deps chromium
+        working-directory: ui
+      - name: In a real browser
+        run: npx playwright test
+        working-directory: ui

@@ -55,6 +55,22 @@ pub struct Client {
 }
 
 impl Client {
+    /// The vault's owner, as the interface reads on their behalf: every category of
+    /// `categories`, and `private` for unknown ones. Never in `.ipse/clients.toml`, and
+    /// no access code is its.
+    #[must_use]
+    pub fn owner(categories: &super::Categories) -> Self {
+        Self {
+            id: "owner".to_owned(),
+            name: "owner".to_owned(),
+            created: String::new(),
+            token_hash: String::new(),
+            read: categories.all().into_iter().map(str::to_owned).collect(),
+            propose: Vec::new(),
+            local: true,
+        }
+    }
+
     /// True when the client may read `category`, among the vault's `categories`.
     /// Unknown categories count as `private`.
     #[must_use]

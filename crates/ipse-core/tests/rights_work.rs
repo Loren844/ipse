@@ -361,3 +361,28 @@ fn a_file_moved_to_a_hidden_category_leaves_the_task() {
     let example = task.example.to_string();
     assert!(!example.contains("marie"), "{example}");
 }
+
+#[test]
+fn the_owner_reads_every_category_and_is_not_logged() {
+    let f = fixture();
+    let mut gateway = Gateway::open(&f.root).unwrap();
+    let owner = gateway.fresh_owner().unwrap();
+    assert_eq!(
+        owner.about_me().unwrap().name.as_deref(),
+        Some("Jules Moreau")
+    );
+    let names = |query: &str| -> Vec<String> {
+        owner
+            .search(query, 10)
+            .hits
+            .into_iter()
+            .map(|h| h.name)
+            .collect()
+    };
+    assert_eq!(names("lea"), ["lea"], "health");
+    assert_eq!(names("theo"), ["theo"], "an undeclared category");
+    assert!(
+        !f.root.join(".ipse/access").exists(),
+        "the owner's reads are not logged"
+    );
+}

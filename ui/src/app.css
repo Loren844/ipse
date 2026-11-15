@@ -1,0 +1,397 @@
+/* Ipse's design tokens (direction "Fil", a madder-red thread): written once, used by every screen. */
+:root {
+	--ground: #fbfaf8;
+	--surface: #ffffff;
+	--text: #231d1e;
+	--muted: #6e6466;
+	--line: #eee9e7;
+	--line-strong: #e5dedc;
+	--thread: #9b2c3a;
+	--thread-ink: #7a1f2b;
+	--thread-soft: #f6e9ea;
+	--thread-faint: #e8c9cd;
+	--focus: #9b2c3a;
+	--on-thread: #ffffff;
+
+	--display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+	--text-font: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+	--step--1: 0.875rem;
+	--step-0: 1rem;
+	--step-1: 1.3125rem;
+	--step-3: 3.25rem;
+	--rail: 15.5rem;
+	--radius: 10px;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--ground: #171314;
+		--surface: #211b1c;
+		--text: #f0eaea;
+		--muted: #ada2a3;
+		--line: #2e2627;
+		--line-strong: #3a3132;
+		--thread: #cf6874;
+		--thread-ink: #f3c5ca;
+		--thread-soft: #3a2226;
+		--thread-faint: #5a3238;
+		--focus: #cf6874;
+		--on-thread: #171314;
+		color-scheme: dark;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--text-font);
+	font-size: 100%;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--ground);
+	color: var(--text);
+	font-size: var(--step-0);
+	line-height: 1.55;
+}
+
+#ipse {
+	display: contents;
+}
+
+:focus-visible {
+	outline: 2.5px solid var(--focus);
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
+h1 {
+	font-family: var(--display);
+	font-size: clamp(2.25rem, 5vw, var(--step-3));
+	font-weight: 800;
+	letter-spacing: -0.035em;
+	line-height: 1;
+	margin: 0 0 1.5rem;
+}
+
+p {
+	margin: 0 0 0.75rem;
+	max-width: 62ch;
+}
+
+/* The frame: navigation on the left, the page on the right. */
+.frame {
+	display: grid;
+	grid-template-columns: var(--rail) 1fr;
+	min-height: 100vh;
+}
+
+.rail {
+	display: flex;
+	flex-direction: column;
+	gap: 1.75rem;
+	padding: 1.4rem 1rem 1.25rem;
+	border-right: 1px solid var(--line);
+	position: sticky;
+	top: 0;
+	height: 100vh;
+}
+
+.brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	align-self: flex-start;
+	padding: 0.2rem 0.4rem;
+	color: var(--text);
+	text-decoration: none;
+}
+
+.brand .mark {
+	color: var(--thread);
+}
+
+.wordmark {
+	font-family: var(--display);
+	font-weight: 800;
+	font-size: 1.55rem;
+	letter-spacing: -0.03em;
+	line-height: 1;
+}
+
+nav ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+nav a {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	padding: 0.45rem 0.65rem;
+	border-radius: var(--radius);
+	color: var(--muted);
+	text-decoration: none;
+	font-weight: 500;
+	font-size: 0.9375rem;
+	transition: background-color 120ms ease, color 120ms ease;
+}
+
+nav a svg {
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+nav a:hover {
+	color: var(--text);
+	background: var(--line);
+}
+
+nav a[aria-current='page'] {
+	background: var(--thread-soft);
+	color: var(--text);
+	font-weight: 700;
+}
+
+nav a[aria-current='page'] svg {
+	color: var(--thread);
+}
+
+.count {
+	margin-left: auto;
+	min-width: 1.5rem;
+	padding: 0 0.45rem;
+	border: 1.5px solid var(--thread);
+	border-radius: 999px;
+	color: var(--thread-ink);
+	font-size: 0.75rem;
+	font-weight: 700;
+	line-height: 1.15rem;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.foot {
+	margin-top: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.owner {
+	margin: 0;
+	display: flex;
+	align-items: center;
+	gap: 0.65rem;
+	padding: 0 0.4rem;
+}
+
+.face {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.1rem;
+	height: 2.1rem;
+	border-radius: 50%;
+	background: var(--thread);
+	color: var(--on-thread);
+	font-weight: 700;
+	font-size: 0.8rem;
+}
+
+.who {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.25;
+}
+
+.of {
+	color: var(--muted);
+	font-size: 0.78rem;
+}
+
+.name {
+	font-weight: 700;
+	font-size: 0.9375rem;
+	overflow-wrap: anywhere;
+}
+
+.languages {
+	display: inline-flex;
+	align-self: flex-start;
+	margin-left: 0.4rem;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 999px;
+	padding: 2px;
+}
+
+.languages button {
+	font: inherit;
+	font-size: 0.78rem;
+	font-weight: 700;
+	color: var(--muted);
+	background: transparent;
+	border: 0;
+	border-radius: 999px;
+	padding: 0.1rem 0.65rem;
+	cursor: pointer;
+}
+
+.languages button[aria-pressed='true'] {
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+}
+
+main {
+	padding: clamp(2rem, 6vw, 4.5rem) clamp(1.5rem, 6vw, 5.5rem);
+	min-width: 0;
+}
+
+main:focus {
+	outline: none;
+}
+
+/* An empty screen: a knot at the start of a thread still to come. */
+.empty {
+	max-width: 42rem;
+}
+
+.empty .thread {
+	position: relative;
+	padding-left: 2rem;
+}
+
+.empty .thread::before {
+	content: '';
+	position: absolute;
+	left: 0.4rem;
+	top: 1.1rem;
+	bottom: -2.5rem;
+	width: 2px;
+	border-radius: 2px;
+	background: linear-gradient(var(--thread-faint), transparent);
+}
+
+.empty .thread::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0.35rem;
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 50%;
+	border: 2.5px solid var(--thread);
+	background: var(--ground);
+}
+
+.empty .lead {
+	font-size: var(--step-1);
+	font-weight: 700;
+	color: var(--text);
+}
+
+.empty p {
+	color: var(--muted);
+}
+
+.alone {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	max-width: 36rem;
+	margin: 0 auto;
+}
+
+.quiet {
+	color: var(--muted);
+}
+
+/* Phones and narrow windows: the navigation becomes a band at the top. */
+@media (max-width: 760px) {
+	.frame {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto 1fr;
+	}
+
+	.rail {
+		position: static;
+		height: auto;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-template-areas:
+			'brand foot'
+			'nav nav';
+		align-items: center;
+		gap: 0.75rem 1rem;
+		padding: 0.9rem 1rem 0.6rem;
+		border-right: 0;
+		border-bottom: 1px solid var(--line);
+	}
+
+	.brand {
+		grid-area: brand;
+	}
+
+	.foot {
+		grid-area: foot;
+		margin: 0;
+		flex-direction: row;
+		align-items: center;
+	}
+
+	.of {
+		display: none;
+	}
+
+	.face {
+		width: 1.8rem;
+		height: 1.8rem;
+		font-size: 0.7rem;
+	}
+
+	.owner {
+		padding: 0;
+	}
+
+	.languages {
+		margin: 0;
+	}
+
+	nav {
+		grid-area: nav;
+	}
+
+	nav ul {
+		flex-direction: row;
+		overflow-x: auto;
+	}
+
+	nav a {
+		white-space: nowrap;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+		animation: none !important;
+	}
+}

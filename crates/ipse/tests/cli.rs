@@ -37,6 +37,7 @@ fn help_lists_the_commands() {
         "tasks",
         "client",
         "mcp",
+        "ui",
     ] {
         assert!(help.contains(command), "help does not list {command}");
     }

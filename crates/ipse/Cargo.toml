@@ -13,7 +13,9 @@ name = "ipse"
 path = "src/main.rs"
 
 [dependencies]
+blake3 = { workspace = true }
 clap = { workspace = true }
+getrandom = { workspace = true }
 http-body-util = { workspace = true }
 hyper = { workspace = true }
 hyper-util = { workspace = true }
@@ -29,6 +31,8 @@ ureq = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
+# TypeScript types of the interface's API, written to ui/src/lib/types by `cargo test`.
+ts-rs = { workspace = true }
 rmcp = { workspace = true, features = ["client", "transport-child-process"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
