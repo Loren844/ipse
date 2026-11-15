@@ -24,5 +24,7 @@ A request without the code, or with a wrong one, is refused before anything is r
 - `ipse client add "Ollama" --local` connects an AI that runs entirely on your computer, such as a local model: it is shown as such. It still reads only the non-sensitive categories until you open others to it.
 - Every call an AI makes is written to `.ipse/access/<month>.jsonl`: which categories it read and how many results, never what it asked or what it got. Ipse keeps 12 months.
 - Your own categories go in `.ipse/vault.toml`, for example `[categories.studies]` with `sensitive = false`. AIs connected afterwards read it; for those already connected, add it to their `read` list.
+- `ipse client set claude --read identity,people,agenda --vault ~/Ipse` changes what an AI may read, from its next request.
+- `ipse client set claude --propose people --vault ~/Ipse` lets it **propose** changes in your contacts: facts it read in their notes, things you told it. Nothing is written until you accept them with `ipse proposals list`, then `accept` or `refuse`. No AI can propose by default.
 - `ipse client remove claude --vault ~/Ipse` disconnects one: its code stops working at its next request.
-- Until the app arrives, rights are changed in `.ipse/clients.toml` inside your memory: remove a category from the `read` list of that AI, or add one. It applies at the AI's next request. An AI that may not read a category gets the same answers as if that data did not exist.
+- An AI that may not read a category gets the same answers as if that data did not exist.

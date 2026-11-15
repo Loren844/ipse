@@ -7,6 +7,7 @@
 mod access;
 mod clients;
 mod log;
+mod work;
 
 pub use access::{
     Access, Entry, Events, FULL_CHECK_EVERY, Gateway, MAX_EVENTS, MAX_STATES, RelationOut,
@@ -14,6 +15,7 @@ pub use access::{
 };
 pub use clients::{Client, Clients, Token};
 pub use log::{ACCESS_DIR, KEEP_MONTHS};
+pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
 
 use std::collections::BTreeMap;
 
@@ -90,6 +92,14 @@ impl Categories {
             .filter(|(_, sensitive)| *sensitive)
             .map(|(name, _)| name)
             .collect()
+    }
+}
+
+impl Categories {
+    /// True when `category` is one of the vault's categories, built in or declared.
+    #[must_use]
+    pub fn known(&self, category: &str) -> bool {
+        is_builtin(category) || self.custom.contains_key(category)
     }
 }
 

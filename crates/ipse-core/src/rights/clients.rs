@@ -208,6 +208,62 @@ impl Clients {
         Ok(true)
     }
 
+    /// Sets what the AI `id` may read and propose on, each when given, and saves. A
+    /// category it proposes on must be one it reads.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when there is no such AI, a category is unknown, or one
+    /// proposed on is not read; [`Error::Io`] when the list cannot be saved.
+    pub fn set_rights(
+        &mut self,
+        id: &str,
+        read: Option<Vec<String>>,
+        propose: Option<Vec<String>>,
+        categories: &super::Categories,
+    ) -> Result<Client> {
+        let Some(at) = self.clients.iter().position(|c| c.id == id) else {
+            return Err(Error::Refused(format!(
+                "There is no AI {id}. `ipse client list` shows their ids."
+            )));
+        };
+        let clean = |list: Vec<String>| -> Result<Vec<String>> {
+            let mut out: Vec<String> = Vec::new();
+            for name in list {
+                let name = name.trim().to_owned();
+                if name.is_empty() || out.contains(&name) {
+                    continue;
+                }
+                if !categories.known(&name) {
+                    return Err(Error::Refused(format!(
+                        "`{name}` is not a category of this memory. Add it to .ipse/vault.toml first."
+                    )));
+                }
+                out.push(name);
+            }
+            Ok(out)
+        };
+        let read = match read {
+            Some(list) => clean(list)?,
+            None => self.clients[at].read.clone(),
+        };
+        let propose = match propose {
+            Some(list) => clean(list)?,
+            None => self.clients[at].propose.clone(),
+        };
+        if let Some(name) = propose.iter().find(|c| !read.contains(c)) {
+            return Err(Error::Refused(format!(
+                "An AI can only propose changes in a category it reads: give `{name}` to read too."
+            )));
+        }
+        let client = &mut self.clients[at];
+        client.read = read;
+        client.propose = propose;
+        let client = client.clone();
+        self.save()?;
+        Ok(client)
+    }
+
     /// The client whose access code is `token`. Every stored hash is compared in
     /// constant time.
     #[must_use]
