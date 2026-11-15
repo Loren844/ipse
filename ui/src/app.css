@@ -1,16 +1,16 @@
-/* Ipse's design tokens (direction "Fil"): written once, used by every screen. */
+/* Ipse's design tokens (direction "Fil", a madder-red thread): written once, used by every screen. */
 :root {
-	--ground: #fafafc;
+	--ground: #fbfaf8;
 	--surface: #ffffff;
-	--text: #1e1b2a;
-	--muted: #6b6780;
-	--line: #e7e5ef;
-	--line-strong: #e2dfec;
-	--thread: #5b3fd9;
-	--thread-ink: #3e2ba8;
-	--thread-soft: #efebff;
-	--thread-faint: #d9d2ff;
-	--focus: #5b3fd9;
+	--text: #231d1e;
+	--muted: #6e6466;
+	--line: #eee9e7;
+	--line-strong: #e5dedc;
+	--thread: #9b2c3a;
+	--thread-ink: #7a1f2b;
+	--thread-soft: #f6e9ea;
+	--thread-faint: #e8c9cd;
+	--focus: #9b2c3a;
 	--on-thread: #ffffff;
 
 	--display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
@@ -26,18 +26,18 @@
 
 @media (prefers-color-scheme: dark) {
 	:root {
-		--ground: #15131d;
-		--surface: #1e1b2a;
-		--text: #eceaf4;
-		--muted: #a7a2bd;
-		--line: #2a2638;
-		--line-strong: #353046;
-		--thread: #a595ff;
-		--thread-ink: #d4ccff;
-		--thread-soft: #2a2347;
-		--thread-faint: #3d3466;
-		--focus: #a595ff;
-		--on-thread: #15131d;
+		--ground: #171314;
+		--surface: #211b1c;
+		--text: #f0eaea;
+		--muted: #ada2a3;
+		--line: #2e2627;
+		--line-strong: #3a3132;
+		--thread: #cf6874;
+		--thread-ink: #f3c5ca;
+		--thread-soft: #3a2226;
+		--thread-faint: #5a3238;
+		--focus: #cf6874;
+		--on-thread: #171314;
 		color-scheme: dark;
 	}
 }
