@@ -8,7 +8,7 @@
 
 <Empty title={i18n.t.inbox}>
 	{#if waiting > 0}
-		<p>{i18n.t.inboxWaiting(waiting)}</p>
+		<p class="lead">{i18n.t.inboxWaiting(waiting)}</p>
 	{:else}
 		<p class="lead">{i18n.t.inboxEmpty}</p>
 		<p>{i18n.t.inboxEmptyHint}</p>

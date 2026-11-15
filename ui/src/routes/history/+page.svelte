@@ -3,4 +3,4 @@
 	import Empty from '#lib/Empty.svelte';
 </script>
 
-<Empty title={i18n.t.history}><p>{i18n.t.historyEmpty}</p></Empty>
+<Empty title={i18n.t.history}><p class="lead">{i18n.t.historyEmpty}</p></Empty>

@@ -4,5 +4,5 @@
 
 <section class="empty">
 	<h1>{title}</h1>
-	{#if children}<div class="hint">{@render children()}</div>{/if}
+	{#if children}<div class="thread">{@render children()}</div>{/if}
 </section>
