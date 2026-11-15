@@ -47,6 +47,8 @@ pub struct Gateway {
     clients: Clients,
     pub(super) categories: Categories,
     log: AccessLog,
+    /// The owner, for the interface.
+    owner: Client,
     /// When every file was last checked for edits.
     checked: std::time::Instant,
 }
@@ -61,8 +63,10 @@ impl Gateway {
         let vault = Vault::open(root)?;
         let index = SearchIndex::load(vault.root())?;
         let clients = Clients::load(vault.root())?;
+        let categories = Categories::of(vault.settings());
         Ok(Self {
-            categories: Categories::of(vault.settings()),
+            owner: Client::owner(&categories),
+            categories,
             log: AccessLog::new(vault.root()),
             vault,
             index,
@@ -112,6 +116,38 @@ impl Gateway {
             self.checked = std::time::Instant::now();
         }
         self.access(token)
+    }
+
+    /// The reads of the vault's owner, in the interface: every category, through the
+    /// same query layer as AIs, after reading again the files that changed. Not written
+    /// to the access log, which is about AIs.
+    ///
+    /// # Errors
+    ///
+    /// Errors of [`Gateway::open`] when the vault cannot be read.
+    pub fn fresh_owner(&mut self) -> Result<Access<'_>> {
+        let root = self.vault.root();
+        if self.index.folders_changed(root) || self.checked.elapsed() >= FULL_CHECK_EVERY {
+            self.update_index()?;
+            self.checked = std::time::Instant::now();
+        }
+        Ok(Access {
+            gateway: self,
+            client: &self.owner,
+            read: RefCell::new(BTreeSet::new()),
+        })
+    }
+
+    /// The vault's settings.
+    #[must_use]
+    pub fn settings(&self) -> &crate::vault::Settings {
+        self.vault.settings()
+    }
+
+    /// The vault.
+    #[must_use]
+    pub fn vault(&self) -> &Vault {
+        &self.vault
     }
 
     /// The reads allowed by `token`. A missing or unknown code is refused before

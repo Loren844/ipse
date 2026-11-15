@@ -82,6 +82,16 @@ impl Categories {
             .collect()
     }
 
+    /// Every category: the built-in ones, then those the vault declares.
+    #[must_use]
+    pub fn all(&self) -> Vec<&str> {
+        CATEGORIES
+            .iter()
+            .map(|(name, _)| *name)
+            .chain(self.custom.keys().map(String::as_str))
+            .collect()
+    }
+
     /// The sensitive categories, closed until the person opens them for one client.
     #[must_use]
     pub fn sensitive(&self) -> Vec<&str> {

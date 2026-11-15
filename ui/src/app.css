@@ -1,0 +1,308 @@
+/* Ipse's design tokens: written once, used by every screen. */
+:root {
+	--ink: #1c2b3a;
+	--ink-soft: #33465a;
+	--paper: #f5f6f3;
+	--surface: #ffffff;
+	--text: #1c2b3a;
+	--muted: #586574;
+	--rule: #d6dadb;
+	--amber: #e9a93a;
+	--amber-ink: #3a2a06;
+	--focus: #2f6fd6;
+	--added: #2f7a55;
+	--removed: #a8445a;
+
+	--font: 'Atkinson Hyperlegible Next Variable', system-ui, sans-serif;
+	--step--1: 0.875rem;
+	--step-0: 1.0625rem;
+	--step-1: 1.3125rem;
+	--step-2: 1.75rem;
+	--step-3: 2.25rem;
+	--space: 1rem;
+	--rail: 17rem;
+	--radius: 10px;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--ink: #0a1017;
+		--ink-soft: #1a2633;
+		--paper: #1a2430;
+		--surface: #212d3a;
+		--text: #e5e9ec;
+		--muted: #9aa6b2;
+		--rule: #2c3947;
+		--focus: #7fb0ff;
+		color-scheme: dark;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--font);
+	font-size: 100%;
+	font-optical-sizing: auto;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--paper);
+	color: var(--text);
+	font-size: var(--step-0);
+	line-height: 1.5;
+}
+
+#ipse {
+	display: contents;
+}
+
+:focus-visible {
+	outline: 3px solid var(--focus);
+	outline-offset: 2px;
+	border-radius: 4px;
+}
+
+h1 {
+	font-size: var(--step-3);
+	font-weight: 750;
+	letter-spacing: -0.015em;
+	line-height: 1.15;
+	margin: 0 0 1.25rem;
+}
+
+p {
+	margin: 0 0 0.75rem;
+	max-width: 62ch;
+}
+
+/* The frame: the memory's spine on the left, the page on the right. */
+.frame {
+	display: grid;
+	grid-template-columns: var(--rail) 1fr;
+	min-height: 100vh;
+}
+
+.rail {
+	background: var(--ink);
+	color: #eef1f3;
+	display: flex;
+	flex-direction: column;
+	gap: 2.5rem;
+	padding: 1.75rem 1.25rem 1.5rem;
+	position: sticky;
+	top: 0;
+	height: 100vh;
+}
+
+.mark {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	color: inherit;
+	text-decoration: none;
+	font-weight: 800;
+	font-size: var(--step-0);
+	letter-spacing: 0.01em;
+	align-self: flex-start;
+}
+
+.mark svg {
+	width: 1.5rem;
+	height: 1.5rem;
+	fill: none;
+	stroke: var(--amber);
+	stroke-width: 3.5;
+}
+
+.owner {
+	margin: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+.owner .of {
+	color: #aab6c1;
+	font-size: var(--step--1);
+}
+
+.owner .name {
+	font-size: clamp(var(--step-2), 2.4vw, 2.125rem);
+	font-weight: 780;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	overflow-wrap: anywhere;
+}
+
+nav ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+}
+
+nav a {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem;
+	padding: 0.6rem 0.75rem;
+	border-radius: var(--radius);
+	color: #d4dbe1;
+	text-decoration: none;
+	font-weight: 550;
+	transition: background-color 120ms ease, color 120ms ease;
+}
+
+nav a:hover {
+	background: var(--ink-soft);
+	color: #ffffff;
+}
+
+nav a[aria-current='page'] {
+	background: var(--paper);
+	color: var(--text);
+	font-weight: 700;
+}
+
+.count {
+	min-width: 1.6rem;
+	padding: 0.05rem 0.45rem;
+	border-radius: 999px;
+	background: var(--amber);
+	color: var(--amber-ink);
+	font-size: var(--step--1);
+	font-weight: 750;
+	text-align: center;
+	font-variant-numeric: tabular-nums;
+}
+
+.languages {
+	margin-top: auto;
+	display: inline-flex;
+	align-self: flex-start;
+	border: 1px solid #45586b;
+	border-radius: 999px;
+	padding: 3px;
+}
+
+.languages button {
+	font: inherit;
+	font-size: var(--step--1);
+	font-weight: 700;
+	color: #c3ccd4;
+	background: transparent;
+	border: 0;
+	border-radius: 999px;
+	padding: 0.2rem 0.7rem;
+	cursor: pointer;
+}
+
+.languages button[aria-pressed='true'] {
+	background: #eef1f3;
+	color: var(--ink);
+}
+
+main {
+	padding: clamp(1.5rem, 5vw, 4rem);
+	min-width: 0;
+}
+
+main:focus {
+	outline: none;
+}
+
+.empty {
+	max-width: 40rem;
+}
+
+.empty .lead {
+	font-size: var(--step-1);
+	font-weight: 600;
+}
+
+.empty .hint p:not(.lead) {
+	color: var(--muted);
+}
+
+.alone {
+	min-height: 100vh;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	max-width: 36rem;
+	margin: 0 auto;
+}
+
+.quiet {
+	color: var(--muted);
+}
+
+/* Phones and narrow windows: the spine becomes a band at the top. */
+@media (max-width: 760px) {
+	.frame {
+		grid-template-columns: 1fr;
+		grid-template-rows: auto 1fr;
+	}
+
+	.rail {
+		position: static;
+		height: auto;
+		display: grid;
+		grid-template-columns: 1fr auto;
+		grid-template-areas:
+			'mark languages'
+			'owner owner'
+			'nav nav';
+		align-items: center;
+		gap: 0.75rem 1rem;
+		padding: 1rem 1rem 0.75rem;
+	}
+
+	.mark {
+		grid-area: mark;
+	}
+
+	.owner {
+		grid-area: owner;
+	}
+
+	.owner .name {
+		font-size: var(--step-1);
+	}
+
+	.languages {
+		grid-area: languages;
+		margin: 0;
+	}
+
+	nav {
+		grid-area: nav;
+	}
+
+	nav ul {
+		flex-direction: row;
+		overflow-x: auto;
+	}
+
+	nav a {
+		white-space: nowrap;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+		animation: none !important;
+	}
+}

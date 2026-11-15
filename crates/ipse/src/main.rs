@@ -7,6 +7,7 @@ mod cmd;
 mod connectors;
 mod keychain;
 mod mcp;
+mod ui;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -88,6 +89,15 @@ enum Command {
         /// Serve over HTTP on this computer instead, at this port (default: 7420)
         #[arg(long, value_name = "PORT", num_args = 0..=1, default_missing_value = "7420")]
         http: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Open your memory in your browser, on this computer only
+    Ui {
+        /// Print the address instead of opening the browser
+        #[arg(long)]
+        no_open: bool,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -298,6 +308,7 @@ fn main() -> ExitCode {
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },
         Command::Mcp { http, vault } => mcp::run(vault, http.as_deref()),
+        Command::Ui { no_open, vault } => ui::run(vault, !no_open),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {

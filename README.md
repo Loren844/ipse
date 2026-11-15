@@ -40,6 +40,7 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 | `crates/ipse` | The `ipse` program: command line, MCP server, built-in connectors. |
 | `crates/ipse-core` | The core library: vault, journal, index, rights. |
 | `crates/ipse-protocol` | Messages of the connector protocol, shared by the core and connectors. |
+| `ui` | The interface (Svelte), served by `ipse ui`; its build is embedded in the binary. |
 | `docs/guide` | How to use Ipse, starting with [Getting started](docs/guide/getting-started.md). |
 | `docs/spec` | The specification: vault, journal, connectors, rights. |
 | `docs/decisions` | Architecture decisions, one dated file each. |
