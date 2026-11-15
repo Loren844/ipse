@@ -22,10 +22,10 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveURL(`${ipse.origin}/`);
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
-	await expect(nav.getByRole('link')).toHaveText(['À revoir', 'IA connectées', 'Historique']);
-	await expect(nav.getByRole('link', { name: 'À revoir' })).toHaveAttribute('aria-current', 'page');
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('À revoir');
-	await expect(page.getByText('Rien à revoir pour le moment.')).toBeVisible();
+	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Personnes', 'Agenda', 'À revoir', 'IA connectées', 'Historique']);
+	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
+	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
 
 	// Nothing leaves this computer.
 	for (const url of requests) expect(new URL(url).origin).toBe(ipse.origin);
@@ -40,7 +40,7 @@ test('the sections and the language switch', async ({ page }) => {
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('History');
-	await expect(page.getByRole('navigation').getByRole('link')).toHaveText(['To review', 'Connected AIs', 'History']);
+	await expect(page.getByRole('navigation').getByRole('link')).toHaveText(['Home', 'People', 'Agenda', 'To review', 'Connected AIs', 'History']);
 
 	// The choice stays in this browser; a reload keeps the page and the language.
 	await page.reload();
@@ -53,10 +53,10 @@ test('the keyboard reaches every section', async ({ page }) => {
 	await expect(page.getByTestId('memory-name')).toBeVisible();
 	await page.keyboard.press('Tab');
 	await page.keyboard.press('Tab');
-	await expect(page.getByRole('link', { name: 'À revoir' })).toBeFocused();
+	await expect(page.getByRole('link', { name: 'Accueil' })).toBeFocused();
 	await page.keyboard.press('Tab');
 	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(`${ipse.origin}/ais`);
+	await expect(page).toHaveURL(`${ipse.origin}/people`);
 });
 
 test('the address works once, in one browser', async ({ page, browser }) => {

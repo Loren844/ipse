@@ -14,6 +14,10 @@ name: string,
  */
 language: string, 
 /**
+ * The vault's time zone, an IANA name: dates are shown in it.
+ */
+time_zone: string, 
+/**
  * Proposals waiting for the person, stale ones included.
  */
 waiting: number, };

@@ -31,6 +31,11 @@ impl Drop for Ui {
 }
 
 fn start() -> Ui {
+    start_with(|_| {})
+}
+
+/// Starts `ipse ui` on a new memory that `fill` completes first.
+fn start_with(fill: impl FnOnce(&std::path::Path)) -> Ui {
     let dir = tempfile::tempdir().unwrap();
     let vault = dir.path().join("memoire");
     let out = Command::new(IPSE)
@@ -46,6 +51,7 @@ fn start() -> Ui {
         .output()
         .unwrap();
     assert!(out.status.success());
+    fill(&vault);
     let mut child = Command::new(IPSE)
         .args(["ui", "--no-open", "--vault", vault.to_str().unwrap()])
         .stdout(Stdio::piped())
@@ -143,7 +149,7 @@ fn the_one_time_code_opens_one_session() {
     let info: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(
         info,
-        serde_json::json!({"name": "Inès Roux", "language": "fr", "waiting": 0})
+        serde_json::json!({"name": "Inès Roux", "language": "fr", "time_zone": "Europe/Paris", "waiting": 0})
     );
 
     // The code works once.
@@ -247,4 +253,131 @@ fn everything_else_is_refused() {
         request(&ui, "GET", "/api/nothing", &ok(("Accept", "*/*".into()))).0,
         404
     );
+}
+
+/// GETs `path` with the session cookie; the status and the JSON answer.
+fn api(ui: &Ui, cookie: &str, path: &str) -> (u16, serde_json::Value) {
+    let (status, _, body) = request(ui, "GET", path, &[("Cookie", cookie.to_owned())]);
+    (
+        status,
+        serde_json::from_str(&body).unwrap_or(serde_json::Value::Null),
+    )
+}
+
+#[test]
+fn the_memory_through_the_api() {
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let ui = start_with(|vault| {
+        for file in ["contacts/google-v3.vcf", "calendar/google.ics"] {
+            let out = Command::new(IPSE)
+                .args([
+                    "import",
+                    fixtures.join(file).to_str().unwrap(),
+                    "--vault",
+                    vault.to_str().unwrap(),
+                ])
+                .output()
+                .unwrap();
+            assert!(out.status.success());
+        }
+        // A custom category without `sensitive`: closed to AIs, and shown as such.
+        let settings = vault.join(".ipse/vault.toml");
+        let mut text = std::fs::read_to_string(&settings).unwrap();
+        text.push_str("\n[categories.soins]\n");
+        std::fs::write(&settings, text).unwrap();
+        let elodie = vault.join("people/elodie-martin.md");
+        let text = std::fs::read_to_string(&elodie).unwrap();
+        std::fs::write(&elodie, text.replace("category: people", "category: soins")).unwrap();
+    });
+    let cookie = login(&ui);
+
+    let (status, people) = api(&ui, &cookie, "/api/people");
+    assert_eq!(status, 200);
+    let names: Vec<&str> = people["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        ["Élodie Martin", "Inès Roux", "Marc Leroy"],
+        "by name, accents aside"
+    );
+    assert_eq!(people["total"], 3);
+    assert_eq!(people["items"][0]["sensitive"], true);
+    assert_eq!(people["items"][0]["aliases"], serde_json::json!(["Lolo"]));
+    assert_eq!(people["items"][2]["sensitive"], false);
+
+    let (_, found) = api(&ui, &cookie, "/api/people?q=l%C3%A9roy");
+    assert_eq!(found["items"][0]["name"], "Marc Leroy");
+    assert_eq!(found["total"], 1);
+    let marc = found["items"][0]["id"].as_str().unwrap().to_owned();
+
+    let (status, file) = api(&ui, &cookie, &format!("/api/file/{marc}"));
+    assert_eq!(status, 200);
+    assert_eq!(file["type"], "entity");
+    let person = &file["value"];
+    assert_eq!(person["name"], "Marc Leroy");
+    assert_eq!(person["kind"], "person");
+    assert_eq!(person["sources"], serde_json::json!(["contacts"]));
+    assert_eq!(person["owner"], false);
+    let events = person["events"].as_array().unwrap();
+    assert_eq!(events.len(), 1);
+    assert_eq!(events[0]["title"], "Dîner chez Julie");
+    let dinner = events[0]["id"].as_str().unwrap().to_owned();
+
+    let (_, file) = api(&ui, &cookie, &format!("/api/file/{dinner}"));
+    assert_eq!(file["type"], "event");
+    let people: Vec<_> = file["value"]["people"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| (p["name"].as_str().unwrap(), p["id"].is_string()))
+        .collect();
+    assert_eq!(
+        people,
+        [("Julie Dupont", false), ("Marc Leroy", true)],
+        "a name as written, a link resolved"
+    );
+    assert_eq!(file["value"]["sources"], serde_json::json!(["calendar"]));
+
+    let elodie = names_to_id(&ui, &cookie, "lolo");
+    let (_, file) = api(&ui, &cookie, &format!("/api/file/{elodie}"));
+    assert_eq!(file["value"]["category"], "soins");
+    assert_eq!(file["value"]["sensitive"], true);
+
+    let (_, events) = api(&ui, &cookie, "/api/events?from=2026-11-01&to=2026-12-31");
+    assert!(
+        events["events"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|e| e["title"] == "Dîner chez Julie")
+    );
+    assert_eq!(
+        (events["from"].as_str(), events["to"].as_str()),
+        (Some("2026-11-01"), Some("2026-12-31"))
+    );
+    assert_eq!(
+        api(&ui, &cookie, "/api/events?from=2026-12-01&to=2026-11-01").0,
+        400
+    );
+    assert_eq!(api(&ui, &cookie, "/api/events?from=demain").0, 400);
+
+    let (status, home) = api(&ui, &cookie, "/api/home");
+    assert_eq!(status, 200);
+    assert_eq!(home["me"]["name"], "Inès Roux");
+    assert_eq!(home["waiting"], 0);
+
+    assert_eq!(
+        api(&ui, &cookie, "/api/file/01zzzzzzzzzzzzzzzzzzzzzzzz").0,
+        404
+    );
+    assert_eq!(api(&ui, &cookie, "/api/file/not-an-id").0, 404);
+}
+
+fn names_to_id(ui: &Ui, cookie: &str, query: &str) -> String {
+    let (_, found) = api(ui, cookie, &format!("/api/people?q={query}"));
+    found["items"][0]["id"].as_str().unwrap().to_owned()
 }

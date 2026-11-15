@@ -92,6 +92,14 @@ Pick a model that supports tools.
 
 "Who am I?", "Who is Marie?", "What am I doing this weekend?" Your AI searches your memory and answers. It may ask you to allow each tool the first time.
 
+## 7. See it yourself
+
+```sh
+ipse ui --vault ~/Ipse
+```
+
+Your browser opens on your memory: the people you know, what is coming, what happened. It runs on this computer only; close it with Ctrl+C in the terminal.
+
 ## Going further
 
 - [Keep your calendar in sync](calendar.md): subscribe to your calendar's link.

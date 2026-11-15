@@ -88,6 +88,21 @@ pub struct Hit {
     pub score: u32,
 }
 
+/// One entity, as a list shows it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Listed<'i> {
+    /// Its id.
+    pub id: &'i Id,
+    /// Its name.
+    pub name: &'i str,
+    /// Its other names.
+    pub aliases: Vec<&'i str>,
+    /// Its category.
+    pub category: &'i Category,
+    /// Its path, relative to the vault.
+    pub path: &'i Path,
+}
+
 /// The results of one search.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Results {
@@ -574,6 +589,52 @@ impl SearchIndex {
     pub fn path_of(&self, id: &Id, allowed: impl Fn(&Category) -> bool) -> Option<&Path> {
         let d = self.document(*self.by_id.get(id)?)?;
         allowed(&d.category).then_some(d.path.as_path())
+    }
+
+    /// The entities of `file_type` among the allowed categories, sorted by name as
+    /// matched (case and accents aside).
+    #[must_use]
+    pub fn entities(
+        &self,
+        file_type: FileType,
+        allowed: impl Fn(&Category) -> bool,
+    ) -> Vec<Listed<'_>> {
+        let mut found: Vec<(String, Listed<'_>)> = self
+            .documents()
+            .filter(|d| d.file_type == file_type && allowed(&d.category))
+            .map(|d| {
+                (
+                    fold(&d.name.text),
+                    Listed {
+                        id: &d.id,
+                        name: &d.name.text,
+                        aliases: d.aliases.iter().map(|a| a.text.as_str()).collect(),
+                        category: &d.category,
+                        path: &d.path,
+                    },
+                )
+            })
+            .collect();
+        found.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.name.cmp(b.1.name)));
+        found.into_iter().map(|(_, listed)| listed).collect()
+    }
+
+    /// The entity a `[[stem]]` link points to, among the allowed categories: the first
+    /// one when several folders hold that stem.
+    #[must_use]
+    pub fn linked(&self, stem: &str, allowed: impl Fn(&Category) -> bool) -> Option<Listed<'_>> {
+        self.by_stem
+            .get(&stem.trim().to_ascii_lowercase())?
+            .iter()
+            .filter_map(|&slot| self.document(slot))
+            .find(|d| allowed(&d.category))
+            .map(|d| Listed {
+                id: &d.id,
+                name: &d.name.text,
+                aliases: d.aliases.iter().map(|a| a.text.as_str()).collect(),
+                category: &d.category,
+                path: &d.path,
+            })
     }
 
     /// The categories of the entities whose file stem is `stem`, ignoring case. Several

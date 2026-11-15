@@ -71,3 +71,7 @@ harness = false
 [[bench]]
 name = "tasks"
 harness = false
+
+[[bench]]
+name = "browse"
+harness = false
