@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 
 pub use apply::{DiffItem, FileDiff, Preview, What};
 pub use change::{Change, NewRelation};
+pub(crate) use key::get as key_value;
 
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Id, Source, Vault, write_atomic};
@@ -179,6 +180,104 @@ impl<'v> Proposals<'v> {
         by: Author,
         reason: &str,
         task: Option<String>,
+        changes: Vec<Change>,
+    ) -> Result<Proposal> {
+        let task = match task {
+            Some(id) => Some(Tasks::new(self.vault).check_open(&id)?),
+            None => None,
+        };
+        let proposal = self.prepare(by, reason, task, changes)?;
+        self.save(&proposal)?;
+        if let Some(task) = &proposal.task {
+            Tasks::new(self.vault).proposed(task, &proposal.id)?;
+        }
+        Ok(proposal)
+    }
+
+    /// Records what the source `instance` changed after the person, as a proposal by
+    /// that source: `changes` set keys of one file. A key it already proposed with this
+    /// value and the person refused is left out ("keep mine"); a waiting proposal of
+    /// this source for the same file takes the new changes instead of a second
+    /// proposal. Returns whether a proposal waits for the person.
+    ///
+    /// `known` is this source's proposals as [`Proposals::list`] gave them, read once
+    /// for a whole import; the proposal saved is added to it.
+    pub(crate) fn propose_for_source(
+        &self,
+        instance: &str,
+        reason: &str,
+        changes: Vec<Change>,
+        known: &mut Vec<Proposal>,
+    ) -> Result<bool> {
+        let by = Author::Connector(instance.to_owned());
+        let Some(file) = changes.first().and_then(Change::file).map(str::to_owned) else {
+            return Ok(false);
+        };
+        let mine: Vec<&Proposal> = known
+            .iter()
+            .filter(|p| p.by == by && p.changes.iter().all(|c| c.file() == Some(file.as_str())))
+            .collect();
+        let refused = |change: &Change| {
+            mine.iter()
+                .filter(|p| matches!(p.status, Status::Refused { .. }))
+                .any(|p| p.changes.iter().any(|c| same_key_value(c, change)))
+        };
+        let new: Vec<Change> = changes.into_iter().filter(|c| !refused(c)).collect();
+        let waiting = mine
+            .into_iter()
+            .find(|p| p.status == Status::Waiting)
+            .cloned();
+        if new.is_empty() {
+            return Ok(waiting.is_some());
+        }
+        // Keys the source changed before and not now stay proposed, while they still
+        // apply; otherwise only the new ones are.
+        let mut tries = Vec::with_capacity(2);
+        if let Some(old) = &waiting {
+            let mut all = new.clone();
+            all.extend(
+                old.changes
+                    .iter()
+                    .filter(|c| !new.iter().any(|n| same_key(n, c)))
+                    .cloned(),
+            );
+            if all.len() > new.len() {
+                tries.push(all);
+            }
+        }
+        tries.push(new);
+        let mut prepared = None;
+        for changes in tries {
+            match self.prepare(by.clone(), reason, None, changes) {
+                Ok(proposal) => {
+                    prepared = Some(proposal);
+                    break;
+                }
+                // The person's file already says what the source says, or changed
+                // again since.
+                Err(Error::Refused(_)) => {}
+                Err(e) => return Err(e),
+            }
+        }
+        let Some(mut proposal) = prepared else {
+            return Ok(waiting.is_some());
+        };
+        if let Some(old) = waiting {
+            proposal.id = old.id;
+            proposal.created = old.created;
+        }
+        self.save(&proposal)?;
+        known.retain(|p| p.id != proposal.id);
+        known.push(proposal);
+        Ok(true)
+    }
+
+    /// A checked proposal, not saved.
+    fn prepare(
+        &self,
+        by: Author,
+        reason: &str,
+        task: Option<String>,
         mut changes: Vec<Change>,
     ) -> Result<Proposal> {
         if reason.trim().is_empty() {
@@ -191,11 +290,6 @@ impl<'v> Proposals<'v> {
                 "A proposal needs at least one change.".to_owned(),
             ));
         }
-        let tasks = Tasks::new(self.vault);
-        let task = match task {
-            Some(id) => Some(tasks.check_open(&id)?),
-            None => None,
-        };
         let mut categories = Vec::new();
         let mut planned = Vec::new();
         for change in &mut changes {
@@ -232,10 +326,6 @@ impl<'v> Proposals<'v> {
             return Err(Error::Refused(
                 "This proposal changes nothing: the files already say so.".to_owned(),
             ));
-        }
-        self.save(&proposal)?;
-        if let Some(task) = &proposal.task {
-            tasks.proposed(task, &proposal.id)?;
         }
         Ok(proposal)
     }
@@ -436,6 +526,31 @@ impl<'v> Proposals<'v> {
 
     fn now(&self) -> String {
         DateTime::now(self.vault.settings().time_zone()).to_string()
+    }
+}
+
+/// True when `a` and `b` set the same key of the same file.
+fn same_key(a: &Change, b: &Change) -> bool {
+    match (a, b) {
+        (
+            Change::SetKey { file, key, .. },
+            Change::SetKey {
+                file: other_file,
+                key: other_key,
+                ..
+            },
+        ) => file == other_file && key == other_key,
+        _ => false,
+    }
+}
+
+/// True when `a` and `b` set the same key of the same file to the same value.
+fn same_key_value(a: &Change, b: &Change) -> bool {
+    match (a, b) {
+        (Change::SetKey { to, .. }, Change::SetKey { to: other_to, .. }) => {
+            same_key(a, b) && to == other_to
+        }
+        _ => false,
     }
 }
 

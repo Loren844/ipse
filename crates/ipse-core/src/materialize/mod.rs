@@ -5,7 +5,7 @@
 //! it takes from a source, and each only while it is as Ipse last wrote it: the journal
 //! keeps every version, and a small ledger remembers which one is in the vault. A key
 //! the person changed keeps their value while the others update; when the source
-//! changes it too, that is counted, to become a proposal in milestone 2. What they
+//! changes it too, the source's value becomes a proposal the person may accept. What they
 //! added (facts, notes, other keys) never stops an update. A file the person deleted is
 //! not created again.
 
@@ -23,16 +23,26 @@ pub use relations::ADDED_FILE;
 use serde_json::Value;
 
 use crate::journal::Journal;
-use crate::vault::write_atomic;
+use crate::proposals::{Author, Change, Proposals, key_value};
+use crate::vault::{Language, MemoryFile, Vault, write_atomic};
 use crate::{Error, Result};
 
 /// What happened to one existing file.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct Outcome {
     /// The file was rewritten.
     pub(crate) written: bool,
-    /// The source changed a key the person had changed: the person's value was kept.
-    pub(crate) conflict: bool,
+    /// The keys the source changed after the person had changed them, as changes
+    /// from the person's value to the source's: the person's value was kept, and these
+    /// become a proposal.
+    pub(crate) conflicts: Vec<Change>,
+}
+
+impl Outcome {
+    /// True when the source changed a key the person had changed.
+    pub(crate) fn conflict(&self) -> bool {
+        !self.conflicts.is_empty()
+    }
 }
 
 /// Merges the keys Ipse fills from a source, one by one: a key the person did not
@@ -40,15 +50,16 @@ pub(crate) struct Outcome {
 /// keeps theirs.
 #[derive(Debug, Default)]
 pub(crate) struct Merge {
-    /// True when the source changed a key the person had changed.
-    pub(crate) conflict: bool,
+    /// The keys the source changed after the person had changed them.
+    pub(crate) conflicts: Vec<&'static str>,
 }
 
 impl Merge {
-    /// The value of one key: `new` from the source, unless the person changed it from
-    /// `applied`, the value Ipse last wrote (unknown when `None`).
+    /// The value of the key `name`: `new` from the source, unless the person changed it
+    /// from `applied`, the value Ipse last wrote (unknown when `None`).
     pub(crate) fn key<T: PartialEq + Clone>(
         &mut self,
+        name: &'static str,
         current: &T,
         applied: Option<&T>,
         new: &T,
@@ -56,13 +67,79 @@ impl Merge {
         match applied {
             Some(applied) if applied != current => {
                 if new != applied && new != current {
-                    self.conflict = true;
+                    self.conflicts.push(name);
                 }
                 current.clone()
             }
             _ => new.clone(),
         }
     }
+}
+
+/// The changes that would give `keys` of `current` the values they have in `source`
+/// (the same file with the source's values), for a proposal.
+pub(crate) fn conflict_changes(
+    vault: &Vault,
+    current: &MemoryFile,
+    source: &MemoryFile,
+    keys: &[&'static str],
+) -> Vec<Change> {
+    let file = relative(vault.root(), current.path());
+    keys.iter()
+        .filter_map(|key| {
+            let from = key_value(current, key)?;
+            let to = key_value(source, key)?;
+            (from != to).then(|| Change::SetKey {
+                file: file.clone(),
+                key: (*key).to_owned(),
+                from,
+                to,
+            })
+        })
+        .collect()
+}
+
+/// Makes or updates the proposals for what the source `instance` changed after the
+/// person: one per file. Returns how many wait for the person after this import.
+pub(crate) fn propose_conflicts(
+    vault: &Vault,
+    instance: &str,
+    conflicts: Vec<Vec<Change>>,
+) -> Result<u64> {
+    if conflicts.is_empty() {
+        return Ok(0);
+    }
+    let reason = match vault.settings().language() {
+        Language::Fr => format!(
+            "La source « {instance} » a changé ce que vous aviez modifié vous-même. Votre version est gardée tant que vous n'acceptez pas la sienne."
+        ),
+        _ => format!(
+            "The source \"{instance}\" changed what you had changed yourself. Your version stays until you accept its own."
+        ),
+    };
+    let proposals = Proposals::new(vault);
+    let by = Author::Connector(instance.to_owned());
+    let mut known: Vec<_> = proposals
+        .list()?
+        .into_iter()
+        .filter(|p| p.by == by)
+        .collect();
+    let mut waiting = 0;
+    for changes in conflicts {
+        if proposals.propose_for_source(instance, &reason, changes, &mut known)? {
+            waiting += 1;
+        }
+    }
+    Ok(waiting)
+}
+
+fn relative(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root)
+        .unwrap_or(path)
+        .components()
+        .map(|c| c.as_os_str().to_string_lossy())
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// Where Ipse remembers, per journal source, the last record it turned into files.

@@ -661,3 +661,63 @@ fn an_ai_is_allowed_to_propose_only_when_asked() {
     let listed = run(&["client", "list", "--vault", vault_arg]).1;
     assert!(listed.contains("  proposes in people, agenda"), "{listed}");
 }
+
+#[test]
+fn a_contact_changed_on_both_sides_waits_for_the_person() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    let ok = |args: &[&str]| {
+        let out = ipse(args);
+        assert!(
+            out.status.success(),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8(out.stdout).unwrap()
+    };
+    ok(&[
+        "init",
+        vault_arg,
+        "--name",
+        "Camille Durand",
+        "--language",
+        "fr",
+        "--time-zone",
+        "Europe/Paris",
+    ]);
+    let vcf = dir.path().join("contacts.vcf");
+    let card = |phone: &str| {
+        format!(
+            "BEGIN:VCARD\r\nVERSION:3.0\r\nUID:c-1\r\nFN:Inès Roux\r\nTEL:{phone}\r\nEND:VCARD\r\n"
+        )
+    };
+    std::fs::write(&vcf, card("06 12 34 56 78")).unwrap();
+    ok(&["import", vcf.to_str().unwrap(), "--vault", vault_arg]);
+    let file = vault.join("people/ines-roux.md");
+    let text = std::fs::read_to_string(&file).unwrap();
+    std::fs::write(&file, text.replace("+33612345678", "+33611111111")).unwrap();
+
+    std::fs::write(&vcf, card("06 22 22 22 22")).unwrap();
+    let printed = ok(&["import", vcf.to_str().unwrap(), "--vault", vault_arg]);
+    assert!(
+        printed.contains(
+            "your version was kept. What the source says waits for you: `ipse proposals list`."
+        ),
+        "{printed}"
+    );
+    let listed = ok(&["proposals", "list", "--vault", vault_arg]);
+    assert!(listed.contains("waiting   connector:contacts"), "{listed}");
+    let id = listed.split_whitespace().next().unwrap();
+    let shown = ok(&["proposals", "show", id, "--vault", vault_arg]);
+    assert!(
+        shown.contains("phones: +33611111111 → +33622222222"),
+        "{shown}"
+    );
+    ok(&["proposals", "accept", id, "--vault", vault_arg]);
+    assert!(
+        std::fs::read_to_string(&file)
+            .unwrap()
+            .contains("+33622222222")
+    );
+}

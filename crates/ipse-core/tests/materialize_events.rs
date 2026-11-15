@@ -446,3 +446,43 @@ fn a_contact_the_person_corrected_keeps_their_correction() {
             .contains("elodie@perso.example")
     );
 }
+
+#[test]
+fn a_calendar_conflict_becomes_a_proposal() {
+    use ipse_core::proposals::{Accepted, Change, Proposals};
+
+    let (dir, vault) = vault();
+    calendar(&vault, "calendar", &[event("diner@example.org", dinner())]);
+    let path = dir.path().join(DINNER);
+    let text = std::fs::read_to_string(&path).unwrap();
+    std::fs::write(
+        &path,
+        text.replace("title: Dîner chez Julie", "title: Les 40 ans de Julie"),
+    )
+    .unwrap();
+    let mut renamed = dinner();
+    renamed["title"] = json!("Anniversaire de Julie");
+    let (summary, _) = calendar(&vault, "calendar", &[event("diner@example.org", renamed)]);
+    assert_eq!((summary.conflicts, summary.proposals), (1, 1));
+
+    let proposals = Proposals::new(&vault);
+    let proposal = proposals.list().unwrap().remove(0);
+    assert_eq!(
+        proposal.changes,
+        [Change::SetKey {
+            file: DINNER.into(),
+            key: "title".into(),
+            from: json!("Les 40 ans de Julie"),
+            to: json!("Anniversaire de Julie"),
+        }]
+    );
+    assert_eq!(proposal.categories, ["agenda"]);
+    assert!(matches!(
+        proposals.accept(&proposal.id).unwrap(),
+        Accepted::Applied(Some(_))
+    ));
+    assert_eq!(
+        read_event(dir.path(), DINNER).title,
+        "Anniversaire de Julie"
+    );
+}

@@ -80,6 +80,7 @@ fn each_contact_becomes_a_person_file() {
             deleted: 0,
             relations: 0,
             owner: false,
+            proposals: 0,
         }
     );
 
@@ -216,4 +217,96 @@ fn the_owner_file_is_left_alone() {
         &[card("c-1", json!({"full_name": "Camille Durand"}))],
     );
     assert_eq!(read(vault.owner_file()), before);
+}
+
+#[test]
+fn a_conflict_becomes_a_proposal_from_the_source() {
+    use ipse_core::proposals::{Accepted, Author, Change, Proposals, Status};
+
+    let (dir, vault) = vault();
+    import(&vault, &[card("c-1", elodie())]);
+    let path = dir.path().join("people/elodie-martin.md");
+    // The person changes her phone; the address book changes it too.
+    std::fs::write(&path, read(&path).replace("0612345678", "0611111111")).unwrap();
+    let mut changed = elodie();
+    changed["phones"] = json!(["0622222222"]);
+    let summary = import(&vault, &[card("c-1", changed.clone())]);
+    assert_eq!((summary.conflicts, summary.proposals), (1, 1));
+    assert!(
+        read(&path).contains("0611111111"),
+        "the person's value stays"
+    );
+
+    let proposals = Proposals::new(&vault);
+    let all = proposals.list().unwrap();
+    assert_eq!(all.len(), 1);
+    let first = &all[0];
+    assert_eq!(first.by, Author::Connector("contacts".into()));
+    assert!(first.reason.contains("« contacts »"), "{}", first.reason);
+    assert!(
+        !first.reason.contains("06"),
+        "no personal data in the reason"
+    );
+    assert_eq!(
+        first.changes,
+        [Change::SetKey {
+            file: "people/elodie-martin.md".into(),
+            key: "phones".into(),
+            from: json!(["0611111111"]),
+            to: json!(["0622222222"]),
+        }]
+    );
+
+    // A later import changing the birthday too updates the same proposal.
+    let (pid, created) = (first.id.clone(), first.created.clone());
+    std::fs::write(
+        &path,
+        read(&path).replace("birthday: 1990-04-02", "birthday: 1990-04-03"),
+    )
+    .unwrap();
+    changed["birthday"] = json!("1990-05-02");
+    let summary = import(&vault, &[card("c-1", changed.clone())]);
+    assert_eq!(summary.proposals, 1);
+    let all = proposals.list().unwrap();
+    assert_eq!(all.len(), 1, "one proposal per file");
+    assert_eq!(
+        (all[0].id.as_str(), all[0].created.as_str()),
+        (pid.as_str(), created.as_str())
+    );
+    let keys: Vec<&str> = all[0]
+        .changes
+        .iter()
+        .map(|c| match c {
+            Change::SetKey { key, .. } => key.as_str(),
+            _ => "",
+        })
+        .collect();
+    assert_eq!(keys, ["birthday", "phones"]);
+
+    // Refused: the person keeps theirs. The same value is not proposed again.
+    proposals.refuse(&pid, None).unwrap();
+    let summary = import(&vault, &[card("c-1", changed.clone())]);
+    assert_eq!(summary.proposals, 0);
+    assert_eq!(proposals.list().unwrap().len(), 1);
+
+    // A newer value of the source is.
+    changed["phones"] = json!(["0633333333"]);
+    let summary = import(&vault, &[card("c-1", changed)]);
+    assert_eq!(summary.proposals, 1);
+    let newest = proposals.list().unwrap().remove(0);
+    assert_ne!(newest.id, pid);
+    assert_eq!(newest.status, Status::Waiting);
+    assert!(matches!(
+        proposals.accept(&newest.id).unwrap(),
+        Accepted::Applied(Some(_))
+    ));
+    let after = read(&path);
+    assert!(
+        after.contains("0633333333") && !after.contains("0611111111"),
+        "{after}"
+    );
+    assert!(
+        after.contains("birthday: 1990-04-03"),
+        "refused key untouched: {after}"
+    );
 }
