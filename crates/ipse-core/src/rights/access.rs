@@ -51,6 +51,9 @@ pub struct Gateway {
     owner: Client,
     /// When every file was last checked for edits.
     checked: std::time::Instant,
+    /// When the settings were last changed, as read: categories declared since apply
+    /// from the next request.
+    settings_changed: Option<std::time::SystemTime>,
 }
 
 impl Gateway {
@@ -65,6 +68,7 @@ impl Gateway {
         let clients = Clients::load(vault.root())?;
         let categories = Categories::of(vault.settings());
         Ok(Self {
+            settings_changed: settings_changed(vault.root()),
             owner: Client::owner(&categories),
             categories,
             log: AccessLog::new(vault.root()),
@@ -81,6 +85,7 @@ impl Gateway {
     ///
     /// As [`Gateway::open`].
     pub fn refresh(&mut self) -> Result<()> {
+        self.reload_settings()?;
         self.update_index()?;
         self.clients = Clients::load(self.vault.root())?;
         Ok(())
@@ -108,6 +113,7 @@ impl Gateway {
     /// [`Gateway::open`] when the vault cannot be read.
     pub fn fresh_access(&mut self, token: Option<&str>) -> Result<Access<'_>> {
         self.clients = Clients::load(self.vault.root())?;
+        self.reload_settings()?;
         self.access(token)?;
         let root = self.vault.root();
         // Listing every file and reading again those that changed is one pass.
@@ -126,6 +132,7 @@ impl Gateway {
     ///
     /// Errors of [`Gateway::open`] when the vault cannot be read.
     pub fn fresh_owner(&mut self) -> Result<Access<'_>> {
+        self.reload_settings()?;
         let root = self.vault.root();
         if self.index.folders_changed(root) || self.checked.elapsed() >= FULL_CHECK_EVERY {
             self.update_index()?;
@@ -136,6 +143,19 @@ impl Gateway {
             client: &self.owner,
             read: RefCell::new(BTreeSet::new()),
         })
+    }
+
+    /// Reads the settings again when their file changed: a category declared since
+    /// counts from now on.
+    fn reload_settings(&mut self) -> Result<()> {
+        let changed = settings_changed(self.vault.root());
+        if changed != self.settings_changed {
+            self.vault = Vault::open(self.vault.root())?;
+            self.categories = Categories::of(self.vault.settings());
+            self.owner = Client::owner(&self.categories);
+            self.settings_changed = changed;
+        }
+        Ok(())
     }
 
     /// The vault's settings.
@@ -757,4 +777,11 @@ fn day_start(day: Date, tz: &TimeZone, next: bool) -> Option<Timestamp> {
     };
     let zoned: Zoned = day.to_zoned(tz.clone()).ok()?;
     Some(zoned.timestamp())
+}
+
+/// When the settings file of the vault in `root` was last changed.
+fn settings_changed(root: &Path) -> Option<std::time::SystemTime> {
+    std::fs::metadata(root.join(crate::vault::SETTINGS_FILE))
+        .and_then(|m| m.modified())
+        .ok()
 }

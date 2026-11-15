@@ -32,6 +32,7 @@ use ipse_core::rights::Gateway;
 use ipse_core::{Error, Result};
 use serde::Serialize;
 
+mod ais;
 mod api;
 mod review;
 
@@ -302,13 +303,19 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
                 .map(|v| Some(to_json(&v))),
             "proposals" => review::list(gateway).map(|v| Some(to_json(&v))),
+            "ais" => ais::view(gateway).map(|v| Some(to_json(&v))),
             _ => match (path.strip_prefix("file/"), path.strip_prefix("proposals/")) {
                 (Some(id), _) => api::file(gateway, id).map(|v| v.map(|v| to_json(&v))),
                 (_, Some(id)) => review::one(gateway, id).map(|v| v.map(|v| to_json(&v))),
                 _ => Ok(None),
             },
         }
-    } else if method == Method::POST && path.starts_with("proposals/") {
+    } else if method == Method::POST
+        && (path.starts_with("proposals/")
+            || path == "ais"
+            || path.starts_with("ais/")
+            || path == "categories")
+    {
         let json = request
             .headers()
             .get(header::CONTENT_TYPE)
@@ -317,7 +324,11 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         if !json {
             return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
-        review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+        if path.starts_with("proposals/") {
+            review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+        } else {
+            ais::change(gateway, path, request.body())
+        }
     } else {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
     };

@@ -53,7 +53,8 @@ Every vault file has one `category` (vault spec, section 2.2). Format version 1 
   - `sensitive` left out counts as `true`: a category nobody said was safe to share stays closed.
   - **The interface must say it plainly.** Next to every sensitive category, and above all one the person declared without saying `sensitive`, it shows that no AI can see it until the person opens it to one, and to which AIs it is open. The person must never believe an AI reads a category it cannot, nor the reverse.
   - The name is lowercase letters, digits and dashes. One of the names above declared again keeps its meaning here.
-  - A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it. Until the interface asks, the person adds it to that AI's `read` list in `.ipse/clients.toml`. AIs connected afterwards get it, as every non-sensitive category.
+  - A new non-sensitive category is **not** added to existing clients automatically: Ipse asks, for each connected AI, whether it may read it. The interface (`ipse ui`, **IA connectées**) declares a category by its name (`Études` becomes `etudes`), always says whether AIs may see it, and for one they may, which connected AIs read it from now on. From the command line, the person adds it to that AI's `read` list in `.ipse/clients.toml`. AIs connected afterwards get it, as every non-sensitive category.
+  - A category declared while Ipse serves an AI counts from that AI's next request: the settings are read again when their file changed.
 - A category used in a file but declared nowhere is treated as `private`.
 
 ## 2. Connected AIs
@@ -73,7 +74,7 @@ local = false                   # the person said this AI runs entirely on this 
 
 - **Connecting an AI** creates a client, generates a random 256-bit token, and shows the person exactly what to paste or click for their AI app (decision 0007). The token appears once and is stored only by that app.
 - **Removing** a client deletes its entry; its token stops working immediately.
-- **Rights can change at any time**, in both directions, and take effect on the next request. Any category, sensitive ones and `private` included, can be opened to one client without opening it to the others.
+- **Rights can change at any time**, in both directions, and take effect on the next request. The interface shows each AI with its last access (from the access log, section 5) and one switch per category to read and to propose; opening a sensitive category asks first. Any category, sensitive ones and `private` included, can be opened to one client without opening it to the others.
 - When connecting an AI, Ipse asks whether it **runs entirely on this computer**. If the person answers yes, the connection screen also offers to open every category at once, still as an explicit choice. Ipse cannot verify the answer; it records it as `local = true` and shows it next to the client.
 - Access levels per category:
     - `read`: the client can read the category.

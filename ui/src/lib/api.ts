@@ -11,6 +11,12 @@ import type { ProposalView } from './types/ProposalView.ts';
 
 export type { AppInfo, DecisionView, EventsView, FileView, HomeView, InboxView, PeopleView, ProposalView };
 export type { ProposalLine } from './types/ProposalLine.ts';
+export type { AisView } from './types/AisView.ts';
+export type { AiView } from './types/AiView.ts';
+export type { CategoryView } from './types/CategoryView.ts';
+export type { ConnectedView } from './types/ConnectedView.ts';
+import type { AisView } from './types/AisView.ts';
+import type { ConnectedView } from './types/ConnectedView.ts';
 export type { FileChangesView } from './types/FileChangesView.ts';
 export type { ChangeView } from './types/ChangeView.ts';
 export type { EventView } from './types/EventView.ts';
@@ -64,5 +70,12 @@ export const api = {
 	accept: (id: string) => post<DecisionView>(`${proposal(id)}/accept`),
 	acceptAll: (ids: string[]) => post<DecisionView>('/api/proposals/accept', { ids }),
 	refuse: (id: string, comment?: string) => post<DecisionView>(`${proposal(id)}/refuse`, { comment: comment || undefined }),
-	undo: (id: string) => post<DecisionView>(`${proposal(id)}/undo`)
+	undo: (id: string) => post<DecisionView>(`${proposal(id)}/undo`),
+	ais: () => get<AisView>('/api/ais'),
+	connect: (name: string, local: boolean, openAll: boolean) => post<ConnectedView>('/api/ais', { name, local, open_all: openAll }),
+	setRights: (id: string, read: string[], propose: string[]) =>
+		post<AisView>(`/api/ais/${encodeURIComponent(id)}/rights`, { read, propose }),
+	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),
+	addCategory: (label: string, sensitive: boolean, openTo: string[]) =>
+		post<AisView>('/api/categories', { label, sensitive, open_to: openTo })
 };
