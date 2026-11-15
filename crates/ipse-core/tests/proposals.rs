@@ -527,3 +527,73 @@ fn proposals_are_listed_newest_first_and_read_from_their_format() {
     assert_eq!(proposals.list().unwrap().len(), 2);
     assert!(matches!(proposals.get("zz"), Err(Error::Refused(_))));
 }
+
+#[test]
+fn a_decided_proposal_is_described_as_it_was_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let proposals = Proposals::new(&vault);
+    let proposal = proposals
+        .submit(by(), "Mise à jour depuis la conversation.", None, edits())
+        .unwrap();
+    let preview = proposals.preview(&proposal).unwrap();
+    proposals.accept(&proposal.id).unwrap();
+
+    // Once accepted, the files hold the changes: the preview finds nothing left to do,
+    // the description still says what the proposal held, in the same words.
+    let described = proposals.described(&proposal);
+    assert_eq!(described.stale, None);
+    assert_eq!(described.files.len(), 1);
+    let file = &described.files[0];
+    assert_eq!(
+        (
+            file.name.as_str(),
+            file.file_type.as_str(),
+            file.category.as_str()
+        ),
+        ("Marie Durand", "person", "people")
+    );
+    assert_eq!(file.items, preview.files[0].items);
+
+    // A new file is named from its keys, even once it is gone.
+    let created = Proposal {
+        changes: vec![Change::Create {
+            file: Some("people/lea-durand.md".into()),
+            file_type: "person".into(),
+            category: None,
+            keys: [("name".to_owned(), json!("Léa Durand"))].into(),
+            facts: vec!["Sœur de Marie.".into()],
+            relations: vec![NewRelation {
+                word: "sœur".into(),
+                target: "marie-durand".into(),
+                display: None,
+            }],
+            notes: None,
+        }],
+        ..proposal
+    };
+    let described = proposals.described(&created);
+    let file = &described.files[0];
+    assert!(file.created);
+    assert_eq!(file.name, "Léa Durand");
+    assert_eq!(
+        file.items,
+        [
+            DiffItem {
+                what: What::Key("name".into()),
+                before: None,
+                after: Some("Léa Durand".into())
+            },
+            DiffItem {
+                what: What::Fact,
+                before: None,
+                after: Some("Sœur de Marie.".into())
+            },
+            DiffItem {
+                what: What::Relation,
+                before: None,
+                after: Some("sœur: marie-durand".into())
+            },
+        ]
+    );
+}

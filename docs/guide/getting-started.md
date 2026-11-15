@@ -98,7 +98,7 @@ Pick a model that supports tools.
 ipse ui --vault ~/Ipse
 ```
 
-Your browser opens on your memory: the people you know, what is coming, what happened. It runs on this computer only; close it with Ctrl+C in the terminal.
+Your browser opens on your memory: the people you know, what is coming, what happened, and what your AI proposes to add, waiting for your decision. It runs on this computer only; close it with Ctrl+C in the terminal.
 
 ## Going further
 

@@ -19,6 +19,8 @@ struct Ui {
     /// Kept open: the server may still write to it.
     _out: BufReader<std::process::ChildStdout>,
     _dir: tempfile::TempDir,
+    /// The memory folder.
+    vault: std::path::PathBuf,
     port: u16,
     code: String,
 }
@@ -71,6 +73,7 @@ fn start_with(fill: impl FnOnce(&std::path::Path)) -> Ui {
         child,
         _out: out,
         _dir: dir,
+        vault,
         port: port.parse().unwrap(),
         code: query.to_owned(),
     }
@@ -78,6 +81,17 @@ fn start_with(fill: impl FnOnce(&std::path::Path)) -> Ui {
 
 /// The status line's code, the headers and the body of one request.
 fn request(ui: &Ui, method: &str, path: &str, headers: &[(&str, String)]) -> (u16, String, String) {
+    send(ui, method, path, headers, "")
+}
+
+/// Sends `body` to `path`; the status, the head and the body of the answer.
+fn send(
+    ui: &Ui,
+    method: &str,
+    path: &str,
+    headers: &[(&str, String)],
+    body: &str,
+) -> (u16, String, String) {
     let mut stream = TcpStream::connect(("127.0.0.1", ui.port)).unwrap();
     let mut text = format!("{method} {path} HTTP/1.1\r\nConnection: close\r\n");
     if !headers
@@ -90,9 +104,10 @@ fn request(ui: &Ui, method: &str, path: &str, headers: &[(&str, String)]) -> (u1
         let _ = write!(text, "{name}: {value}\r\n");
     }
     if method == "POST" {
-        text.push_str("Content-Length: 0\r\n");
+        let _ = write!(text, "Content-Length: {}\r\n", body.len());
     }
     text.push_str("\r\n");
+    text.push_str(body);
     stream.write_all(text.as_bytes()).unwrap();
     let mut answer = String::new();
     stream.read_to_string(&mut answer).unwrap();
@@ -380,4 +395,134 @@ fn the_memory_through_the_api() {
 fn names_to_id(ui: &Ui, cookie: &str, query: &str) -> String {
     let (_, found) = api(ui, cookie, &format!("/api/people?q={query}"));
     found["items"][0]["id"].as_str().unwrap().to_owned()
+}
+
+/// POSTs `body` as JSON to `path`, as the interface does; the status and the answer.
+fn post(ui: &Ui, cookie: &str, path: &str, body: &str) -> (u16, serde_json::Value) {
+    let headers = [
+        ("Cookie", cookie.to_owned()),
+        ("Origin", format!("http://127.0.0.1:{}", ui.port)),
+        ("Content-Type", "application/json".to_owned()),
+    ];
+    let (status, _, answer) = send(ui, "POST", path, &headers, body);
+    (
+        status,
+        serde_json::from_str(&answer).unwrap_or(serde_json::Value::Null),
+    )
+}
+
+#[test]
+fn the_review_through_the_api() {
+    let ui = start_with(|vault| {
+        // Proposals as an AI leaves them, in the format of `docs/spec/vault.md` §12.
+        let proposal = |id: &str, change: &str| {
+            let json = format!(
+                r#"{{"format": 1, "id": "{id}", "by": "client:claude", "created": "2026-11-14T19:02:11+01:00",
+                "reason": "Dit dans la conversation.", "categories": ["people"],
+                "changes": [{change}], "status": {{"state": "waiting"}}}}"#
+            );
+            std::fs::create_dir_all(vault.join(".ipse/proposals")).unwrap();
+            std::fs::write(vault.join(format!(".ipse/proposals/{id}.json")), json).unwrap();
+        };
+        let fact = |text: &str| {
+            format!(r#"{{"kind": "add_fact", "file": "people/ines-roux.md", "text": "{text}"}}"#)
+        };
+        proposal("01jd3k8m2p4q6r8t0v2w4y6z8a", &fact("Joue du violoncelle."));
+        proposal("01jd3k9m2p4q6r8t0v2w4y6z8a", &fact("Parle italien."));
+        proposal("01jd3kam2p4q6r8t0v2w4y6z8a", &fact("Court le dimanche."));
+        proposal("01jd3kbm2p4q6r8t0v2w4y6z8a", &fact("Lit des polars."));
+    });
+    let cookie = login(&ui);
+    let owner = ui.vault.join("people/ines-roux.md");
+    let says = |text: &str| std::fs::read_to_string(&owner).unwrap().contains(text);
+
+    let (status, inbox) = api(&ui, &cookie, "/api/proposals");
+    assert_eq!(status, 200);
+    let waiting = inbox["waiting"].as_array().unwrap();
+    assert_eq!(waiting.len(), 4);
+    assert_eq!(
+        waiting[0]["id"], "01jd3kbm2p4q6r8t0v2w4y6z8a",
+        "newest first"
+    );
+    assert_eq!(waiting[0]["by"]["name"], "claude");
+    assert_eq!(waiting[0]["touches"][0], "Inès Roux");
+    assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 4);
+
+    let (status, one) = api(&ui, &cookie, "/api/proposals/01jd3k8m");
+    assert_eq!(status, 200);
+    let file = &one["files"][0];
+    assert_eq!(file["name"], "Inès Roux");
+    assert!(file["id"].is_string(), "the file can be opened");
+    assert_eq!(file["changes"][0]["what"], "fact");
+    assert_eq!(file["changes"][0]["before"], serde_json::Value::Null);
+    assert_eq!(file["changes"][0]["after"], "Joue du violoncelle.");
+    assert!(!one.to_string().contains("f-"), "never a fact id");
+    assert_eq!(api(&ui, &cookie, "/api/proposals/01zzzzzz").0, 404);
+
+    // A decision must come from the interface, as JSON.
+    let accept = "/api/proposals/01jd3k8m/accept";
+    let (status, _, _) = request(&ui, "POST", accept, &[("Cookie", cookie.clone())]);
+    assert_eq!(status, 403);
+    let from_here = vec![
+        ("Cookie", cookie.clone()),
+        ("Origin", format!("http://127.0.0.1:{}", ui.port)),
+    ];
+    assert_eq!(request(&ui, "POST", accept, &from_here).0, 415);
+    assert!(!says("violoncelle"));
+
+    let (status, decided) = post(&ui, &cookie, accept, "");
+    assert_eq!(status, 200, "{decided}");
+    assert_eq!(decided["decided"][0]["status"], "accepted");
+    assert!(says("- Joue du violoncelle. ^f-"));
+    let (status, again) = post(&ui, &cookie, accept, "");
+    assert_eq!(status, 409, "already accepted: {again}");
+
+    let refuse = "/api/proposals/01jd3k9m/refuse";
+    assert_eq!(post(&ui, &cookie, refuse, "{not json").0, 409);
+    let (status, _) = post(&ui, &cookie, refuse, r#"{"comment": "Pas vrai"}"#);
+    assert_eq!(status, 200);
+    assert!(!says("italien"));
+    let (_, refused) = api(&ui, &cookie, "/api/proposals/01jd3k9m");
+    assert_eq!(refused["line"]["status"], "refused");
+    assert_eq!(refused["comment"], "Pas vrai");
+    assert_eq!(
+        refused["files"][0]["changes"][0]["after"], "Parle italien.",
+        "a decided proposal still says what it held"
+    );
+
+    // Several in one action, each still its own proposal.
+    let (status, group) = post(
+        &ui,
+        &cookie,
+        "/api/proposals/accept",
+        r#"{"ids": ["01jd3kam", "01jd3kbm"]}"#,
+    );
+    assert_eq!(status, 200, "{group}");
+    assert_eq!(group["decided"].as_array().unwrap().len(), 2);
+    assert!(says("Court le dimanche.") && says("Lit des polars."));
+
+    // Undoing the first would lose the later changes to the same file: it says so.
+    let (status, refused) = post(&ui, &cookie, "/api/proposals/01jd3k8m/undo", "");
+    assert_eq!(status, 409);
+    assert!(refused["error"].is_string(), "{refused}");
+    assert!(says("violoncelle"));
+    let (status, _) = post(&ui, &cookie, "/api/proposals/01jd3kbm/undo", "");
+    assert_eq!(status, 200);
+    assert!(!says("polars") && says("Court le dimanche."));
+
+    let (_, inbox) = api(&ui, &cookie, "/api/proposals");
+    assert!(inbox["waiting"].as_array().unwrap().is_empty());
+    let decided: Vec<&str> = inbox["decided"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["status"].as_str().unwrap())
+        .collect();
+    assert_eq!(decided.len(), 4);
+    assert!(decided.contains(&"undone") && decided.contains(&"refused"));
+    assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 0);
+    assert_eq!(
+        post(&ui, &cookie, "/api/proposals/01jd3k8m/nothing", "").0,
+        404
+    );
 }

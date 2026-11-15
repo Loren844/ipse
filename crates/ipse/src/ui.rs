@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
 
 use http_body_util::combinators::BoxBody;
-use http_body_util::{BodyExt as _, Full};
+use http_body_util::{BodyExt as _, Full, Limited};
 use hyper::body::{Bytes, Incoming};
 use hyper::header::{self, HeaderMap, HeaderValue};
 use hyper::{Method, Request, Response, StatusCode};
@@ -33,12 +33,16 @@ use ipse_core::{Error, Result};
 use serde::Serialize;
 
 mod api;
+mod review;
 
 mod assets {
     include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
 }
 
 type Body = BoxBody<Bytes, Infallible>;
+
+/// The largest request body read.
+const MAX_BODY: usize = 64 * 1024;
 
 /// Who may use this server: the one-time code, then the sessions it opened.
 struct Keys {
@@ -110,9 +114,20 @@ pub(crate) fn run(vault: Option<PathBuf>, open: bool) -> Result<()> {
             };
             let state = Arc::clone(&state);
             tokio::spawn(async move {
-                let service = hyper::service::service_fn(move |request| {
+                let service = hyper::service::service_fn(move |request: Request<Incoming>| {
                     let state = Arc::clone(&state);
-                    async move { Ok::<_, Infallible>(secured(answer(&request, &state))) }
+                    async move {
+                        let (parts, body) = request.into_parts();
+                        // A body is read whole, up to a size no form of the interface
+                        // comes near.
+                        let answer = match Limited::new(body, MAX_BODY).collect().await {
+                            Ok(body) => {
+                                answer(&Request::from_parts(parts, body.to_bytes()), &state)
+                            }
+                            Err(_) => refused(StatusCode::PAYLOAD_TOO_LARGE),
+                        };
+                        Ok::<_, Infallible>(secured(answer))
+                    }
                 });
                 let _ = hyper::server::conn::http1::Builder::new()
                     .serve_connection(TokioIo::new(stream), service)
@@ -151,7 +166,7 @@ fn open_browser(url: &str) -> bool {
 }
 
 /// One request: where it comes from, who sends it, then what it asks.
-fn answer(request: &Request<Incoming>, state: &State) -> Response<Body> {
+fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
     let headers = request.headers();
     if !host_is_here(headers, state.port) {
         return refused(StatusCode::MISDIRECTED_REQUEST);
@@ -171,7 +186,7 @@ fn answer(request: &Request<Incoming>, state: &State) -> Response<Body> {
         };
     }
     if let Some(api) = path.strip_prefix("/api/") {
-        return api_answer(request.method(), api, request.uri().query(), state);
+        return api_answer(request, api, state);
     }
     if request.method() != Method::GET && request.method() != Method::HEAD {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
@@ -207,7 +222,7 @@ fn from_the_interface(method: &Method, headers: &HeaderMap, port: u16) -> bool {
 }
 
 /// Exchanges the one-time code for a session cookie, once.
-fn login(request: &Request<Incoming>, state: &State) -> Response<Body> {
+fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
     if request.method() != Method::GET {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
     }
@@ -268,38 +283,59 @@ fn has_session(headers: &HeaderMap, state: &State) -> bool {
         })
 }
 
-/// The JSON API: `GET` only, every answer read with the owner's rights.
-fn api_answer(method: &Method, path: &str, query: Option<&str>, state: &State) -> Response<Body> {
-    if method != Method::GET {
-        return refused(StatusCode::METHOD_NOT_ALLOWED);
-    }
-    let param = |name: &str| parameter(query.unwrap_or_default(), name);
+/// The JSON API, every answer read or written with the owner's rights. Reads are
+/// `GET`; a change is a `POST` of JSON from the interface's own page.
+fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<Body> {
+    let method = request.method();
+    let query = request.uri().query().unwrap_or_default();
+    let param = |name: &str| parameter(query, name);
     let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
     let gateway = &mut *gateway;
-    let answer = match path {
-        "app" => api::app(gateway).map(|v| Some(to_json(&v))),
-        "home" => api::home(gateway).map(|v| Some(to_json(&v))),
-        "people" => {
-            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
-            api::people(gateway, param("q").as_deref(), offset).map(|v| Some(to_json(&v)))
+    let answer = if method == Method::GET {
+        match path {
+            "app" => api::app(gateway).map(|v| Some(to_json(&v))),
+            "home" => api::home(gateway).map(|v| Some(to_json(&v))),
+            "people" => {
+                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+                api::people(gateway, param("q").as_deref(), offset).map(|v| Some(to_json(&v)))
+            }
+            "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
+                .map(|v| Some(to_json(&v))),
+            "proposals" => review::list(gateway).map(|v| Some(to_json(&v))),
+            _ => match (path.strip_prefix("file/"), path.strip_prefix("proposals/")) {
+                (Some(id), _) => api::file(gateway, id).map(|v| v.map(|v| to_json(&v))),
+                (_, Some(id)) => review::one(gateway, id).map(|v| v.map(|v| to_json(&v))),
+                _ => Ok(None),
+            },
         }
-        "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
-            .map(|v| Some(to_json(&v))),
-        _ => match path.strip_prefix("file/") {
-            Some(id) => api::file(gateway, id).map(|v| v.map(|v| to_json(&v))),
-            None => Ok(None),
-        },
+    } else if method == Method::POST && path.starts_with("proposals/") {
+        let json = request
+            .headers()
+            .get(header::CONTENT_TYPE)
+            .and_then(|h| h.to_str().ok())
+            .is_some_and(|t| t.split(';').next() == Some("application/json"));
+        if !json {
+            return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        }
+        review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+    } else {
+        return refused(StatusCode::METHOD_NOT_ALLOWED);
     };
     match answer {
         Ok(Some(body)) => json_body(StatusCode::OK, body),
         Ok(None) => json_error(StatusCode::NOT_FOUND, "There is nothing at this address."),
+        // A change that no longer fits (already decided, stale) conflicts with the
+        // memory as it is; a read asked wrongly is a bad request.
+        Err(Error::Refused(message)) if method == Method::POST => {
+            json_error(StatusCode::CONFLICT, &message)
+        }
         Err(Error::Refused(message)) => json_error(StatusCode::BAD_REQUEST, &message),
         Err(error) => {
             // The details name files of the vault: they stay in this terminal.
             eprintln!("{error}");
             json_error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Ipse could not read the memory folder. The terminal says why.",
+                "Ipse could not read or write the memory folder. The terminal says why.",
             )
         }
     }

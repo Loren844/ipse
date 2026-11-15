@@ -25,6 +25,6 @@ A request without the code, or with a wrong one, is refused before anything is r
 - Every call an AI makes is written to `.ipse/access/<month>.jsonl`: which categories it read and how many results, never what it asked or what it got. Ipse keeps 12 months.
 - Your own categories go in `.ipse/vault.toml`, for example `[categories.studies]` with `sensitive = false`. AIs connected afterwards read it; for those already connected, add it to their `read` list.
 - `ipse client set claude --read identity,people,agenda --vault ~/Ipse` changes what an AI may read, from its next request.
-- `ipse client set claude --propose people --vault ~/Ipse` lets it **propose** changes in your contacts: facts it read in their notes, things you told it. Nothing is written until you accept them with `ipse proposals list`, then `accept` or `refuse`. No AI can propose by default.
+- `ipse client set claude --propose people --vault ~/Ipse` lets it **propose** changes in your contacts: facts it read in their notes, things you told it. Nothing is written until you accept them: open `ipse ui` and go to **À revoir** (**To review**), or use `ipse proposals list`, then `accept` or `refuse`. No AI can propose by default.
 - `ipse client remove claude --vault ~/Ipse` disconnects one: its code stops working at its next request.
 - An AI that may not read a category gets the same answers as if that data did not exist.
