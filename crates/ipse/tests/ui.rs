@@ -907,6 +907,12 @@ fn the_questions_through_the_api() {
     assert_eq!(jo["phones"], serde_json::json!(["+33 6 00 00 00 01"]));
     assert_eq!(jo["person"], "01jcx8m2p4q6r8t0v2w4y6z801");
     assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 2);
+    let (_, home) = api(&ui, &cookie, "/api/home");
+    assert_eq!(
+        (&home["waiting"], &home["questions"]),
+        (&0.into(), &2.into()),
+        "{home}"
+    );
 
     let jo_id = jo["id"].as_str().unwrap().to_owned();
     let answer = format!("/api/questions/{jo_id}/answer");

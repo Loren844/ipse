@@ -24,9 +24,13 @@ upcoming: Array<EventView>,
  */
 recent: Array<LinkView>, 
 /**
- * Proposals and questions waiting for the person.
+ * Proposals waiting for the person, stale ones included.
  */
 waiting: number, 
+/**
+ * Questions waiting for the person's answer.
+ */
+questions: number, 
 /**
  * The most recent day summary.
  */

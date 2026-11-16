@@ -20,9 +20,9 @@
 			<h1>{i18n.t.comingUp}</h1>
 		</header>
 
-		{#if view.waiting > 0}
+		{#if view.waiting > 0 || view.questions > 0}
 			<a class="banner" href="/review">
-				<span>{i18n.t.waitingBanner(view.waiting)}</span>
+				<span>{i18n.t.waitingBanner(view.waiting, view.questions)}</span>
 				<span class="action">{i18n.t.review}</span>
 			</a>
 		{/if}

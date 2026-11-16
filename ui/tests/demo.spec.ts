@@ -14,6 +14,7 @@ test('the demo memory has something on every screen', async ({ page }) => {
 	await expect(page.getByTestId('memory-name')).toHaveText('Camille Laurent');
 	const sections = page.getByRole('navigation', { name: 'Sections' });
 	await expect(page.getByText('Dernier résumé')).toBeVisible();
+	await expect(page.locator('.banner')).toContainText('5 propositions et 3 questions attendent votre avis');
 
 	// Two duplicates found by Ipse, two summaries and a fact from Claude, and questions.
 	await expect(sections.getByRole('link', { name: /À revoir/ }).locator('.count')).toHaveText('8');
