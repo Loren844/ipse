@@ -16,7 +16,7 @@ pub use access::{
 };
 pub use browse::{Details, Line, Lines, LinkOut, MAX_LISTED, RelationLink};
 pub use clients::{Client, Clients, Token};
-pub use log::{ACCESS_DIR, KEEP_MONTHS, last_access};
+pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
 
 use std::collections::BTreeMap;

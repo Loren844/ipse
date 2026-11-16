@@ -34,6 +34,7 @@ use serde::Serialize;
 
 mod ais;
 mod api;
+mod history;
 mod review;
 
 mod assets {
@@ -304,17 +305,33 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                 .map(|v| Some(to_json(&v))),
             "proposals" => review::list(gateway).map(|v| Some(to_json(&v))),
             "ais" => ais::view(gateway).map(|v| Some(to_json(&v))),
-            _ => match (path.strip_prefix("file/"), path.strip_prefix("proposals/")) {
-                (Some(id), _) => api::file(gateway, id).map(|v| v.map(|v| to_json(&v))),
-                (_, Some(id)) => review::one(gateway, id).map(|v| v.map(|v| to_json(&v))),
-                _ => Ok(None),
-            },
+            "history" => {
+                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+                history::changes(gateway, offset).map(|v| Some(to_json(&v)))
+            }
+            "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
+            "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
+            _ => {
+                if let Some(id) = path.strip_prefix("file/") {
+                    api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
+                } else if let Some(id) = path.strip_prefix("proposals/") {
+                    review::one(gateway, id).map(|v| v.map(|v| to_json(&v)))
+                } else if let Some(instance) = path
+                    .strip_prefix("runs/")
+                    .and_then(|rest| rest.strip_suffix("/diagnostics"))
+                {
+                    history::diagnostics_view(gateway, instance).map(|v| v.map(|v| to_json(&v)))
+                } else {
+                    Ok(None)
+                }
+            }
         }
     } else if method == Method::POST
         && (path.starts_with("proposals/")
             || path == "ais"
             || path.starts_with("ais/")
-            || path == "categories")
+            || path == "categories"
+            || path.starts_with("history/"))
     {
         let json = request
             .headers()
@@ -326,6 +343,11 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         }
         if path.starts_with("proposals/") {
             review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+        } else if let Some(id) = path
+            .strip_prefix("history/")
+            .and_then(|rest| rest.strip_suffix("/undo"))
+        {
+            history::undo(gateway, id).map(|v| Some(to_json(&v)))
         } else {
             ais::change(gateway, path, request.body())
         }

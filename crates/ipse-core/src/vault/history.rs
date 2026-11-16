@@ -26,9 +26,11 @@ use crate::{Error, Result};
 const TRAILER: &str = "Ipse-Source:";
 
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
-/// indexes, the connected AIs and what they read) and editors' scratch files.
-const IGNORED: [&str; 12] = [
+/// indexes, the connected AIs and what they read, the connectors' runs and
+/// diagnostics) and editors' scratch files.
+const IGNORED: [&str; 13] = [
     "journal/",
+    ".ipse/connectors/",
     ".ipse/materialized.toml",
     ".ipse/added-relations.toml",
     ".ipse/sync.toml",
@@ -92,6 +94,8 @@ pub struct Entry {
     pub summary: String,
     /// The files it touched, relative to the vault, with `/` separators.
     pub files: Vec<String>,
+    /// When it was made, in seconds since 1970-01-01 UTC.
+    pub at: i64,
 }
 
 /// The history of one vault.
@@ -269,8 +273,18 @@ impl History {
     ///
     /// [`Error::History`] when the history cannot be read.
     pub fn entries(&self, limit: usize) -> Result<Vec<Entry>> {
-        let mut entries = Vec::new();
-        for commit in self.commits().take(limit) {
+        self.page(0, limit)
+    }
+
+    /// `limit` changes after the `skip` most recent ones, most recent first: one page
+    /// of the history.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::History`] when the history cannot be read.
+    pub fn page(&self, skip: usize, limit: usize) -> Result<Vec<Entry>> {
+        let mut entries = Vec::with_capacity(limit.min(200));
+        for commit in self.commits().skip(skip).take(limit) {
             let commit = commit?;
             let files = self.diff(commit.parent_tree, Some(commit.tree))?;
             entries.push(Entry {
@@ -278,9 +292,67 @@ impl History {
                 source: commit.source,
                 summary: commit.summary,
                 files,
+                at: commit.at,
             });
         }
         Ok(entries)
+    }
+
+    /// The content of `file` (relative to the vault, with `/`) as the change `id` left
+    /// it, or as it was just before when that change removed it: to name a file that
+    /// no longer exists. `None` when neither holds it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] for an unknown change; [`Error::History`] when the history
+    /// cannot be read.
+    pub fn read_at(&self, id: &str, file: &str) -> Result<Option<Vec<u8>>> {
+        let unknown =
+            || Error::Refused("This change is not in the history of this memory.".to_owned());
+        let id = ObjectId::from_hex(id.as_bytes()).map_err(|_| unknown())?;
+        let commit = self.repo.find_commit(id).map_err(|_| unknown())?;
+        let tree = commit.tree_id().map_err(|_| failed("read"))?.detach();
+        if let Some(blob) = self.blob_in(tree, file)? {
+            return Ok(Some(blob));
+        }
+        let Some(parent) = commit.parent_ids().next() else {
+            return Ok(None);
+        };
+        let parent_tree = self
+            .repo
+            .find_commit(parent.detach())
+            .and_then(|c| c.tree_id())
+            .map_err(|_| failed("read"))?
+            .detach();
+        self.blob_in(parent_tree, file)
+    }
+
+    /// The content of the file at `path` in `tree`, if it holds one.
+    fn blob_in(&self, tree: ObjectId, path: &str) -> Result<Option<Vec<u8>>> {
+        let mut current = tree;
+        let mut parts = path.split('/').peekable();
+        while let Some(part) = parts.next() {
+            let last = parts.peek().is_none();
+            let Some((_, id, is_tree)) = self
+                .tree_entries(current)?
+                .into_iter()
+                .find(|(name, _, _)| name == part)
+            else {
+                return Ok(None);
+            };
+            if last {
+                if is_tree {
+                    return Ok(None);
+                }
+                let blob = self.repo.find_object(id).map_err(|_| failed("read"))?;
+                return Ok(Some(blob.data.clone()));
+            }
+            if !is_tree {
+                return Ok(None);
+            }
+            current = id;
+        }
+        Ok(None)
     }
 
     /// Undoes the change `id` as a new change by `source`: every file it touched goes
@@ -483,6 +555,7 @@ impl History {
                         parent_tree,
                         source: trailer(&message),
                         summary: message.lines().next().unwrap_or_default().to_owned(),
+                        at: commit.time().map_or(0, |t| t.seconds),
                     },
                     parent,
                 ))
@@ -502,6 +575,7 @@ struct Commit {
     parent_tree: Option<ObjectId>,
     source: Option<Source>,
     summary: String,
+    at: i64,
 }
 
 /// A change being prepared: the files it touches, committed together.
@@ -601,10 +675,11 @@ impl Change<'_> {
         }
         let files = history.diff(base, Some(tree))?;
 
+        let now = gix::date::Time::now_local_or_utc();
         let signature = gix::actor::Signature {
             name: "Ipse".into(),
             email: "ipse@localhost".into(),
-            time: gix::date::Time::now_local_or_utc(),
+            time: now,
         };
         let mut time = gix::date::parse::TimeBuf::default();
         let signature = signature.to_ref(&mut time);
@@ -631,6 +706,7 @@ impl Change<'_> {
             source: Some(self.source),
             summary: summary.to_owned(),
             files,
+            at: now.seconds,
         }))
     }
 }

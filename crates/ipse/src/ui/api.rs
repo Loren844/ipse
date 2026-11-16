@@ -58,6 +58,17 @@ pub(crate) struct LinkView {
     kind: Option<String>,
 }
 
+impl LinkView {
+    /// A name as written, linking nowhere.
+    pub(crate) fn text(name: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            id: None,
+            kind: None,
+        }
+    }
+}
+
 impl From<LinkOut> for LinkView {
     fn from(link: LinkOut) -> Self {
         Self {

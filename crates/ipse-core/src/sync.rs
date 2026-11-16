@@ -8,12 +8,13 @@ use jiff::Timestamp;
 
 use crate::Result;
 use crate::connector::{
-    Instance, Launch, Outcome, SecretStore, SyncState, run_session, secret_key,
+    Instance, Launch, Outcome, RunRecord, SecretStore, SyncState, record_run, run_session,
+    secret_key,
 };
 use crate::journal::Journal;
 use crate::materialize::{EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people};
 use crate::tasks::Tasks;
-use crate::vault::{Source, Vault};
+use crate::vault::{DateTime, Source, Vault};
 
 /// What the core needs to know about a built-in connector that syncs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -78,7 +79,8 @@ pub struct SyncOptions {
 }
 
 /// Syncs `instance` of the vault: runs its connector, writes what it sent to the
-/// journal, then to the vault, and records the run in `.ipse/sync.toml`.
+/// journal, then to the vault, and records the run in `.ipse/sync.toml` and in the log
+/// of runs ([`record_run`]).
 ///
 /// What the connector sent is written to the vault even when the session failed
 /// midway: it is valid, and removals only come from a session that sent everything.
@@ -152,6 +154,22 @@ pub fn sync_instance(
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
     let tasks = Tasks::new(vault).extract_from(&touched)?;
+
+    let mut run = RunRecord::new(
+        DateTime::at(options.now, vault.settings().time_zone()).to_string(),
+        &instance.id,
+        "sync",
+        &report,
+        journal.recovered(),
+    );
+    if let Some(events) = &events {
+        run.events(events);
+    }
+    if let Some(people) = &people {
+        run.people(people);
+    }
+    run.tasks = tasks as u64;
+    record_run(root, &run)?;
 
     let synced = Synced {
         outcome: report.outcome,

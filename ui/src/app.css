@@ -1446,6 +1446,157 @@ dialog.confirm .actions {
 	justify-content: flex-end;
 }
 
+/* History: the changes on the thread, the AIs' reads, the imports. */
+.views {
+	display: inline-flex;
+	flex-wrap: nowrap;
+	max-width: 100%;
+	overflow-x: auto;
+	gap: 0.25rem;
+	padding: 0.25rem;
+	margin-top: 0.5rem;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 999px;
+	align-self: flex-start;
+}
+
+.views a {
+	white-space: nowrap;
+	padding: 0.35rem 0.95rem;
+	border-radius: 999px;
+	color: var(--muted);
+	text-decoration: none;
+	font-weight: 700;
+}
+
+.views a:hover {
+	color: var(--text);
+}
+
+.views a[aria-current='page'] {
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+}
+
+.thread.history {
+	margin-top: 0.5rem;
+}
+
+.thread.history .knot {
+	gap: 0.35rem;
+}
+
+.title-line strong {
+	font-weight: 700;
+}
+
+.more-files {
+	font-size: 0.9rem;
+}
+
+.link-button {
+	align-self: flex-start;
+	font: inherit;
+	font-size: 0.9rem;
+	color: var(--thread-ink);
+	background: none;
+	border: 0;
+	padding: 0;
+	text-decoration: underline;
+	text-decoration-color: var(--thread-faint);
+	text-underline-offset: 0.2em;
+	cursor: pointer;
+}
+
+.link-button:hover {
+	text-decoration-color: currentColor;
+}
+
+.link-button:disabled {
+	opacity: 0.5;
+	cursor: progress;
+}
+
+.access-days {
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+	margin-top: 1rem;
+}
+
+.access-days h3 {
+	font-family: var(--display);
+	font-size: 1.05rem;
+	margin: 0 0 0.5rem;
+}
+
+.access-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.access-list li {
+	display: grid;
+	grid-template-columns: minmax(8rem, max-content) minmax(8rem, max-content) 1fr;
+	align-items: center;
+	gap: 0.3rem 1.25rem;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.ai-name {
+	font-weight: 700;
+}
+
+.access-list .tags {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.runs {
+	list-style: none;
+	margin: 1rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+}
+
+.run {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.9rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.run p {
+	margin: 0;
+}
+
+.run-head {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.2rem 0.75rem;
+	align-items: baseline;
+}
+
+pre.diagnostics {
+	margin: 0;
+	max-height: 20rem;
+	overflow: auto;
+	padding: 0.7rem 0.9rem;
+	border-radius: 10px;
+	background: var(--ground);
+	border: 1px solid var(--line-strong);
+	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	font-size: 0.8rem;
+	line-height: 1.5;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
 /* Phones and narrow windows: the navigation becomes a band at the top. */
 @media (max-width: 760px) {
 	.frame {
@@ -1534,6 +1685,31 @@ dialog.confirm .actions {
 
 	.rights .switch-col {
 		width: 4.2rem;
+	}
+
+	.access-list li {
+		grid-template-columns: 1fr;
+	}
+
+	/* Three equal columns that always fit; a long label goes on two lines. */
+	.views {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		width: 100%;
+		border-radius: 14px;
+		overflow: visible;
+	}
+
+	.views a {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		white-space: normal;
+		line-height: 1.25;
+		padding: 0.45rem 0.4rem;
+		border-radius: 10px;
+		font-size: 0.875rem;
 	}
 
 	.diff .what {

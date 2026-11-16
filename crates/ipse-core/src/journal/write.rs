@@ -70,6 +70,12 @@ impl Journal {
         self.recovered
     }
 
+    /// The folder of the vault this journal belongs to.
+    #[must_use]
+    pub fn vault_root(&self) -> &Path {
+        &self.vault_root
+    }
+
     /// The folder of `source`'s segments.
     #[must_use]
     pub fn source_dir(&self, source: &str) -> PathBuf {

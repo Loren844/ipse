@@ -217,10 +217,12 @@ pub fn run_session(journal: &mut Journal, launch: &Launch) -> Result<Report> {
     let outcome = session.run(journal, launch);
     session.stop(launch.bye_timeout);
 
-    let diagnostics = stderr
+    let diagnostics: Vec<String> = stderr
         .lock()
         .map(|lines| lines.iter().cloned().collect())
         .unwrap_or_default();
+    // Kept for diagnosis; failing to keep them never fails the session.
+    let _ = super::save_diagnostics(journal.vault_root(), &launch.instance, &diagnostics);
     let outcome = outcome?;
     let removed = match &outcome {
         Outcome::Done(summary) if summary.complete && launch.mode == Mode::Sync => {

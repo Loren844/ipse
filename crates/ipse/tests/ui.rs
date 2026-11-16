@@ -652,3 +652,152 @@ fn the_ais_and_their_rights_through_the_api() {
     assert!(!clients().contains("lm-studio"));
     assert_eq!(post(&ui, &cookie, "/api/ais/lm-studio/remove", "").0, 409);
 }
+
+/// Imports `file` of the test fixtures into `vault`.
+fn import(vault: &std::path::Path, file: &str) {
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let out = Command::new(IPSE)
+        .args(["import", fixtures.join(file).to_str().unwrap()])
+        .args(["--vault", vault.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// The segment of the journal `source` wrote last.
+fn last_segment(vault: &std::path::Path, source: &str) -> std::path::PathBuf {
+    let mut segments: Vec<_> = walk(&vault.join("journal").join(source))
+        .into_iter()
+        .filter(|p| p.extension().is_some_and(|e| e == "jsonl"))
+        .collect();
+    segments.sort();
+    segments.pop().unwrap()
+}
+
+fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let path = entry.unwrap().path();
+        if path.is_dir() {
+            found.extend(walk(&path));
+        } else {
+            found.push(path);
+        }
+    }
+    found
+}
+
+#[test]
+fn the_history_through_the_api() {
+    let ui = start_with(|vault| {
+        import(vault, "contacts/google-v3.vcf");
+        // A crash in the middle of a write leaves a torn last line; the next import
+        // that writes to that month cuts it off.
+        let segment = last_segment(vault, "contacts");
+        let mut text = std::fs::read_to_string(&segment).unwrap();
+        text.push_str("{\"id\":\"01torn");
+        std::fs::write(&segment, text).unwrap();
+        import(vault, "contacts/apple-v4.vcf");
+        std::fs::create_dir_all(vault.join(".ipse/access")).unwrap();
+        let call = |at: &str, categories: &str| {
+            format!(
+                "{{\"at\":\"{at}\",\"client\":\"claude\",\"tool\":\"search\",\"categories\":[{categories}],\"results\":2}}\n"
+            )
+        };
+        let today = jiff::Zoned::now()
+            .with_time_zone(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+            .date();
+        let month = today.strftime("%Y-%m").to_string();
+        std::fs::write(
+            vault.join(format!(".ipse/access/{month}.jsonl")),
+            call(&format!("{today}T09:00:00+01:00"), "\"people\"")
+                + &call(&format!("{today}T10:00:00+01:00"), "\"people\", \"agenda\""),
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+
+    let (status, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(status, 200);
+    let changes = history["changes"].as_array().unwrap();
+    assert_eq!(changes[0]["by"]["kind"], "source");
+    assert_eq!(changes[0]["by"]["name"], "contacts");
+    assert_eq!(changes[0]["summary"], "Import contacts");
+    assert!(changes[0]["at"].as_str().unwrap().contains('T'));
+    assert!(
+        changes[0]["files"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|f| f["id"].is_string()),
+        "the files touched can be opened"
+    );
+
+    let (_, runs) = api(&ui, &cookie, "/api/runs");
+    let runs = runs["runs"].as_array().unwrap();
+    assert_eq!(runs.len(), 2);
+    assert_eq!(
+        (&runs[0]["instance"], &runs[0]["mode"], &runs[0]["outcome"]),
+        (&"contacts".into(), &"import".into(), &"done".into())
+    );
+    assert_eq!(runs[0]["repaired"], 1, "the torn line is noted");
+    assert_eq!(runs[1]["repaired"], 0);
+    assert!(runs[1]["added"].as_u64().unwrap() > 0);
+    let text = serde_json::to_string(&runs).unwrap();
+    assert!(
+        !text.contains("01torn"),
+        "never the content of a repaired line"
+    );
+    let (status, diagnostics) = api(&ui, &cookie, "/api/runs/contacts/diagnostics");
+    assert_eq!(status, 200);
+    assert!(diagnostics["lines"].is_array());
+    assert_eq!(
+        api(&ui, &cookie, "/api/runs/..%2Fclients/diagnostics").0,
+        404
+    );
+
+    let (_, accesses) = api(&ui, &cookie, "/api/accesses");
+    let day = &accesses["days"][0];
+    assert_eq!(
+        (&day["ai"], &day["calls"], &day["results"]),
+        (&"claude".into(), &2.into(), &4.into())
+    );
+    assert_eq!(
+        day["categories"],
+        serde_json::json!([{"name": "agenda", "calls": 1}, {"name": "people", "calls": 2}])
+    );
+
+    // Undoing the last import: the files it added go away, as a new change.
+    let marie = changes[0]["id"].as_str().unwrap().to_owned();
+    let before: Vec<String> = std::fs::read_dir(ui.vault.join("people"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    let (status, undone) = post(&ui, &cookie, &format!("/api/history/{marie}/undo"), "");
+    assert_eq!(status, 200, "{undone}");
+    assert_eq!(undone["changed"], true);
+    let after = std::fs::read_dir(ui.vault.join("people")).unwrap().count();
+    assert!(after < before.len(), "{before:?}");
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["by"]["kind"], "person");
+    assert_eq!(history["changes"][0]["summary"], "Undo a change");
+    // The files it removed are named as they were, not by their file name.
+    let names: Vec<&str> = history["changes"][0]["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"Ana Silva"), "{names:?}");
+    assert!(history["changes"][0]["files"][0]["id"].is_null());
+    assert_eq!(
+        history["changes"][1]["id"],
+        marie.as_str(),
+        "history is never rewritten"
+    );
+    assert_eq!(post(&ui, &cookie, "/api/history/0000/undo", "").0, 409);
+}
