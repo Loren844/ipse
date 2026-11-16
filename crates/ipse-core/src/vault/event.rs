@@ -111,6 +111,10 @@ pub struct EventFields {
     pub participants: Vec<LinkOrText>,
     /// Where it stands; absent means planned for a future event.
     pub status: Option<EventStatus>,
+    /// Who sent the invitation, when it is not the vault's owner: a person file, or
+    /// the name (else the email) as the calendar wrote it. The title, place and notes
+    /// were written by them (decision 0014).
+    pub organizer: Option<LinkOrText>,
 }
 
 impl EventFields {
@@ -124,6 +128,7 @@ impl EventFields {
             place: None,
             participants: Vec::new(),
             status: None,
+            organizer: None,
         }
     }
 }

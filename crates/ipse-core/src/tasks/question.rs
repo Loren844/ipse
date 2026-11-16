@@ -295,22 +295,23 @@ pub(super) fn detail(vault: &Vault, task: Task) -> TaskDetail {
     let items: Vec<Item> = known
         .iter()
         .map(|k| {
-            let mut lines = vec![format!("Name as saved: {}", k.name)];
-            if !k.phones.is_empty() {
-                lines.push(format!("Phones: {}", k.phones.join(", ")));
-            }
-            if !k.emails.is_empty() {
-                lines.push(format!("Emails: {}", k.emails.join(", ")));
-            }
-            for (title, day) in &k.events {
-                lines.push(format!("Attended: {title} ({day})"));
-            }
+            let events: Vec<_> = k
+                .events
+                .iter()
+                .map(|(title, day)| json!({ "title": title, "day": day }))
+                .collect();
             Item {
                 file: k.file.clone(),
                 name: k.name.clone(),
                 file_type: "person".to_owned(),
                 category: task.items[0].category.clone(),
-                text: Some(lines.join("\n")),
+                text: None,
+                details: Some(json!({
+                    "name": k.name,
+                    "phones": k.phones,
+                    "emails": k.emails,
+                    "events": events,
+                })),
             }
         })
         .collect();

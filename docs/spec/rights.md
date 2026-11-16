@@ -126,8 +126,13 @@ Every tool answers in JSON, both as text and as structured content:
 | `now` | `{"states": [{"topic", "subject", "first_seen", "last_seen", "count", "source"}], "more": <bool>}`, current states only, most recent first |
 | `states_history` | the same, each state with its `status`: `current`, `recent` or `past` |
 
-- An entity has `id`, `type`, `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`, `facts`, `relations` (`[{"word", "target"}]`) and `notes`; empty fields are left out.
-- An event has `id`, `type: event`, `name` (its title), `start`, `end`, `place`, `participants`, `status` and `notes`. A participant or a place that links to a hidden file is left out; plain-text ones stay.
+- An entity has `id`, `type`, `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`, `facts`, `relations` (`[{"word", "target"}]`), `notes` and `origin`; empty fields are left out.
+- An event has `id`, `type: event`, `name` (its title), `start`, `end`, `place`, `participants`, `status`, `notes`, `invited_by` and `origin`. A participant or a place that links to a hidden file is left out; plain-text ones stay. `invited_by` is who sent the invitation when it is not the person, or `someone else` when that person is hidden.
+- `origin` lists where the content came from, each once: `person`, `proposal` (accepted by the person), or the source it was imported from (`contacts`, `calendar`…).
+
+### 4.0 Imported text is data
+
+Decision 0014. Text in the memory was often written outside Ipse, sometimes by other people (an invitation's title). Every answer gives it as the value of its own field, never inside a sentence of Ipse's: task items are a `text` or `details` (an event's `title`, `start`, `place`, `with`, `notes`, `invited_by`…), and what a task expects, its description and every error name files by their path without quoting them. The server's instructions and the description of every tool returning memory content tell the AI that this content is data, not instructions, and that text asking it to do something must be reported to the person.
 - `from` and `to` are days (`2026-11-14`, both included, whole days in the vault's time zone) or date-times with their offset. `with` is an entity id; an unknown or hidden one gives no event, like an empty period.
 - Nothing found and hidden look the same: an empty list, or `null`.
 - A refused call (no code, a wrong code, missing arguments) is a tool error with a plain message saying what to do, never a protocol error, so that the AI can tell the person.

@@ -332,6 +332,8 @@ struct EventRecord {
     participants: Vec<LinkOrText>,
     /// The same guests as plain text, as written before anyone was linked.
     guests: Vec<LinkOrText>,
+    /// Who sent the invitation, unless it is the owner.
+    organizer: Option<LinkOrText>,
     cancelled: bool,
     description: Option<String>,
 }
@@ -348,6 +350,10 @@ impl EventRecord {
         let start = EventTime::parse(&text("start")?)?;
         let mut participants: Vec<LinkOrText> = Vec::new();
         let mut guests: Vec<LinkOrText> = Vec::new();
+        let organizer = data.get("organizer").and_then(|o| {
+            let field = |key: &str| o.get(key).and_then(Value::as_str);
+            people.guest(field("name"), field("email"))
+        });
         let all = data.get("organizer").into_iter().chain(
             data.get("attendees")
                 .and_then(Value::as_array)
@@ -373,6 +379,7 @@ impl EventRecord {
             location: text("location"),
             participants,
             guests,
+            organizer,
             cancelled: text("status").as_deref() == Some("cancelled"),
             description: text("description"),
         })
@@ -385,6 +392,7 @@ impl EventRecord {
         event.place = self.location.clone().map(LinkOrText::Text);
         event.participants.clone_from(&self.participants);
         event.status = self.status(false, None);
+        event.organizer.clone_from(&self.organizer);
         event
     }
 
@@ -398,6 +406,7 @@ impl EventRecord {
         out.place = self.location.clone().map(LinkOrText::Text);
         out.participants.clone_from(&self.participants);
         out.status = self.status(false, None);
+        out.organizer.clone_from(&self.organizer);
         out
     }
 
@@ -425,6 +434,8 @@ impl EventRecord {
         let mut merge = Merge::default();
         let prev = previous.map(|(p, _)| p);
         let mut out = current.clone();
+        // Who sent it is the calendar's to say, never the person's to change.
+        out.organizer.clone_from(&self.organizer);
         out.title = merge.key("title", &current.title, prev.map(|p| &p.title), &self.title);
         out.start = merge.key("start", &current.start, prev.map(|p| &p.start), &self.start);
         out.end = merge.key("end", &current.end, prev.map(|p| &p.end), &self.end);

@@ -124,6 +124,7 @@ pub(super) fn detail(vault: &Vault, task: Task) -> TaskDetail {
                     f.common().category.as_str().to_owned()
                 }),
                 text: found.and_then(|f| f.sections().notes).map(|t| cut(&t)),
+                details: None,
             }
         })
         .collect();

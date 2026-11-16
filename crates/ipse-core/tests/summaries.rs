@@ -142,13 +142,12 @@ fn a_task_for_each_past_day_with_events() {
     let detail = Tasks::new(&vault).detail(&fourteenth.id).unwrap();
     assert!(detail.expected.contains("in French"), "{}", detail.expected);
     assert!(detail.expected.contains("2 à 4 phrases"));
-    let event_text = detail.items.iter().find(|i| i.file == dinner).unwrap();
-    let text = event_text.text.as_deref().unwrap();
-    assert!(
-        text.contains("Title: Dîner chez Julie") && text.contains("With: julie-dupont"),
-        "{text}"
-    );
-    assert!(text.contains("Apporter du pain."));
+    let event = detail.items.iter().find(|i| i.file == dinner).unwrap();
+    assert_eq!(event.text, None, "fields, never mixed with Ipse's words");
+    let details = event.details.as_ref().unwrap();
+    assert_eq!(details["title"], "Dîner chez Julie");
+    assert_eq!(details["with"], serde_json::json!(["julie-dupont"]));
+    assert_eq!(details["notes"], "Apporter du pain.");
     let julie = detail
         .items
         .iter()

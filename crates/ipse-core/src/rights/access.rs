@@ -264,6 +264,36 @@ pub struct Entry {
     /// For an event: `planned`, `done` or `cancelled`, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+    /// For an event: who sent the invitation, when it is not the person; its title,
+    /// place and notes were written by them. `someone else` when this AI may not see
+    /// who (decision 0014).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub invited_by: Option<String>,
+    /// Where its content came from, each once: `person` (typed by the person),
+    /// `proposal` (proposed by an AI, accepted by the person), or the name of the
+    /// source it was imported from (`contacts`, `calendar`…), whose text was written
+    /// outside Ipse (decision 0014). A file without sources is the person's.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub origin: Vec<String>,
+}
+
+/// Where the content of a file came from, from its `sources`: each kind once, in
+/// order. A file without sources was written by the person (at `ipse init`, or in an
+/// editor).
+fn origin(sources: &[String]) -> Vec<String> {
+    if sources.is_empty() {
+        return vec!["person".to_owned()];
+    }
+    let mut out: Vec<String> = Vec::with_capacity(sources.len());
+    for source in sources {
+        let kind = source
+            .split_once(':')
+            .map_or(source.as_str(), |(kind, _)| kind);
+        if !kind.is_empty() && !out.iter().any(|k| k == kind) {
+            out.push(kind.to_owned());
+        }
+    }
+    out
 }
 
 /// Events of a period.
@@ -675,6 +705,11 @@ impl<'g> Access<'g> {
                     .filter_map(|p| self.visible(p))
                     .collect(),
                 status: event.status.map(|s| s.as_str().to_owned()),
+                invited_by: event
+                    .organizer
+                    .as_ref()
+                    .map(|o| self.visible(o).unwrap_or_else(|| "someone else".to_owned())),
+                origin: origin(&common.sources),
                 ..Entry::default()
             });
         }
@@ -715,6 +750,7 @@ impl<'g> Access<'g> {
                 .as_deref()
                 .map(|n| self.strip(n))
                 .filter(|n| !n.trim().is_empty()),
+            origin: origin(&common.sources),
             ..Entry::default()
         })
     }

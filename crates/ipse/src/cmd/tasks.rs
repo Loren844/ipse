@@ -66,13 +66,19 @@ pub(crate) fn show(id: &str, vault: Option<PathBuf>) -> Result<()> {
     println!("\n{}", detail.expected);
     for item in &detail.items {
         println!("\n{} ({}, {})", item.name, item.file, item.category);
-        match &item.text {
-            Some(text) => {
+        match (&item.text, &item.details) {
+            (Some(text), _) => {
                 for line in text.lines() {
                     println!("  {line}");
                 }
             }
-            None => println!("  (no longer in the file)"),
+            (None, Some(details)) => {
+                let shown = serde_json::to_string_pretty(details).unwrap_or_default();
+                for line in shown.lines() {
+                    println!("  {line}");
+                }
+            }
+            (None, None) => println!("  (no longer in the file)"),
         }
     }
     println!("\nExample of a good proposal:\n{}", detail.example);
