@@ -68,7 +68,7 @@ Every memory file starts with a YAML front matter block. These keys are common t
 | `category` | string | yes | Rights category (see `rights.md`). Defaults per type are listed there. |
 | `created` | datetime | yes | RFC 3339 with offset, e.g. `2026-11-12T19:30:00+01:00`. |
 | `updated` | datetime | yes | Last change, same format. |
-| `sources` | list of strings | no | Where the content came from, as `<connector>:<external-id>` or `person` (typed by the person) or `proposal:<id>`. |
+| `sources` | list of strings | no | Where the content came from, as `<connector>:<external-id>` or `person` (typed by the person) or `proposal:<id>`. A file without sources was written by the person. AIs get its kinds as `origin` (decision 0014). |
 
 Unknown keys **must** be preserved untouched when Ipse rewrites a file. People and plug-ins may add their own.
 
@@ -186,6 +186,7 @@ Apporter le dessert.
 | `place` | wikilink or text | no | A link when the place has a file; the address as the calendar wrote it otherwise. |
 | `participants` | list of wikilinks or texts | no | Without the vault's owner, who is implied. A guest is linked only when their email matches exactly one person file (decision 0011); otherwise their name, or else their email, is kept as text. |
 | `status` | string | no | `planned` (default for future events), `done`, `cancelled`. An event removed from its calendar before it happened becomes `cancelled`; past events stay as they are. |
+| `organizer` | wikilink or text | no | Who sent the invitation, when it is not the vault's owner, linked or written as for `participants`. Its title, place and notes were written by them (decision 0014). Set by the calendar, never by a proposal. |
 
 Recurring events are expanded: one file per occurrence the person actually has, generated up to 90 days ahead. The recurrence rule itself stays in the raw journal.
 

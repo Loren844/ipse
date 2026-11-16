@@ -137,8 +137,12 @@ pub struct Item {
     pub file_type: String,
     /// Its category.
     pub category: String,
-    /// The text to work on; `None` when the file no longer has it.
+    /// The text to work on; `None` when the file no longer has it, or when the item is
+    /// given as `details`.
     pub text: Option<String>,
+    /// The item's fields, each in its own key (an event's title, place, notes…), so
+    /// that text from the memory is never mixed with Ipse's words (decision 0014).
+    pub details: Option<serde_json::Value>,
 }
 
 /// A task in full: what is expected, its items as they are now, an example answer.

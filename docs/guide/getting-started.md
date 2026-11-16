@@ -106,4 +106,5 @@ Your browser opens on your memory: the people you know, what is coming, what hap
 - [Let your AI tidy up your memory](tidy-up.md): notes, nicknames and summaries, done by your AI.
 - [Review what it proposes](review.md): accept, refuse, undo.
 - [Connecting AI apps](connecting.md): other apps, and changing what each AI sees.
+- [What Ipse protects, and what it cannot](threat-model.md).
 - [If it does not work](troubleshooting.md).

@@ -504,6 +504,7 @@ fn is_known_key(key: &str) -> bool {
             | "end"
             | "place"
             | "participants"
+            | "organizer"
             | "status"
             | "topic"
             | "year"
@@ -579,6 +580,7 @@ impl<'n> Reader<'_, 'n> {
             place: self.link_or_text("place")?,
             participants: self.links_or_texts("participants")?,
             status,
+            organizer: self.link_or_text("organizer")?,
         })
     }
 

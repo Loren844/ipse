@@ -79,8 +79,12 @@ pub struct ItemOut {
     /// Its type.
     #[serde(rename = "type")]
     pub file_type: String,
-    /// The text to work on; `null` when the file no longer has it.
+    /// The text to work on; `null` when the file no longer has it, or when the item is
+    /// given as `details`.
     pub text: Option<String>,
+    /// The item's fields, each in its own key; left out when the item is a text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details: Option<Value>,
 }
 
 /// What `propose` did.
@@ -253,6 +257,7 @@ impl Access<'_> {
                 name: i.name,
                 file_type: i.file_type,
                 text: i.text,
+                details: i.details,
             })
             .collect();
         let mut example: Value = serde_json::from_str(&detail.example).unwrap_or(Value::Null);

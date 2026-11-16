@@ -19,7 +19,7 @@ Two security and honesty gaps also came up in a review of the project on 2026-11
 - **A "Launch readiness" stage comes between milestones 2 and 3.** It holds what the launch needs and the app builds on:
   - binaries for Windows, macOS and Linux, and an AI app connected in one command (the app reuses both);
   - a demo memory, to try Ipse and to film it without real data;
-  - imported data treated as untrusted in everything an AI reads (decision 0014, to be written in #102), with a threat model page;
+  - imported data treated as untrusted in everything an AI reads (decision 0014), with a threat model page;
   - location history from the Google Maps Timeline export, moved forward from milestone 4: it is the source decision 0006 named next, and the one that shows what Ipse adds (where was I, with whom, that evening).
 - **Then milestone 3, the desktop app, unchanged**: installer, signature, updates, sync in the background, graph view. The first connectors to synchronized and self-hosted services come alongside (CalDAV and CardDAV, then services such as Jellyfin). `ipse ui` in the browser stays the way to build and test the interface, and the way developers use it; it does not replace the app.
 - **The public launch comes after milestone 3**, with the app. Before it, the binaries can go to a few testers invited privately, to find what blocks a first install; nothing is announced publicly.

@@ -77,6 +77,10 @@ pub(crate) fn canonical(keys: &Keys) -> Vec<(&'static str, Option<Out>)> {
                 ),
             ),
             ("status", e.status.map(|s| Out::Text(s.as_str().to_owned()))),
+            (
+                "organizer",
+                e.organizer.as_ref().map(|l| Out::Text(l.to_string())),
+            ),
         ]);
     }
     if let Some(s) = &keys.state_log {

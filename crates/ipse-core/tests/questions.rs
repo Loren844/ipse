@@ -97,8 +97,11 @@ fn first_names_nicknames_and_family_words_are_asked_about() {
 
     let detail = Tasks::new(&vault).detail(&task.id).unwrap();
     assert!(detail.expected.contains("in French"), "{}", detail.expected);
-    let text = detail.items[0].text.as_deref().unwrap();
-    assert!(text.contains("Phones: +33 6 00 00 00 01"), "{text}");
+    let item = &detail.items[0];
+    assert_eq!(item.text, None, "fields, never mixed with Ipse's words");
+    let details = item.details.as_ref().unwrap();
+    assert_eq!(details["phones"], serde_json::json!(["+33 6 00 00 00 01"]));
+    assert_eq!(details["name"], item.name.as_str());
     assert!(detail.example.contains("\"add_relation\""));
     assert!(detail.example.contains("\"plombier\""));
 }

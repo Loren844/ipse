@@ -146,6 +146,11 @@ fn attendees_link_to_the_people_already_imported() {
         ],
         "the organizer once, Élodie linked by email whatever its case, the owner left out"
     );
+    assert_eq!(
+        event.organizer,
+        Some(LinkOrText::Text("Julie Dupont".into())),
+        "who sent the invitation: its text was written by her (decision 0014)"
+    );
     assert!(file.body().contains("Apporter le dessert."));
 
     let history = History::open(dir.path()).unwrap();
@@ -485,4 +490,21 @@ fn a_calendar_conflict_becomes_a_proposal() {
         read_event(dir.path(), DINNER).title,
         "Anniversaire de Julie"
     );
+}
+
+#[test]
+fn an_invitation_from_the_owner_has_no_organizer() {
+    let (dir, vault) = vault();
+    let owner = vault.owner_file().to_owned();
+    let text = std::fs::read_to_string(&owner).unwrap();
+    std::fs::write(
+        &owner,
+        text.replace(
+            "owner: true\n",
+            "owner: true\nemails:\n  - julie@example.org\n",
+        ),
+    )
+    .unwrap();
+    calendar(&vault, "calendar", &[event("diner@example.org", dinner())]);
+    assert_eq!(read_event(dir.path(), DINNER).organizer, None);
 }

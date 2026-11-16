@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use jiff::ToSpan;
 use jiff::civil::Date;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{Value, json};
 
 use super::{
     FOLDER, Item, ItemRef, MAX_ITEMS, Task, TaskDetail, TaskKind, TaskStatus, Tasks, save_json,
@@ -271,6 +271,7 @@ pub(super) fn detail(vault: &Vault, task: Task) -> TaskDetail {
                     f.common().category.as_str().to_owned()
                 }),
                 text: found.as_ref().and_then(text_of).map(|t| cut(&t)),
+                details: found.as_ref().and_then(details_of),
             }
         })
         .collect();
@@ -298,41 +299,53 @@ pub(super) fn detail(vault: &Vault, task: Task) -> TaskDetail {
     }
 }
 
-/// What the AI reads of one item: an event's details, a person's or a place's facts,
-/// a summary's text.
+/// What the AI reads of a person, a place or a summary: its facts, or its text. An
+/// event is given as [`details_of`].
 fn text_of(file: &MemoryFile) -> Option<String> {
-    if let Some(event) = file.event() {
-        let mut lines = vec![format!("Title: {}", event.title)];
-        let end = event
-            .end
-            .as_ref()
-            .map(|e| format!(" to {e}"))
-            .unwrap_or_default();
-        lines.push(format!("When: {}{end}", event.start));
-        let shown = |link: &LinkOrText| match link {
-            LinkOrText::Link(l) => l.display.clone().unwrap_or_else(|| l.target.clone()),
-            LinkOrText::Text(t) => t.clone(),
-        };
-        if let Some(place) = &event.place {
-            lines.push(format!("Place: {}", shown(place)));
-        }
-        if !event.participants.is_empty() {
-            let with: Vec<String> = event.participants.iter().map(shown).collect();
-            lines.push(format!("With: {}", with.join(", ")));
-        }
-        if let Some(status) = &event.status {
-            lines.push(format!("Status: {}", status.as_str()));
-        }
-        if let Some(notes) = file.sections().notes {
-            lines.push(format!("Notes: {notes}"));
-        }
-        return Some(lines.join("\n"));
+    if file.event().is_some() {
+        return None;
     }
     if file.entity().is_some() {
         let facts: Vec<String> = file.sections().facts.into_iter().map(|f| f.text).collect();
         return (!facts.is_empty()).then(|| facts.join("\n"));
     }
     section_text(file.body(), Section::Summary)
+}
+
+/// An event's fields, each in its own key.
+fn details_of(file: &MemoryFile) -> Option<Value> {
+    let event = file.event()?;
+    let shown = |link: &LinkOrText| match link {
+        LinkOrText::Link(l) => l.display.clone().unwrap_or_else(|| l.target.clone()),
+        LinkOrText::Text(t) => t.clone(),
+    };
+    let mut details = serde_json::Map::new();
+    details.insert("title".into(), Value::String(event.title.clone()));
+    details.insert("start".into(), Value::String(event.start.to_string()));
+    if let Some(end) = &event.end {
+        details.insert("end".into(), Value::String(end.to_string()));
+    }
+    if let Some(place) = &event.place {
+        details.insert("place".into(), Value::String(shown(place)));
+    }
+    if !event.participants.is_empty() {
+        let with: Vec<Value> = event
+            .participants
+            .iter()
+            .map(|p| Value::String(shown(p)))
+            .collect();
+        details.insert("with".into(), Value::Array(with));
+    }
+    if let Some(status) = &event.status {
+        details.insert("status".into(), Value::String(status.as_str().to_owned()));
+    }
+    if let Some(organizer) = &event.organizer {
+        details.insert("invited_by".into(), Value::String(shown(organizer)));
+    }
+    if let Some(notes) = file.sections().notes {
+        details.insert("notes".into(), Value::String(cut(&notes)));
+    }
+    Some(Value::Object(details))
 }
 
 fn stem(file: &str) -> String {
