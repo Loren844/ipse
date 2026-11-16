@@ -11,7 +11,7 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 - **Local storage.** Your memory lives in a folder you pick, on your machine.
 - **Open files.** Everything is Markdown, readable in Obsidian or any editor.
 - **Connectors.** Calendar, contacts, location history and more fill your memory on their own.
-- **Graph view** (planned). People, places, projects and memories, and how they relate, in one navigable view; today the links live in the files.
+- **Graph view** (planned for 0.1.0). People, places, projects and memories, and how they relate, in one navigable view; today the links live in the files.
 - **You stay in charge.** The AI proposes, you accept or refuse. Every change is visible and can be undone.
 - **Per-AI rights.** Each AI you connect gets read and write access category by category, enforced by the software.
 - **Any model.** Works with a local model or an online one, through the open [Model Context Protocol](https://modelcontextprotocol.io).
@@ -31,8 +31,9 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 
 1. ✅ **Core without interface** — vault format, raw journal, index, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
 2. ✅ **Review and proposals** — the interface starts, in the browser (`ipse ui`): home, people, agenda, review inbox with diff and undo, history, connected AIs and their rights; tasks for your AI (facts from notes, duplicates, questions about nicknames, day to year summaries).
-- 🔜 **Launch readiness** ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)) — binaries for Windows, macOS and Linux, an AI app connected in one command, a demo memory, imported data treated as untrusted, location history (Google Maps Timeline).
-3. 🔜 **Desktop app** — Ipse as an app for Windows, macOS and Linux, to see your memory without a terminal or a browser: installer, updates, sync in the background, graph view, editing, connector management. Synchronized calendars and contacts (CalDAV, CardDAV). Then the public launch.
+- 🔜 **First version, 0.1.0** ([decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)) — settings and themes; the whole memory, not only people (places, organizations, projects, works, what is going on right now); editing and creating files yourself; a graph view; kinds of events (trips, meals, appointments…), proposed by your AI. Binaries for Windows, macOS and Linux and a demo memory are already there ([0.1.0-rc.1](https://github.com/Loren844/ipse/releases/tag/v0.1.0-rc.1)); imported data is treated as untrusted.
+- 🔜 **Launch readiness** ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)) — an AI app connected in one command, location history (Google Maps Timeline).
+3. 🔜 **Desktop app** — Ipse as an app for Windows, macOS and Linux, to see your memory without a terminal or a browser: installer, updates, sync in the background, connector management. Synchronized calendars and contacts (CalDAV, CardDAV). Then views of events: by month and week, by kind, on a timeline of your life and on a map. Then the public launch.
 4. 🔜 **Widening** — more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…); a kit for anyone to write one; semantic search with a local model, as an option.
 5. 🔜 **Mobile** — sync, quick capture.
 
