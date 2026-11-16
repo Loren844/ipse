@@ -632,6 +632,40 @@ pub fn section_text(body: &str, section: Section) -> Option<String> {
     (!text.trim().is_empty()).then(|| text.to_owned())
 }
 
+/// `body` with the text of `section` replaced by `text`, in any language; without
+/// one, the section is added at the end in `language`. Everything else is kept byte
+/// for byte.
+#[must_use]
+pub fn replace_section(body: &str, section: Section, text: &str, language: Language) -> String {
+    let lines: Vec<&str> = body.split_inclusive('\n').collect();
+    let headings = headings(&lines);
+    let text = text.trim_matches('\n').trim_end();
+    if let Some(at) = headings.iter().position(|(_, s)| *s == Some(section)) {
+        let start = headings[at].0 + 1;
+        let end = headings.get(at + 1).map_or(lines.len(), |(i, _)| *i);
+        let mut out: String = lines[..start].concat();
+        if !out.ends_with('\n') {
+            out.push('\n');
+        }
+        out.push('\n');
+        out.push_str(text);
+        out.push('\n');
+        if end < lines.len() {
+            out.push('\n');
+        }
+        out.push_str(&lines[end..].concat());
+        return out;
+    }
+    let mut out = body.to_owned();
+    if !out.is_empty() && !out.ends_with('\n') {
+        out.push('\n');
+    }
+    open_section(&mut out, section, language);
+    out.push_str(text);
+    out.push('\n');
+    out
+}
+
 /// `body` with `relations` added at the end of its `Relations` section, in any
 /// language. Without one, a section is added before `Notes`, or at the end. Everything
 /// else is kept byte for byte.
@@ -1227,5 +1261,29 @@ Rencontrée au club.
             "## Relations\n\n- mère : [[maman]]\n"
         );
         assert!(remove_relation(body, "ami", "maman").is_none());
+    }
+
+    #[test]
+    fn a_section_is_replaced_or_added() {
+        let body =
+            "\n## Résumé\n\nAncien texte.\n\n## Événements\n\n- [[a]]\n\n## Mes notes\n\nÀ moi.\n";
+        let new = replace_section(body, Section::Summary, "Nouveau\ntexte.", Language::Fr);
+        assert_eq!(
+            new,
+            "\n## Résumé\n\nNouveau\ntexte.\n\n## Événements\n\n- [[a]]\n\n## Mes notes\n\nÀ moi.\n"
+        );
+        let new = replace_section(&new, Section::Events, "- [[b]]", Language::Fr);
+        assert!(new.contains("## Événements\n\n- [[b]]\n\n## Mes notes\n\nÀ moi.\n"));
+        assert_eq!(
+            replace_section("", Section::Summary, "Hi.", Language::En),
+            "\n## Summary\n\nHi.\n"
+        );
+        let last = replace_section(
+            "\n## Summary\n\nOld.\n",
+            Section::Summary,
+            "New.",
+            Language::En,
+        );
+        assert_eq!(last, "\n## Summary\n\nNew.\n");
     }
 }

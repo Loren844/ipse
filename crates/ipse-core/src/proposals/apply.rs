@@ -8,6 +8,8 @@ use serde_json::Value;
 use super::Proposal;
 use super::change::{Change, fact_id, memory_path};
 use super::key;
+use crate::search::SearchIndex;
+use crate::summaries::{self, Span};
 use crate::vault::body::{self, Body, Fact, Relation};
 use crate::vault::{
     Category, Change as HistoryChange, Common, DateTime, EntityFields, EventFields, EventTime,
@@ -64,6 +66,8 @@ pub enum What {
     Relation,
     /// The notes.
     Notes,
+    /// A summary's text.
+    Summary,
 }
 
 /// A file as the proposal leaves it.
@@ -89,6 +93,8 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
     let mut diffs: Vec<FileDiff> = Vec::new();
     let mut index: HashMap<String, usize> = HashMap::new();
     let mut stale: Option<String> = None;
+    // Read once, for a proposal that writes summaries.
+    let mut search: Option<SearchIndex> = None;
 
     for change in &proposal.changes {
         let Some(rel) = change.file().map(str::to_owned) else {
@@ -96,6 +102,21 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
                 "A new file of this proposal has no path.".to_owned(),
             ));
         };
+        if matches!(change, Change::WriteSummary { .. }) {
+            match summary_step(vault, proposal, &rel, change, &mut search)? {
+                SummaryStep::Stale(reason) => {
+                    stale.get_or_insert(reason);
+                }
+                SummaryStep::Same => {}
+                SummaryStep::Write(planned) => {
+                    let (diff, pending) = *planned;
+                    index.insert(rel.clone(), files.len());
+                    diffs.push(diff);
+                    files.push(pending);
+                }
+            }
+            continue;
+        }
         let path = memory_path(root, &rel)?;
         let step = if matches!(change, Change::Create { .. }) {
             if path.exists() || index.contains_key(&rel) {
@@ -182,6 +203,72 @@ impl Step {
     }
 }
 
+/// What a `write_summary` change does to the files as they are now.
+enum SummaryStep {
+    /// The summary changed since the proposal was made.
+    Stale(String),
+    /// It already says so.
+    Same,
+    /// What changes in the file, and the file to write.
+    Write(Box<(FileDiff, Pending)>),
+}
+
+/// Plans one `write_summary` change; `search` is read once, for the first.
+fn summary_step(
+    vault: &Vault,
+    proposal: &Proposal,
+    rel: &str,
+    change: &Change,
+    search: &mut Option<SearchIndex>,
+) -> Result<SummaryStep> {
+    let Change::WriteSummary {
+        period,
+        start,
+        from,
+        text,
+        ..
+    } = change
+    else {
+        return Ok(SummaryStep::Same);
+    };
+    let root = vault.root();
+    let span = Span::parse(period, start)?;
+    let path = root.join(rel);
+    let now = summaries::text_of(&path);
+    if now != *from {
+        return Ok(SummaryStep::Stale(format!(
+            "The summary {} changed since the proposal was made.",
+            span.label()
+        )));
+    }
+    let text = text.trim();
+    if now.as_deref() == Some(text) {
+        return Ok(SummaryStep::Same);
+    }
+    let found = match search {
+        Some(found) => found,
+        None => search.insert(SearchIndex::load(root)?),
+    };
+    let events = summaries::events_in(found, span);
+    let source = format!("proposal:{}", proposal.id);
+    let file = summaries::write_file(vault, &path, span, text, &events, &source)?;
+    let created = !path.is_file();
+    let item = DiffItem {
+        what: What::Summary,
+        before: now,
+        after: Some(text.to_owned()),
+    };
+    let diff = file_diff(rel, &file, created, vec![item]);
+    Ok(SummaryStep::Write(Box::new((
+        diff,
+        Pending {
+            file,
+            created,
+            changed: true,
+        },
+    ))))
+}
+
 /// The file a `create` change makes, and what it holds.
 fn create(
     vault: &Vault,
@@ -255,7 +342,7 @@ fn edit(file: &mut MemoryFile, change: &Change, rel: &str, language: Language) -
         ))
     };
     let item = match change {
-        Change::Create { .. } => unreachable!("not an edit"),
+        Change::Create { .. } | Change::WriteSummary { .. } => unreachable!("not an edit"),
         Change::SetKey { key, from, to, .. } => {
             let Some(now) = key::get(file, key) else {
                 return Err(Error::Refused(format!("`{key}` cannot be set on {rel}.")));
@@ -560,6 +647,11 @@ pub(super) fn described(vault: &Vault, proposal: &Proposal) -> Preview {
                 file_type.clone(),
                 category.clone().unwrap_or_default(),
             ),
+            (Change::WriteSummary { .. }, _) => (
+                display_stem(&rel),
+                "summary".to_owned(),
+                "summaries".to_owned(),
+            ),
             (_, Some(file)) => (
                 display_name(&rel, file),
                 file.common().file_type.as_str().to_owned(),
@@ -660,6 +752,14 @@ fn described_items(change: &Change) -> (Vec<DiffItem>, bool) {
                 after: None,
             }],
             false,
+        ),
+        Change::WriteSummary { from, text, .. } => (
+            vec![DiffItem {
+                what: What::Summary,
+                before: from.clone(),
+                after: Some(text.trim().to_owned()),
+            }],
+            from.is_none(),
         ),
     }
 }

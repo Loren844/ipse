@@ -5,7 +5,7 @@
  */
 export type ChangeView = { 
 /**
- * `key`, `fact`, `relation` or `notes`.
+ * `key`, `fact`, `relation`, `notes` or `summary`.
  */
 what: string, 
 /**

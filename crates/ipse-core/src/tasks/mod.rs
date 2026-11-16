@@ -8,6 +8,9 @@
 //! comment, when they refuse it.
 
 mod extract;
+mod summary;
+
+pub use summary::WINDOW_DAYS;
 
 use std::path::{Path, PathBuf};
 
@@ -47,6 +50,9 @@ pub struct Task {
     /// What the person said when they refused the last proposal for it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub comment: Option<String>,
+    /// For a `summary` task, the period: `day:2026-11-14`, `week:2026-11-09`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub period: Option<String>,
 }
 
 /// The kinds of task (`docs/spec/rights.md`, section 4.2).
@@ -237,6 +243,7 @@ impl<'v> Tasks<'v> {
         let task = self.get(id)?;
         Ok(match task.kind {
             TaskKind::Extract => extract::detail(self.vault, task),
+            TaskKind::Summary => summary::detail(self.vault, task),
             _ => TaskDetail {
                 expected: String::new(),
                 items: Vec::new(),
@@ -255,6 +262,22 @@ impl<'v> Tasks<'v> {
     /// [`Error::Io`] when a task cannot be saved.
     pub fn extract_from(&self, files: &[PathBuf]) -> Result<usize> {
         extract::make(self, files)
+    }
+
+    /// Makes the `summary` tasks due on `today`: each past day of the last
+    /// [`WINDOW_DAYS`] days with events, then each week, month and year once the
+    /// summaries inside it exist, each only when what it holds changed since it was
+    /// last asked. Returns how many tasks it made.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when a task cannot be saved.
+    pub fn plan_summaries(
+        &self,
+        index: &crate::search::SearchIndex,
+        today: jiff::civil::Date,
+    ) -> Result<usize> {
+        summary::plan(self, index, today)
     }
 
     /// Notes that `proposal` answers the open task `id`.

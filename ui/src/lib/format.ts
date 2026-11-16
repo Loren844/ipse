@@ -74,9 +74,9 @@ export function sources(list: string[]): string {
 	return new Intl.ListFormat(locale(), { type: 'conjunction' }).format(unique);
 }
 
-/** The page of a linked file. */
+/** The page of a linked file; summaries have none yet. */
 export function hrefOf(link: { id: string | null; kind: string | null }): string | null {
-	if (!link.id) return null;
+	if (!link.id || link.kind === 'summary') return null;
 	return link.kind === 'event' ? `/agenda/${link.id}` : `/people/${link.id}`;
 }
 
@@ -97,4 +97,17 @@ export function ago(text: string, now: Date = new Date()): string {
 /** Who made a proposal, in words: "Claude", "vos contacts", "Ipse". */
 export function authorName(by: { kind: string; name: string }): string {
 	return by.kind === 'source' ? sources([by.name]) : by.name;
+}
+
+/** A summary's period in words, from its name: "Samedi 14 novembre 2026", "Semaine 46
+ * de 2026", "Novembre 2026", "2026". Any other text as it is. */
+export function periodName(text: string): string {
+	if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return longDay(text, '0000');
+	const week = /^(\d{4})-W(\d{2})$/.exec(text);
+	if (week) return i18n.t.weekOf(Number(week[2]), week[1]);
+	if (/^\d{4}-\d{2}$/.test(text)) {
+		const month = new Intl.DateTimeFormat(locale(), { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${text}-15T12:00:00Z`));
+		return capitalize(month);
+	}
+	return text;
 }
