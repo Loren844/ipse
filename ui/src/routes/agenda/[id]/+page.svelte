@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { api, type EventView, type FileView } from '#lib/api.ts';
-	import { sources, when } from '#lib/format.ts';
+	import { fromSources, when } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
@@ -40,7 +40,7 @@
 				<p class="notes">{event.notes}</p>
 			</section>
 		{/if}
-		{#if event.sources.length}<p class="source">{i18n.t.from} {sources(event.sources)}.</p>{/if}
+		{#if event.sources.length}<p class="source">{fromSources(event.sources)}</p>{/if}
 	</article>
 {:else if file.state.kind === 'missing' || (file.state.kind === 'ready' && !event)}
 	<div class="screen"><h1>{i18n.t.notFound}</h1><p><a href="/agenda">{i18n.t.agenda}</a></p></div>

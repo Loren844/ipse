@@ -598,6 +598,76 @@ impl SearchIndex {
         allowed(&d.category).then_some(d.path.as_path())
     }
 
+    /// How many files of `file_type` the allowed categories hold, without listing them.
+    #[must_use]
+    pub fn count(&self, file_type: FileType, allowed: impl Fn(&Category) -> bool) -> usize {
+        self.documents()
+            .filter(|d| d.file_type == file_type && allowed(&d.category))
+            .count()
+    }
+
+    /// The files of the allowed categories that link to the file `stem`: by a relation
+    /// (with its word), or, for an event, as one of its people or its place. Events
+    /// last, most recent first; the others by name.
+    #[must_use]
+    pub fn linking_to(
+        &self,
+        stem: &str,
+        allowed: impl Fn(&Category) -> bool,
+    ) -> Vec<(Listed<'_>, Option<&str>)> {
+        let stem = stem.trim().to_ascii_lowercase();
+        let open = format!("[[{stem}");
+        let links = |text: &str| {
+            text.to_ascii_lowercase()
+                .match_indices(&open)
+                .any(|(at, _)| matches!(text.as_bytes().get(at + open.len()), Some(b']' | b'|')))
+        };
+        let mut found: Vec<(&Document, Option<&str>)> = Vec::new();
+        for d in self.documents().filter(|d| allowed(&d.category)) {
+            if d.path
+                .file_stem()
+                .is_some_and(|s| s.eq_ignore_ascii_case(&stem))
+            {
+                continue;
+            }
+            if let Some(span) = &d.event {
+                let with = span
+                    .participants
+                    .iter()
+                    .any(|p| p.eq_ignore_ascii_case(&stem));
+                if with || d.facts.iter().any(|f| links(&f.text)) {
+                    found.push((d, None));
+                }
+                continue;
+            }
+            if let Some(relation) = d.relations.iter().find(|r| links(&r.text)) {
+                let word = relation.text.split(" : ").next().map(str::trim);
+                found.push((d, word));
+            }
+        }
+        found.sort_by(|(a, _), (b, _)| match (&a.event, &b.event) {
+            (Some(x), Some(y)) => sort_key(&y.start).cmp(&sort_key(&x.start)),
+            (Some(_), None) => std::cmp::Ordering::Greater,
+            (None, Some(_)) => std::cmp::Ordering::Less,
+            (None, None) => fold(&a.name.text).cmp(&fold(&b.name.text)),
+        });
+        found
+            .into_iter()
+            .map(|(d, word)| {
+                (
+                    Listed {
+                        id: &d.id,
+                        name: &d.name.text,
+                        aliases: Vec::new(),
+                        category: &d.category,
+                        path: &d.path,
+                    },
+                    word,
+                )
+            })
+            .collect()
+    }
+
     /// Every entity of `file_type`, in no particular order: for a pass over all of
     /// them that does not need [`SearchIndex::entities`]'s sort.
     pub fn each_entity(&self, file_type: FileType) -> impl Iterator<Item = Listed<'_>> {

@@ -10,7 +10,8 @@ test.afterEach(() => ipse.stop());
 
 test('search a person, open them, follow their event and come back', async ({ page }) => {
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Personnes' }).click();
+	await page.getByRole('link', { name: 'Mémoire' }).click();
+	await page.getByTestId('kinds').getByRole('link', { name: /Personnes/ }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Personnes');
 	const list = page.getByTestId('people');
 	await expect(list.getByRole('link')).toHaveText([/Élodie Martin/, /Inès Roux/, /Marc Leroy/]);
@@ -25,7 +26,7 @@ test('search a person, open them, follow their event and come back', async ({ pa
 
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marc Leroy');
 	await expect(page).toHaveTitle('Marc Leroy · Ipse');
-	await expect(page.getByRole('link', { name: 'Personnes' })).toHaveAttribute('aria-current', 'page');
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Mémoire' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByText('marc.leroy@example.org')).toBeVisible();
 	await expect(page.getByText('Vient de vos contacts.')).toBeVisible();
 	await expect(page.getByText(/\^f-/)).toHaveCount(0);
@@ -40,7 +41,9 @@ test('search a person, open them, follow their event and come back', async ({ pa
 test('a person who does not exist', async ({ page }) => {
 	await page.goto(ipse.url);
 	await expect(page.getByTestId('memory-name')).toBeVisible();
+	// An address from before the Memory section still leads there.
 	await page.goto(`${ipse.origin}/people/01zzzzzzzzzzzzzzzzzzzzzzzz`);
+	await expect(page).toHaveURL(`${ipse.origin}/memory/people/01zzzzzzzzzzzzzzzzzzzzzzzz`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Cette fiche n’existe pas, ou plus.');
 });
 
@@ -60,7 +63,7 @@ test('the search box is one line, and a click anywhere in it lets you type', asy
 	await page.goto(ipse.url);
 	for (const scheme of ['light', 'dark'] as const) {
 		await page.emulateMedia({ colorScheme: scheme });
-		await page.goto(`${ipse.origin}/people`);
+		await page.goto(`${ipse.origin}/memory/people`);
 		const field = page.locator('.search .field');
 		const input = page.getByLabel('Chercher une personne');
 		const box = (await field.boundingBox())!;

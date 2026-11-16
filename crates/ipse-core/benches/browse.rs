@@ -1,5 +1,7 @@
 //! Browsing a memory of 20 000 people as the interface does: the first page of the
-//! list, a search as one types (each prefix of a name), and one person in full.
+//! list, a search as one types (each prefix of a name), and one person in full; then
+//! the whole memory (issue #128): how many of each kind, one kind listed, and what links
+//! to a person.
 #![allow(missing_docs, clippy::unwrap_used, clippy::print_stdout)]
 
 use std::time::{Duration, Instant};
@@ -86,4 +88,25 @@ fn main() {
         typed.iter().max().unwrap()
     );
     println!("one person, links found   {:>9.2?}", median(one));
+
+    let mut kinds = Vec::new();
+    let mut places = Vec::new();
+    let mut back = Vec::new();
+    for i in 0..21 {
+        let start = Instant::now();
+        let counted = owner.kinds();
+        kinds.push(start.elapsed());
+        assert_eq!(counted[0].1, PEOPLE + 1);
+        let start = Instant::now();
+        let listed = owner.entities(ipse_core::vault::FileType::Place, None, 100, 0);
+        places.push(start.elapsed());
+        assert_eq!(listed.total, 0);
+        let start = Instant::now();
+        let links = owner.backlinks(&format!("01jcx8m2p4q6r8t0v2w4{:06}", i * 900 + 1));
+        back.push(start.elapsed());
+        assert_eq!(links.len(), 1, "the one before links to it");
+    }
+    println!("every kind counted        {:>9.2?}", median(kinds));
+    println!("one kind listed (empty)   {:>9.2?}", median(places));
+    println!("what links to a person    {:>9.2?}", median(back));
 }

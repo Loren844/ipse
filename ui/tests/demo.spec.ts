@@ -23,7 +23,8 @@ test('the demo memory has something on every screen', async ({ page }) => {
 	await expect(page.getByTestId('question')).toHaveCount(3);
 	await expect(page.getByTestId('decided').filter({ hasText: 'Refusée' })).toHaveCount(1);
 
-	await sections.getByRole('link', { name: 'Personnes' }).click();
+	await sections.getByRole('link', { name: 'Mémoire' }).click();
+	await page.getByTestId('kinds').getByRole('link', { name: /Personnes/ }).click();
 	await expect(page.getByRole('link', { name: /Maman/ }).first()).toBeVisible();
 	await sections.getByRole('link', { name: 'Résumés' }).click();
 	await expect(page.getByTestId('summary').first()).toBeVisible();

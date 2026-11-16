@@ -28,6 +28,12 @@ export type { SummariesView, SummaryView };
 import type { QuestionsView } from './types/QuestionsView.ts';
 import type { SettingsView } from './types/SettingsView.ts';
 export type { SettingsView };
+import type { MemoryView } from './types/MemoryView.ts';
+import type { ListView } from './types/ListView.ts';
+import type { SearchView } from './types/SearchView.ts';
+export type { MemoryView, ListView, SearchView };
+export type { StateView } from './types/StateView.ts';
+export type { FoundView } from './types/FoundView.ts';
 export type { QuestionsView };
 export type { QuestionView } from './types/QuestionView.ts';
 export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
@@ -107,5 +113,8 @@ export const api = {
 		post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/answer`, { name, word: word.trim() || undefined }),
 	skipQuestion: (id: string) => post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/skip`),
 	settings: () => get<SettingsView>('/api/settings'),
+	memory: () => get<MemoryView>('/api/memory'),
+	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
+	search: (q: string) => get<SearchView>('/api/search', { q }),
 	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone })
 };

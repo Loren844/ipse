@@ -3,6 +3,7 @@
 	import '@fontsource-variable/bricolage-grotesque';
 	import '../app.css';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { app } from '#lib/app.svelte.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
@@ -23,7 +24,7 @@
 	const groups = $derived([
 		[
 			{ href: '/', label: i18n.t.home, icon: icons.home },
-			{ href: '/people', label: i18n.t.people, icon: icons.people },
+			{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
 			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
 			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
 		],
@@ -35,7 +36,18 @@
 		]
 	]);
 
-	/** The section a page belongs to: a person's page is under People. */
+	let railQuery = $state('');
+
+	/** Searches the whole memory, from any screen. */
+	function searchMemory(e: SubmitEvent) {
+		e.preventDefault();
+		const q = railQuery.trim();
+		if (!q) return;
+		railQuery = '';
+		goto(`/memory?q=${encodeURIComponent(q)}`);
+	}
+
+	/** The section a page belongs to: a person's page is under Memory. */
 	function isCurrent(href: string): boolean {
 		const path = page.url.pathname;
 		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
@@ -55,6 +67,11 @@
 				<Mark size={30} />
 				<span class="wordmark">ipse</span>
 			</a>
+			<form class="rail-search" role="search" onsubmit={searchMemory}>
+				<label for="rail-search" class="visually-hidden">{i18n.t.searchMemory}</label>
+				<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={icons.search} /></svg>
+				<input id="rail-search" type="search" placeholder={i18n.t.searchShort} bind:value={railQuery} autocomplete="off" spellcheck="false" />
+			</form>
 			<nav aria-label={i18n.t.navLabel}>
 				{#each groups as group, g (g)}
 					<ul>

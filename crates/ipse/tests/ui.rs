@@ -983,3 +983,87 @@ fn the_settings_through_the_api() {
     }
     assert_eq!(api(&ui, &cookie, "/api/settings").1["language"], "en");
 }
+
+#[test]
+fn the_whole_memory_through_the_api() {
+    let ui = start_with(|vault| {
+        let write = |rel: &str, i: u8, front: &str, body: &str| {
+            let path = vault.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                path,
+                format!("---\nid: 01jcx8m2p4q6r8t0v2w4y6z8{i:02}\n{front}\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\n---\n\n{body}"),
+            )
+            .unwrap();
+        };
+        write(
+            "organizations/atelier-nord.md",
+            1,
+            "type: organization\ncategory: work\nname: Atelier Nord",
+            "## Faits\n\n- Studio de design.\n",
+        );
+        write(
+            "people/marie-durand.md",
+            2,
+            "type: person\ncategory: people\nname: Marie Durand",
+            "## Relations\n\n- travaille chez : [[atelier-nord]]\n",
+        );
+        write(
+            "states/music/2026.md",
+            3,
+            "type: state-log\ncategory: media\ntopic: music\nyear: 2026",
+            &format!(
+                "| Subject | First seen | Last seen | Count | Source |\n| --- | --- | --- | --- | --- |\n| Mira Sol | 2026-01-01 | {} | 12 | device |\n",
+                jiff::Zoned::now().date()
+            ),
+        );
+    });
+    let cookie = login(&ui);
+
+    let (status, memory) = api(&ui, &cookie, "/api/memory");
+    assert_eq!(status, 200, "{memory}");
+    let count = |kind: &str| {
+        memory["kinds"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|k| k["kind"] == kind)
+            .unwrap()["count"]
+            .clone()
+    };
+    assert_eq!(count("organization"), 1);
+    assert_eq!(count("person"), 2);
+    assert_eq!(memory["now"][0]["subject"]["name"], "Mira Sol");
+    assert_eq!(memory["now"][0]["topic"], "music");
+    assert_eq!(api(&ui, &cookie, "/api/home").1["now"][0]["topic"], "music");
+
+    let (_, list) = api(&ui, &cookie, "/api/memory/organizations");
+    assert_eq!(list["kind"], "organization");
+    assert_eq!(list["items"][0]["name"], "Atelier Nord");
+    assert_eq!(api(&ui, &cookie, "/api/memory/nowhere").0, 404);
+
+    let id = list["items"][0]["id"].as_str().unwrap().to_owned();
+    let (_, file) = api(&ui, &cookie, &format!("/api/file/{id}"));
+    let back = &file["value"]["backlinks"][0];
+    assert_eq!(back["from"]["name"], "Marie Durand");
+    assert_eq!(back["from"]["kind"], "person");
+    assert_eq!(back["word"], "travaille chez");
+
+    let (_, found) = api(&ui, &cookie, "/api/search?q=atelier");
+    let names: Vec<&str> = found["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Atelier Nord", "Marie Durand"]);
+    let marie = &found["items"][1];
+    assert_eq!(
+        marie["excerpt"], "travaille chez : Atelier Nord",
+        "no [[link]] syntax"
+    );
+    assert_eq!(
+        api(&ui, &cookie, "/api/search").1["items"],
+        serde_json::json!([])
+    );
+}
