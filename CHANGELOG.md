@@ -2,6 +2,10 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
+## 0.1.0-rc.1 - 2026-11-16
+
+A pre-release of 0.1.0, to try the binaries and the installers before the first version. What it holds is described under 0.1.0 below.
+
 ## 0.1.0 - Unreleased
 
 The first version with ready-made binaries. It covers milestones 1 and 2 and part of the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)).
