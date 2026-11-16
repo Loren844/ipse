@@ -25,6 +25,7 @@ test('name someone saved under a nickname, or say you do not know', async ({ pag
 	await page.goto(ipse.url);
 	const inbox = page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /À revoir/ });
 	await expect(inbox).toContainText('2');
+	await expect(page.locator('.banner')).toContainText('2 questions attendent votre réponse');
 	await inbox.click();
 	await expect(page.getByRole('heading', { level: 2, name: 'Qui est-ce ?' })).toBeVisible();
 

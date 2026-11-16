@@ -55,12 +55,17 @@ const words = {
 		inbox: 'À revoir',
 		ais: 'IA connectées',
 		history: 'Historique',
-		waiting: (n: number) => plural(n, '1 proposition à revoir', '# propositions à revoir'),
+		waiting: (n: number) => `${n} à revoir`,
 		comingUp: 'Ce qui vient',
 		nothingComing: 'Rien de prévu dans les 30 prochains jours.',
 		nothingComingHint: 'Importez votre agenda, ou abonnez-vous à son lien, pour voir ici ce qui arrive.',
-		waitingBanner: (n: number) =>
-			plural(n, '1 proposition attend votre avis', '# propositions attendent votre avis'),
+		waitingBanner: (proposals: number, questions: number) => {
+			const p = plural(proposals, '1 proposition', '# propositions');
+			const q = plural(questions, '1 question', '# questions');
+			if (proposals && questions) return `${p} et ${q} attendent votre avis`;
+			if (questions) return plural(questions, '1 question attend votre réponse', '# questions attendent votre réponse');
+			return plural(proposals, '1 proposition attend votre avis', '# propositions attendent votre avis');
+		},
 		review: 'Les revoir',
 		seenRecently: 'Vus récemment',
 		yourFile: 'Votre fiche',
@@ -392,12 +397,17 @@ const words = {
 		inbox: 'To review',
 		ais: 'Connected AIs',
 		history: 'History',
-		waiting: (n: number) => plural(n, '1 proposal to review', '# proposals to review'),
+		waiting: (n: number) => `${n} to review`,
 		comingUp: 'Coming up',
 		nothingComing: 'Nothing planned in the next 30 days.',
 		nothingComingHint: 'Import your calendar, or subscribe to its link, to see here what is coming.',
-		waitingBanner: (n: number) =>
-			plural(n, '1 proposal waits for your decision', '# proposals wait for your decision'),
+		waitingBanner: (proposals: number, questions: number) => {
+			const p = plural(proposals, '1 proposal', '# proposals');
+			const q = plural(questions, '1 question', '# questions');
+			if (proposals && questions) return `${p} and ${q} wait for you`;
+			if (questions) return plural(questions, '1 question waits for your answer', '# questions wait for your answer');
+			return plural(proposals, '1 proposal waits for your decision', '# proposals wait for your decision');
+		},
 		review: 'Review them',
 		seenRecently: 'Seen recently',
 		yourFile: 'Your file',

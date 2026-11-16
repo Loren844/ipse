@@ -229,8 +229,10 @@ pub(crate) struct HomeView {
     upcoming: Vec<EventView>,
     /// People of recent events, the most recent first.
     recent: Vec<LinkView>,
-    /// Proposals and questions waiting for the person.
+    /// Proposals waiting for the person, stale ones included.
     waiting: usize,
+    /// Questions waiting for the person's answer.
+    questions: usize,
     /// The most recent day summary.
     latest: Option<super::summaries::SummaryView>,
 }
@@ -258,12 +260,16 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
 
 /// Proposals and questions waiting for the person.
 fn waiting(gateway: &Gateway) -> Result<usize> {
-    let proposals = Proposals::new(gateway.vault())
+    Ok(proposals_waiting(gateway)? + super::questions::waiting(gateway)?)
+}
+
+/// Proposals waiting for the person, stale ones included.
+fn proposals_waiting(gateway: &Gateway) -> Result<usize> {
+    Ok(Proposals::new(gateway.vault())
         .list()?
         .iter()
         .filter(|p| matches!(p.status, Status::Waiting | Status::Stale { .. }))
-        .count();
-    Ok(proposals + super::questions::waiting(gateway)?)
+        .count())
 }
 
 /// Today in the vault's time zone.
@@ -280,7 +286,8 @@ fn today(gateway: &Gateway) -> jiff::civil::Date {
 /// Errors reading the vault or its proposals.
 pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let today = today(gateway);
-    let waiting = waiting(gateway)?;
+    let waiting = proposals_waiting(gateway)?;
+    let questions = super::questions::waiting(gateway)?;
     let latest = super::summaries::latest(gateway)?;
     let owner = gateway.fresh_owner()?;
     let ahead = today.saturating_add(HOME_DAYS_AHEAD.days());
@@ -322,6 +329,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         upcoming,
         recent,
         waiting,
+        questions,
         latest,
     })
 }
