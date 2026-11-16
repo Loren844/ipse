@@ -28,7 +28,7 @@ To keep them in sync on their own until the app does it, have your computer run 
     <key>Label</key><string>org.ipse.sync</string>
     <key>ProgramArguments</key>
     <array>
-      <string>/Users/you/.cargo/bin/ipse</string>
+      <string>/Users/you/.ipse/bin/ipse</string>
       <string>sync</string><string>--due</string>
       <string>--vault</string><string>/Users/you/Ipse</string>
     </array>
@@ -40,7 +40,7 @@ To keep them in sync on their own until the app does it, have your computer run 
 - **Linux:** run `crontab -e` and add this line, with your user name. Your keyring (GNOME Keyring or KWallet) must be unlocked, which it is while you are logged in.
 
   ```
-  */5 * * * * /home/you/.cargo/bin/ipse sync --due --vault /home/you/Ipse
+  */5 * * * * /home/you/.ipse/bin/ipse sync --due --vault /home/you/Ipse
   ```
 
 - **Windows:** in PowerShell:
