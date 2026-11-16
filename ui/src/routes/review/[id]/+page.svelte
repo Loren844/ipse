@@ -56,17 +56,24 @@
 		status?.focus();
 	}
 
+	const merge = $derived(line?.merge ?? false);
+	/** For a merge, "these are two people", or "keep them apart" for events. */
+	const apart = $derived(view?.files.some((f) => f.kind === 'person') ? i18n.t.twoPeople : i18n.t.keepApart);
 	const accept = () =>
 		decide(
 			() => api.accept(line!.id),
 			(r) =>
 				r.decided[0]?.status === 'stale'
 					? { tone: 'warn', text: i18n.t.becameStale(1) }
-					: { tone: 'done', text: i18n.t.accepted(1) },
+					: { tone: 'done', text: merge ? i18n.t.mergedDone : i18n.t.accepted(1) },
 			i18n.t.alreadyDecided
 		);
 	const refuse = () =>
-		decide(() => api.refuse(line!.id, comment.trim()), () => ({ tone: 'done', text: i18n.t.refusedDone }), i18n.t.alreadyDecided);
+		decide(
+			() => api.refuse(line!.id, comment.trim()),
+			() => ({ tone: 'done', text: merge ? i18n.t.keptApartDone : i18n.t.refusedDone }),
+			i18n.t.alreadyDecided
+		);
 	const undo = () => decide(() => api.undo(line!.id), () => ({ tone: 'done', text: i18n.t.undoneDone }), i18n.t.cannotUndo);
 
 	async function startRefusing() {
@@ -126,9 +133,14 @@
 			{:else}
 				<div class="actions">
 					{#if line.status === 'waiting' && !view.stale}
-						<button type="button" class="button primary" disabled={busy} onclick={accept}>{i18n.t.accept}</button>
+						<button type="button" class="button primary" disabled={busy} onclick={accept}>{merge ? i18n.t.mergeThem : i18n.t.accept}</button>
 					{/if}
-					<button type="button" class="button" disabled={busy} onclick={startRefusing}>{i18n.t.refuse}</button>
+					{#if merge}
+						<!-- Saying they are different needs no reason: it is remembered. -->
+						<button type="button" class="button" disabled={busy} onclick={refuse}>{apart}</button>
+					{:else}
+						<button type="button" class="button" disabled={busy} onclick={startRefusing}>{i18n.t.refuse}</button>
+					{/if}
 				</div>
 			{/if}
 		{:else if line.status === 'accepted'}

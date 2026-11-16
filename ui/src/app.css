@@ -1026,6 +1026,10 @@ h1.proposal-title {
 	color: var(--muted);
 }
 
+.diff .said {
+	padding-left: 0;
+}
+
 .diff del {
 	text-decoration-thickness: 1.5px;
 }

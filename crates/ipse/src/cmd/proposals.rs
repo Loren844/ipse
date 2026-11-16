@@ -125,6 +125,8 @@ fn line(item: &DiffItem) -> String {
         What::Relation => "relation".to_owned(),
         What::Notes => "notes".to_owned(),
         What::Summary => "summary".to_owned(),
+        What::Merged => "merged".to_owned(),
+        What::Links => "links redirected".to_owned(),
     };
     match (&item.before, &item.after) {
         (Some(before), Some(after)) => format!("{what}: {before} → {after}"),

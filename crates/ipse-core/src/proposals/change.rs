@@ -112,6 +112,18 @@ pub enum Change {
         /// The new text.
         text: String,
     },
+    /// Merges `remove` into `keep` (decision 0011): its names, emails, phones,
+    /// sources, facts, relations and notes go into `keep`, links to it are redirected,
+    /// and it is removed. Refused, the person said these are two different files.
+    Merge {
+        /// The file kept.
+        keep: String,
+        /// The file merged into it, then removed.
+        remove: String,
+        /// Why they may be the same: `email`, `phone`, `name`, `title_start`.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        clues: Vec<String>,
+    },
     /// Removes a relation.
     RemoveRelation {
         /// The file.
@@ -146,7 +158,8 @@ impl Change {
             | Self::EditFact { file, .. }
             | Self::RemoveFact { file, .. }
             | Self::AddRelation { file, .. }
-            | Self::RemoveRelation { file, .. } => Some(file),
+            | Self::RemoveRelation { file, .. }
+            | Self::Merge { keep: file, .. } => Some(file),
         }
     }
 }
@@ -262,6 +275,25 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
             Ok(category(vault, file)?)
         }
         Change::RemoveRelation { file, .. } => Ok(category(vault, file)?),
+        Change::Merge { keep, remove, .. } => {
+            if keep == remove {
+                return refused("A file cannot be merged into itself.".to_owned());
+            }
+            let kept = existing(vault, keep)?;
+            let other = existing(vault, remove)?;
+            if kept.common().file_type != other.common().file_type {
+                return refused(format!(
+                    "{keep} and {remove} are not the same kind of file: they cannot be merged."
+                ));
+            }
+            if other.entity().is_some_and(|e| e.owner) {
+                return refused(
+                    "Your own file is never merged into another one: keep it, merge the other into it."
+                        .to_owned(),
+                );
+            }
+            Ok(kept.common().category.as_str().to_owned())
+        }
         Change::WriteSummary {
             file,
             period,

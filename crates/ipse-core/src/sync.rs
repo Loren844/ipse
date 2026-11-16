@@ -55,6 +55,8 @@ pub struct Synced {
     pub people: Option<PeopleSummary>,
     /// Tasks made for the person's AI from what the sync brought.
     pub tasks: usize,
+    /// Possible duplicates proposed to the person after the sync.
+    pub duplicates: usize,
 }
 
 impl Synced {
@@ -171,7 +173,9 @@ pub fn sync_instance(
     run.tasks = tasks as u64;
     record_run(root, &run)?;
 
+    let duplicates = crate::duplicates::propose(vault)?;
     let synced = Synced {
+        duplicates,
         outcome: report.outcome,
         removed: report.removed,
         progress: report.progress,

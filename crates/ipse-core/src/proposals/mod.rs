@@ -10,6 +10,7 @@
 mod apply;
 mod change;
 mod key;
+mod merge;
 
 use std::path::{Path, PathBuf};
 
@@ -319,7 +320,9 @@ impl<'v> Proposals<'v> {
             changes,
             status: Status::Waiting,
         };
-        let plan = apply::plan(self.vault, &proposal)?;
+        // Checked without looking for the links a merge redirects: they are found
+        // when the person opens it and when it is applied.
+        let plan = apply::plan_with(self.vault, &proposal, false)?;
         if let Some(reason) = plan.preview.stale {
             return Err(Error::Refused(format!(
                 "{reason} Read the file again and make the proposal from what it says now."
@@ -472,6 +475,12 @@ impl<'v> Proposals<'v> {
             .map(str::trim)
             .filter(|c| !c.is_empty())
             .map(str::to_owned);
+        // Refusing a merge says the files are different: never asked again.
+        for change in &proposal.changes {
+            if let Change::Merge { keep, remove, .. } = change {
+                crate::duplicates::remember_different(self.vault.root(), keep, remove)?;
+            }
+        }
         proposal.status = Status::Refused {
             at: self.now(),
             comment: comment.clone(),

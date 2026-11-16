@@ -69,6 +69,13 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Look for people who may be the same, and events copied into two calendars, and
+    /// propose to merge them; nothing is merged until you accept
+    Duplicates {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Review what AIs propose to change in your memory
     Proposals {
         #[command(subcommand)]
@@ -278,6 +285,7 @@ fn main() -> ExitCode {
         },
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),
+        Command::Duplicates { vault } => cmd::duplicates::run(vault),
         Command::Proposals { action } => match action {
             ProposalsAction::List { all, vault } => cmd::proposals::list(all, vault),
             ProposalsAction::Show { id, vault } => cmd::proposals::show(&id, vault),

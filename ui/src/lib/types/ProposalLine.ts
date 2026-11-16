@@ -29,4 +29,9 @@ changes: number,
 /**
  * When it was decided, for a decided one.
  */
-decided: string | null, };
+decided: string | null, 
+/**
+ * It merges files that may be the same (decision 0011): accepting merges them,
+ * refusing says they are different, and is remembered.
+ */
+merge: boolean, };
