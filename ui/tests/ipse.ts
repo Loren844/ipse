@@ -29,6 +29,19 @@ export async function startIpse(
 			execFileSync(IPSE, ['import', join(FIXTURES, file), '--vault', vault]);
 	}
 	prepare(vault);
+	return serve(dir, vault);
+}
+
+/** Starts `ipse ui` on the demo memory (`ipse init --demo`): about 150 invented people,
+ * two years of agenda, summaries and proposals waiting. */
+export async function startDemo(language = 'fr'): Promise<Running> {
+	const dir = mkdtempSync(join(tmpdir(), 'ipse-ui-'));
+	const vault = join(dir, 'memoire');
+	execFileSync(IPSE, ['init', vault, '--demo', '--language', language, '--time-zone', 'Europe/Paris']);
+	return serve(dir, vault);
+}
+
+async function serve(dir: string, vault: string): Promise<Running> {
 	const startedAt = Date.now();
 	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'] });
 	const url = await new Promise<string>((ok, fail) => {
