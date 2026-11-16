@@ -52,6 +52,16 @@ struct Words {
     refused: &'static str,
     claude_reason: fn(&str) -> String,
     phone: fn(usize) -> Option<String>,
+    /// Places, organizations, works… the AI wrote down: type, name, one fact.
+    things: &'static [(&'static str, &'static str, &'static str)],
+    things_reason: &'static str,
+    /// Relations of the owner to some of them: word, name.
+    owner_links: &'static [(&'static str, &'static str)],
+    colleague_word: &'static str,
+    links_reason: &'static str,
+    yoga_reason: &'static str,
+    /// What is going on right now: topic, subject (a name, linked when a file has it).
+    now: &'static [(&'static str, &'static str)],
 }
 
 const FR: Words = Words {
@@ -239,6 +249,76 @@ const FR: Words = Words {
     refused: "Coréen, pas japonais.",
     claude_reason: |first| format!("{first} me l’a dit pendant notre conversation."),
     phone: |i| (i < 10_000).then(|| format!("+33 6 39 98 {:02} {:02}", i / 100, i % 100)),
+    things: &[
+        ("place", "Studio Lotus", "Cours de yoga le mardi soir."),
+        (
+            "place",
+            "Cabinet dentaire du Parc",
+            "Le dentiste de toute la famille.",
+        ),
+        ("place", "Biarritz", "Les vacances, chaque mois d’août."),
+        (
+            "place",
+            "Lyon",
+            "Des week-ends chez des amis, plusieurs fois par an.",
+        ),
+        (
+            "organization",
+            "Atelier Nord",
+            "Studio de design, où Camille travaille depuis 2021.",
+        ),
+        (
+            "organization",
+            "Club d’escalade Vertige",
+            "Séances le samedi matin.",
+        ),
+        (
+            "work",
+            "Les Jours de sel",
+            "Série regardée en famille, le dimanche soir.",
+        ),
+        ("work", "La Maison des marées", "Roman en cours de lecture."),
+        (
+            "work",
+            "Carnets d’Islande",
+            "Livre de photographies offert par Élise.",
+        ),
+        (
+            "project",
+            "Rénovation de la cuisine",
+            "Devis en cours, travaux prévus au printemps.",
+        ),
+        (
+            "project",
+            "Marathon de printemps",
+            "Entraînement trois fois par semaine.",
+        ),
+        ("thing", "Vélo de route", "Révision faite en octobre."),
+        ("thing", "Appareil photo argentique", "Hérité de Mamie."),
+        ("topic", "Escalade", "Pratiquée depuis 2019."),
+        (
+            "topic",
+            "Cuisine libanaise",
+            "Recettes préférées : taboulé et moutabal.",
+        ),
+    ],
+    things_reason: "Ce dont vous m’avez parlé ces derniers mois.",
+    owner_links: &[
+        ("travaille chez", "Atelier Nord"),
+        ("membre de", "Club d’escalade Vertige"),
+        ("lit", "La Maison des marées"),
+        ("projet", "Rénovation de la cuisine"),
+        ("passion", "Escalade"),
+    ],
+    colleague_word: "travaille chez",
+    links_reason: "Qui travaille où, d’après vos contacts et vos réunions.",
+    yoga_reason: "Les cours de yoga ont lieu au Studio Lotus.",
+    now: &[
+        ("music", "Les Ondes Basses"),
+        ("music", "Mira Sol"),
+        ("watching", "Les Jours de sel"),
+        ("reading", "La Maison des marées"),
+    ],
 };
 
 const EN: Words = Words {
@@ -340,6 +420,68 @@ const EN: Words = Words {
     refused: "Korean, not Japanese.",
     claude_reason: |first| format!("{first} told me during our conversation."),
     phone: |i| (i < 100).then(|| format!("+1 202 555 01{i:02}")),
+    things: &[
+        ("place", "Lotus Studio", "Yoga on Tuesday evenings."),
+        ("place", "Park Dental", "The whole family's dentist."),
+        ("place", "Bar Harbor", "Holidays, every August."),
+        (
+            "place",
+            "Chicago",
+            "Weekends with friends, several times a year.",
+        ),
+        (
+            "organization",
+            "North Studio",
+            "Design studio where Alex has worked since 2021.",
+        ),
+        (
+            "organization",
+            "Vertigo Climbing",
+            "Sessions on Saturday mornings.",
+        ),
+        (
+            "work",
+            "Salt Days",
+            "A series watched as a family on Sunday evenings.",
+        ),
+        ("work", "The House of Tides", "A novel, being read."),
+        (
+            "work",
+            "Iceland Notebooks",
+            "A photography book, a gift from Ellie.",
+        ),
+        (
+            "project",
+            "Kitchen renovation",
+            "Quotes coming in, work planned for the spring.",
+        ),
+        ("project", "Spring marathon", "Training three times a week."),
+        ("thing", "Road bike", "Serviced in October."),
+        ("thing", "Film camera", "Inherited from Granny."),
+        ("topic", "Climbing", "Since 2019."),
+        (
+            "topic",
+            "Lebanese cooking",
+            "Favourite dishes: tabbouleh and moutabal.",
+        ),
+    ],
+    things_reason: "What you told me about over the last months.",
+    owner_links: &[
+        ("works at", "North Studio"),
+        ("member of", "Vertigo Climbing"),
+        ("reading", "The House of Tides"),
+        ("project", "Kitchen renovation"),
+        ("passion", "Climbing"),
+    ],
+    colleague_word: "works at",
+    links_reason: "Who works where, from your contacts and your meetings.",
+    yoga_reason: "Yoga classes take place at Lotus Studio.",
+    now: &[
+        ("music", "Low Waves"),
+        ("music", "Mira Sol"),
+        ("watching", "Salt Days"),
+        ("reading", "The House of Tides"),
+    ],
 };
 
 /// A title as it reads inside a sentence.
@@ -942,6 +1084,8 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
         }
     }
 
+    world(vault, words, people, today, &by(), &proposals)?;
+
     // Facts it heard in conversation.
     let file = |card: &Card| -> String {
         format!("people/{}.md", to_file_stem(&card.name).unwrap_or_default())
@@ -971,6 +1115,151 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
             }
             _ => {}
         }
+    }
+    Ok(())
+}
+
+/// The rest of the memory: places, organizations, works, projects, things and topics
+/// the AI wrote down, how the owner and their colleagues relate to them, the yoga
+/// classes linked to their studio; and what is going on right now, as the person's own
+/// files.
+fn world(
+    vault: &Vault,
+    words: &Words,
+    people: &People,
+    today: Date,
+    by: &Author,
+    proposals: &Proposals<'_>,
+) -> Result<()> {
+    let stem = |name: &str| to_file_stem(name).unwrap_or_default();
+    let things = words
+        .things
+        .iter()
+        .map(|(kind, name, fact)| Change::Create {
+            file: None,
+            file_type: (*kind).to_owned(),
+            category: None,
+            keys: [(
+                "name".to_owned(),
+                serde_json::Value::String((*name).to_owned()),
+            )]
+            .into(),
+            facts: vec![(*fact).to_owned()],
+            relations: Vec::new(),
+            notes: None,
+        })
+        .collect();
+    let made = proposals.submit(by.clone(), words.things_reason, None, things)?;
+    proposals.accept(&made.id)?;
+
+    let owner = vault
+        .owner_file()
+        .strip_prefix(vault.root())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let work = words
+        .owner_links
+        .first()
+        .map(|(_, name)| stem(name))
+        .unwrap_or_default();
+    let mut links: Vec<Change> = words
+        .owner_links
+        .iter()
+        .map(|(word, name)| Change::AddRelation {
+            file: owner.clone(),
+            word: (*word).to_owned(),
+            target: stem(name),
+            display: None,
+        })
+        .collect();
+    links.extend(
+        people
+            .colleagues
+            .iter()
+            .take(5)
+            .map(|c| Change::AddRelation {
+                file: format!("people/{}.md", stem(&c.name)),
+                word: words.colleague_word.to_owned(),
+                target: work.clone(),
+                display: None,
+            }),
+    );
+    let made = proposals.submit(by.clone(), words.links_reason, None, links)?;
+    proposals.accept(&made.id)?;
+
+    // The last yoga classes, at their studio.
+    let index = SearchIndex::load(vault.root())?;
+    let since = today.saturating_sub(60.days());
+    let studio = words.things[0].1;
+    let yoga: Vec<Change> = index
+        .events(
+            |_| true,
+            |e| e.start.date() >= since && e.start.date() <= today,
+        )
+        .into_iter()
+        .filter_map(|e| {
+            let rel = e.path.to_string_lossy().replace('\\', "/");
+            let file = MemoryFile::read(vault.root().join(e.path)).ok()?;
+            let event = file.event()?;
+            (event.title == words.yoga.0).then(|| Change::SetKey {
+                file: rel,
+                key: "place".into(),
+                from: serde_json::Value::String(words.yoga.1.to_owned()),
+                to: serde_json::Value::String(format!("[[{}]]", stem(studio))),
+            })
+        })
+        .collect();
+    if !yoga.is_empty() {
+        let made = proposals.submit(by.clone(), words.yoga_reason, None, yoga)?;
+        proposals.accept(&made.id)?;
+    }
+
+    now(vault, words, today)?;
+    vault.history()?.record_outside_edits()?;
+    Ok(())
+}
+
+/// What is going on right now, as state files the person keeps (`vault.md` §5).
+fn now(vault: &Vault, words: &Words, today: Date) -> Result<()> {
+    let stem = |name: &str| to_file_stem(name).unwrap_or_default();
+    let year = today.year();
+    let mut topics: Vec<&str> = words.now.iter().map(|(t, _)| *t).collect();
+    topics.dedup();
+    for topic in topics {
+        let mut table = String::from(
+            "| Subject | First seen | Last seen | Count | Source |\n| --- | --- | --- | --- | --- |\n",
+        );
+        for (n, (_, subject)) in words.now.iter().filter(|(t, _)| *t == topic).enumerate() {
+            let linked = words.things.iter().any(|(_, name, _)| name == subject);
+            let shown = if linked {
+                format!("[[{}]]", stem(subject))
+            } else {
+                (*subject).to_owned()
+            };
+            let last = today.saturating_sub(i64::try_from(n + 1).unwrap_or(1).days());
+            let first = today.saturating_sub(i64::try_from(20 + 5 * n).unwrap_or(20).days());
+            let _ = writeln!(
+                table,
+                "| {shown} | {first} | {last} | {} | device |",
+                40 - 9 * n
+            );
+        }
+        let path = vault.root().join(format!("states/{topic}/{year}.md"));
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|source| Error::Io {
+                action: "create",
+                path: parent.to_owned(),
+                source,
+            })?;
+        }
+        let now = DateTime::now(vault.settings().time_zone());
+        write(
+            &path,
+            &format!(
+                "---\nid: {}\ntype: state-log\ncategory: media\ncreated: {now}\nupdated: {now}\ntopic: {topic}\nyear: {year}\n---\n\n{table}",
+                ipse_core::vault::Id::generate()
+            ),
+        )?;
     }
     Ok(())
 }

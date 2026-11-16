@@ -1,3 +1,4 @@
+import { folderOf } from './kinds.ts';
 // Dates and names as the person reads them, in the interface's language and the
 // vault's time zone.
 import { app } from './app.svelte.ts';
@@ -74,10 +75,18 @@ export function sources(list: string[]): string {
 	return new Intl.ListFormat(locale(), { type: 'conjunction' }).format(unique);
 }
 
+/** "Vient de vos contacts.", "Vient d’une proposition acceptée.": where a file came from. */
+export function fromSources(list: string[]): string {
+	const text = sources(list);
+	if (i18n.language === 'fr') return /^[aeiouyhéèêàâîïôû]/i.test(text) ? `Vient d’${text}.` : `Vient de ${text}.`;
+	return `${i18n.t.from} ${text}.`;
+}
+
 /** The page of a linked file; summaries have none yet. */
 export function hrefOf(link: { id: string | null; kind: string | null }): string | null {
 	if (!link.id || link.kind === 'summary') return null;
-	return link.kind === 'event' ? `/agenda/${link.id}` : `/people/${link.id}`;
+	if (link.kind === 'event') return `/agenda/${link.id}`;
+	return `/memory/${folderOf(link.kind) ?? 'people'}/${link.id}`;
 }
 
 /** "il y a 2 heures", "hier", or the day for anything older than a week. */

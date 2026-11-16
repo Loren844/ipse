@@ -5,6 +5,7 @@
 	import { longDay } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
+	import Now from '#lib/Now.svelte';
 	import SummaryCard from '#lib/SummaryCard.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 
@@ -38,6 +39,13 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if view.now.length}
+			<section aria-labelledby="now" class="home-now">
+				<h2 id="now">{i18n.t.nowTitle}</h2>
+				<Now states={view.now} today={view.today} />
+			</section>
+		{/if}
 
 		{#if view.latest}
 			<section aria-labelledby="latest" class="latest-summary">

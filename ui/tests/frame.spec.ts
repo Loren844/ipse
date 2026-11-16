@@ -22,7 +22,7 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveURL(`${ipse.origin}/`);
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
-	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Personnes', 'Agenda', 'Résumés', 'À revoir', 'IA connectées', 'Historique', 'Réglages']);
+	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Agenda', 'Résumés', 'À revoir', 'IA connectées', 'Historique', 'Réglages']);
 	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
 	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
@@ -43,7 +43,7 @@ test('the sections and the language switch', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
 	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveText([
 		'Home',
-		'People',
+		'Memory',
 		'Agenda',
 		'Summaries',
 		'To review',
@@ -63,10 +63,12 @@ test('the keyboard reaches every section', async ({ page }) => {
 	await expect(page.getByTestId('memory-name')).toBeVisible();
 	await page.keyboard.press('Tab');
 	await page.keyboard.press('Tab');
+	await expect(page.getByRole('searchbox', { name: 'Chercher dans la mémoire' })).toBeFocused();
+	await page.keyboard.press('Tab');
 	await expect(page.getByRole('link', { name: 'Accueil' })).toBeFocused();
 	await page.keyboard.press('Tab');
 	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(`${ipse.origin}/people`);
+	await expect(page).toHaveURL(`${ipse.origin}/memory`);
 });
 
 test('the address works once, in one browser', async ({ page, browser }) => {

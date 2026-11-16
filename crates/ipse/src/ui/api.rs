@@ -145,10 +145,25 @@ pub(crate) struct EntityView {
     sensitive: bool,
     /// Where it comes from: `contacts`, `proposal`, `person`…
     sources: Vec<String>,
-    /// The events it takes part in, by start.
+    /// The events it takes part in or that happen there, by start.
     events: Vec<EventView>,
+    /// The other files that link to it, by name.
+    backlinks: Vec<BacklinkView>,
     /// True for the owner's own file.
     owner: bool,
+}
+
+/// Another file that links to this one.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct BacklinkView {
+    from: LinkView,
+    /// The relation's word as written in `from`: "Paul Roux" says "sœur : this file".
+    word: Option<String>,
 }
 
 /// One file of the memory, as a screen opens it.
@@ -235,6 +250,8 @@ pub(crate) struct HomeView {
     questions: usize,
     /// The most recent day summary.
     latest: Option<super::summaries::SummaryView>,
+    /// What is going on right now.
+    now: Vec<super::memory::StateView>,
 }
 
 /// What `/api/app` answers.
@@ -323,6 +340,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         id: Some(me.id),
         kind: Some(me.file_type),
     });
+    let now = super::memory::now(&owner);
     Ok(HomeView {
         today: today.to_string(),
         me,
@@ -331,7 +349,19 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         waiting,
         questions,
         latest,
+        now,
     })
+}
+
+impl From<ipse_core::rights::Line> for PersonLine {
+    fn from(l: ipse_core::rights::Line) -> Self {
+        Self {
+            id: l.id,
+            name: l.name,
+            aliases: l.aliases,
+            sensitive: l.sensitive,
+        }
+    }
 }
 
 /// What `/api/people` answers.
@@ -421,9 +451,13 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         return Ok(Some(FileView::Event(event_view(details))));
     }
     let is_owner = owner.about_me().is_some_and(|me| me.id == details.entry.id);
+    let (linked_events, others): (Vec<_>, Vec<_>) = owner
+        .backlinks(id)
+        .into_iter()
+        .partition(|b| b.from.file_type.as_deref() == Some("event"));
     let events = if is_owner {
         Vec::new()
-    } else {
+    } else if details.entry.file_type == "person" {
         // Everything with them, from the earliest to a year ahead.
         let from = EventTime::Day(jiff::civil::date(1900, 1, 1));
         let to = EventTime::Day(today.saturating_add(366.days()));
@@ -434,7 +468,24 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
             .filter_map(|e| owner.details(&e.id))
             .map(event_view)
             .collect()
+    } else {
+        // A place, an organization…: the events that link to it, oldest first.
+        let mut events: Vec<EventView> = linked_events
+            .into_iter()
+            .take(PERSON_EVENTS)
+            .filter_map(|b| owner.details(b.from.id.as_deref()?))
+            .map(event_view)
+            .collect();
+        events.reverse();
+        events
     };
+    let backlinks = others
+        .into_iter()
+        .map(|b| BacklinkView {
+            from: b.from.into(),
+            word: b.word,
+        })
+        .collect();
     let entry = details.entry;
     Ok(Some(FileView::Entity(EntityView {
         id: entry.id,
@@ -459,6 +510,7 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         sensitive: details.sensitive,
         sources: details.sources,
         events,
+        backlinks,
         owner: is_owner,
     })))
 }

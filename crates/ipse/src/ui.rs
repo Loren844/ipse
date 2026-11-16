@@ -35,6 +35,7 @@ use serde::Serialize;
 mod ais;
 mod api;
 mod history;
+mod memory;
 mod questions;
 mod review;
 mod settings;
@@ -334,6 +335,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             }
             "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
             "settings" => Ok(Some(to_json(&settings::view(gateway)))),
+            "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
+            "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
             "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
             "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
             "summaries" => {
@@ -347,7 +350,11 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                 .map(|v| Some(to_json(&v)))
             }
             _ => {
-                if let Some(id) = path.strip_prefix("file/") {
+                if let Some(folder) = path.strip_prefix("memory/") {
+                    let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+                    memory::list(gateway, folder, param("q").as_deref(), offset)
+                        .map(|v| v.map(|v| to_json(&v)))
+                } else if let Some(id) = path.strip_prefix("file/") {
                     api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
                 } else if let Some(id) = path.strip_prefix("proposals/") {
                     review::one(gateway, id).map(|v| v.map(|v| to_json(&v)))

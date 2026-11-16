@@ -130,6 +130,28 @@ fn a_demo_memory_full_of_invented_people_and_events() {
             .any(|s| matches!(s, Some(Source::Proposal(_))))
     );
 
+    // More than people: places, organizations, works, projects, things, topics, and
+    // what is going on right now.
+    for (folder, at_least) in [
+        ("places", 4),
+        ("organizations", 2),
+        ("works", 3),
+        ("projects", 2),
+        ("things", 2),
+        ("topics", 2),
+    ] {
+        assert!(files(&root.join(folder)).len() >= at_least, "{folder}");
+    }
+    let year = jiff::Zoned::now().date().year();
+    let music = std::fs::read_to_string(root.join(format!("states/music/{year}.md"))).unwrap();
+    assert!(music.contains("| Les Ondes Basses |"), "{music}");
+    assert!(
+        events.iter().any(|p| std::fs::read_to_string(p)
+            .unwrap()
+            .contains("place: \"[[studio-lotus]]\"")),
+        "yoga classes linked to their studio"
+    );
+
     // The same memory every time, apart from ids and dates.
     let again = dir.path().join("again");
     demo(&again, "fr");

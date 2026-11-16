@@ -48,6 +48,28 @@ pub struct LinkOut {
     pub file_type: Option<String>,
 }
 
+/// The kinds of entity a memory holds, in the order the interface lists them.
+pub const ENTITY_KINDS: [FileType; 7] = [
+    FileType::Person,
+    FileType::Place,
+    FileType::Organization,
+    FileType::Project,
+    FileType::Work,
+    FileType::Thing,
+    FileType::Topic,
+];
+
+/// Something that links to a file.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Backlink {
+    /// The file that links.
+    pub from: LinkOut,
+    /// For a relation, its word as written in `from`: `sœur` when `from` says
+    /// "sœur : [[this file]]". `None` for an event this file takes part in.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub word: Option<String>,
+}
+
 /// A relation, resolved.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct RelationLink {
@@ -89,6 +111,19 @@ impl Access<'_> {
     /// `offset`; or, with a `query`, those matching it, best first.
     #[must_use]
     pub fn people(&self, query: Option<&str>, limit: usize, offset: usize) -> Lines {
+        self.entities(FileType::Person, query, limit, offset)
+    }
+
+    /// The entities of `file_type` this client may read: by name, `limit` (clamped to
+    /// 1–200) from `offset`; or, with a `query`, those matching it, best first.
+    #[must_use]
+    pub fn entities(
+        &self,
+        file_type: FileType,
+        query: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Lines {
         let limit = limit.clamp(1, MAX_LISTED);
         let query = query.map(str::trim).filter(|q| !q.is_empty());
         if let Some(query) = query {
@@ -96,7 +131,7 @@ impl Access<'_> {
             let items: Vec<Line> = found
                 .hits
                 .into_iter()
-                .filter(|h| h.file_type == FileType::Person)
+                .filter(|h| h.file_type == file_type)
                 .map(|h| Line {
                     sensitive: self.sensitive(h.category.as_str()),
                     id: h.id.to_string(),
@@ -112,7 +147,7 @@ impl Access<'_> {
         let all = self
             .gateway
             .index
-            .entities(FileType::Person, |c| self.reads(c.as_str()));
+            .entities(file_type, |c| self.reads(c.as_str()));
         let total = all.len();
         let items: Vec<Line> = all
             .into_iter()
@@ -133,6 +168,52 @@ impl Access<'_> {
             items,
             total,
         }
+    }
+
+    /// How many files of each kind of entity this client may read, in the order of
+    /// [`ENTITY_KINDS`].
+    #[must_use]
+    pub fn kinds(&self) -> Vec<(FileType, usize)> {
+        ENTITY_KINDS
+            .iter()
+            .map(|&t| (t, self.gateway.index.count(t, |c| self.reads(c.as_str()))))
+            .collect()
+    }
+
+    /// What links to the entity or event with this id, among the files this client
+    /// may read: other entities by a relation (with its word), events by their people
+    /// or place. Entities first, by name; then events, most recent first.
+    #[must_use]
+    pub fn backlinks(&self, id: &str) -> Vec<Backlink> {
+        let Some(parsed) = Id::parse(id) else {
+            return Vec::new();
+        };
+        let Some(path) = self
+            .gateway
+            .index
+            .path_of(&parsed, |c| self.reads(c.as_str()))
+        else {
+            return Vec::new();
+        };
+        let Some(stem) = path.file_stem().map(|s| s.to_string_lossy().into_owned()) else {
+            return Vec::new();
+        };
+        self.gateway
+            .index
+            .linking_to(&stem, |c| self.reads(c.as_str()))
+            .into_iter()
+            .map(|(listed, word)| {
+                self.returned(listed.category.as_str());
+                Backlink {
+                    from: LinkOut {
+                        name: listed.name.to_owned(),
+                        id: Some(listed.id.to_string()),
+                        file_type: type_of(listed.path),
+                    },
+                    word: word.map(str::to_owned),
+                }
+            })
+            .collect()
     }
 
     /// The entity or event with this id in full, its links resolved, if this client
@@ -232,9 +313,10 @@ impl Access<'_> {
     }
 }
 
-/// The type of the file at `path`, from its folder.
+/// The type of the file at `path`, relative to the vault, from its first folder
+/// (`events/2026/…` is an event).
 fn type_of(path: &std::path::Path) -> Option<String> {
-    let folder = path.parent()?.file_name()?.to_string_lossy();
+    let folder = path.components().next()?.as_os_str().to_string_lossy();
     FileType::ALL
         .into_iter()
         .find(|t| t.folder() == folder)
