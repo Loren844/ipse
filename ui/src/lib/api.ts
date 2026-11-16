@@ -44,6 +44,20 @@ export type { ChangeView } from './types/ChangeView.ts';
 export type { EventView } from './types/EventView.ts';
 export type { EntityView } from './types/EntityView.ts';
 export type { LinkView } from './types/LinkView.ts';
+import type { EditView } from './types/EditView.ts';
+import type { SavedView } from './types/SavedView.ts';
+export type { EditView, SavedView };
+export type { LinkField } from './types/LinkField.ts';
+export type { RelationField } from './types/RelationField.ts';
+
+/** What the form sends to save a file: the keys it shows, facts by their place in the
+ * form as read, relations and notes. */
+export type Draft = {
+	keys: Record<string, string | string[] | null>;
+	facts?: { was: number | null; text: string }[];
+	relations?: { word: string; target: string; display?: string | null }[];
+	notes?: string;
+};
 
 /** The session ended (the server was restarted, or the cookie is gone). */
 export class SessionEnded extends Error {}
@@ -51,7 +65,8 @@ export class SessionEnded extends Error {}
 /** The answer for a file that does not exist. */
 export class NotFound extends Error {}
 
-/** A decision that no longer fits the memory: already decided, or changed since. */
+/** A decision that no longer fits the memory: already decided, changed since, or a value
+ * Ipse cannot keep. Its message says why, in English, when the server gave one. */
 export class Conflict extends Error {}
 
 async function get<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
@@ -74,7 +89,10 @@ async function post<T>(path: string, body: unknown = {}): Promise<T> {
 	});
 	if (response.status === 401 || response.status === 403) throw new SessionEnded();
 	if (response.status === 404) throw new NotFound();
-	if (response.status === 409) throw new Conflict();
+	if (response.status === 409) {
+		const answer = (await response.json().catch(() => ({}))) as { error?: string };
+		throw new Conflict(answer.error ?? '');
+	}
 	if (!response.ok) throw new Error(`${path}: ${response.status}`);
 	return (await response.json()) as T;
 }
@@ -116,5 +134,18 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
+	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
+	saveFile: (id: string, version: string, draft: Draft) =>
+		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),
+	deleteFile: (id: string, version: string) => post<SavedView>(`/api/file/${encodeURIComponent(id)}/delete`, { version }),
+	createFile: (kind: string, draft: Draft, stem?: string) =>
+		post<SavedView>('/api/files', {
+			kind,
+			keys: draft.keys,
+			facts: draft.facts?.map((f) => f.text) ?? [],
+			relations: draft.relations ?? [],
+			notes: draft.notes || undefined,
+			stem
+		}),
 	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone })
 };

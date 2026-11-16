@@ -5,6 +5,10 @@
  */
 export type FoundView = { id: string, 
 /**
+ * Its file's name in the memory, for a link to it: `marie-dupont`.
+ */
+stem: string, 
+/**
  * `person`, `place`, `event`, `summary`…
  */
 kind: string, name: string, 

@@ -8,4 +8,9 @@ export type RelationView = {
 /**
  * The relation word, as written: `sœur`.
  */
-word: string, to: LinkView, };
+word: string, to: LinkView, 
+/**
+ * For a link to a file that does not exist yet, the name it gives that file
+ * (`paul-roux`), to create it.
+ */
+missing: string | null, };

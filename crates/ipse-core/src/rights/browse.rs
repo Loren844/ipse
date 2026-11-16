@@ -216,6 +216,23 @@ impl Access<'_> {
             .collect()
     }
 
+    /// The file of the entity or event with this id, relative to the vault with `/`,
+    /// if this client may read it: for the person to edit it.
+    #[must_use]
+    pub fn file_of(&self, id: &str) -> Option<String> {
+        let parsed = Id::parse(id)?;
+        let path = self
+            .gateway
+            .index
+            .path_of(&parsed, |c| self.reads(c.as_str()))?;
+        Some(
+            path.components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
+    }
+
     /// The entity or event with this id in full, its links resolved, if this client
     /// may read it.
     #[must_use]

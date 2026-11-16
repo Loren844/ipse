@@ -53,7 +53,10 @@
 	<div class="screen">
 		<header class="page-head">
 			<p class="crumbs"><a href="/memory">{i18n.t.memory}</a></p>
-			<h1>{title}</h1>
+			<div class="head-row">
+				<h1>{title}</h1>
+				<a class="button small" href="/memory/new?kind={kind.kind}">+ {i18n.t.addKind[kind.kind]}</a>
+			</div>
 			{#if list.state.kind === 'ready' && !query.trim()}
 				<p class="date">
 					{kind.kind === 'person' ? i18n.t.peopleCount(list.state.value.total) : i18n.t.kindCount(list.state.value.total)}

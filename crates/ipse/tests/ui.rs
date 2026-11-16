@@ -1067,3 +1067,142 @@ fn the_whole_memory_through_the_api() {
         serde_json::json!([])
     );
 }
+
+#[test]
+#[allow(clippy::too_many_lines)] // one story: edit, create, delete
+fn editing_creating_and_deleting_through_the_api() {
+    let ui = start_with(|vault| {
+        std::fs::write(
+            vault.join("people/marie-durand.md"),
+            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z801\ntype: person\ncategory: people\nname: Marie Durand\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\n---\n\n## Faits\n\n- Aime le jazz ^f-ab12\n- Née à Lyon ^f-cd34\n\n## Relations\n\n- frère : [[paul-roux]]\n",
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+    let id = "01jcx8m2p4q6r8t0v2w4y6z801";
+
+    let (status, form) = api(&ui, &cookie, &format!("/api/file/{id}/edit"));
+    assert_eq!(status, 200, "{form}");
+    assert_eq!(form["kind"], "person");
+    assert_eq!(
+        form["facts"],
+        serde_json::json!(["Aime le jazz", "Née à Lyon"])
+    );
+    assert!(
+        !form.to_string().contains("f-ab12"),
+        "fact ids stay out of the interface"
+    );
+    let relation = &form["relations"][0];
+    assert_eq!(relation["target"], "paul-roux");
+    assert_eq!(relation["link"]["id"], serde_json::Value::Null, "dangling");
+    let version = form["version"].as_str().unwrap().to_owned();
+
+    let edit = serde_json::json!({
+        "version": version,
+        "keys": {"name": "Marie Durand", "phones": ["+33612345678"], "birthday": null},
+        "facts": [{"was": 1, "text": "Née à Lyon en 1990"}],
+        "relations": [{"word": "frère", "target": "paul-roux"}],
+        "notes": "Appelle le dimanche."
+    });
+    let (status, file) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{id}/edit"),
+        &edit.to_string(),
+    );
+    assert_eq!(status, 200, "{file}");
+    assert_eq!(
+        file["value"]["facts"],
+        serde_json::json!(["Née à Lyon en 1990"])
+    );
+    assert_eq!(file["value"]["phones"][0], "+33612345678");
+    assert_eq!(file["value"]["notes"], "Appelle le dimanche.");
+
+    // The same form, sent again, was read before that change.
+    let (status, stale) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{id}/edit"),
+        &edit.to_string(),
+    );
+    assert_eq!(status, 409);
+    assert!(stale["error"].as_str().unwrap().contains("changed since"));
+
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["summary"], "Edit a file", "{history}");
+
+    let (_, view) = api(&ui, &cookie, &format!("/api/file/{id}"));
+    assert_eq!(
+        view["value"]["relations"][0]["missing"], "paul-roux",
+        "{view}"
+    );
+
+    // An event's times come as the form's fields give them, in the vault's time zone.
+    let event = serde_json::json!({
+        "kind": "event",
+        "keys": {"title": "Concert", "start": "2026-12-04T20:00", "end": "2026-12-04T22:30"}
+    });
+    let (status, created) = post(&ui, &cookie, "/api/files", &event.to_string());
+    assert_eq!(status, 200, "{created}");
+    let concert =
+        std::fs::read_to_string(ui.vault.join("events/2026/2026-12-04-concert.md")).unwrap();
+    assert!(concert.contains("2026-12-04T20:00:00+01:00"), "{concert}");
+    assert!(concert.contains("2026-12-04T22:30:00+01:00"), "{concert}");
+
+    // Create the file the dangling link points to.
+    let create = serde_json::json!({
+        "kind": "person", "keys": {"name": "Paul Roux"}, "stem": "paul-roux"
+    });
+    let (status, created) = post(&ui, &cookie, "/api/files", &create.to_string());
+    assert_eq!(status, 200, "{created}");
+    assert_eq!(created["kind"], "person");
+    let paul = created["id"].as_str().unwrap().to_owned();
+    assert!(ui.vault.join("people/paul-roux.md").is_file());
+    let (_, form) = api(&ui, &cookie, &format!("/api/file/{id}/edit"));
+    assert_eq!(form["relations"][0]["link"]["id"], paul.as_str());
+    let (_, view) = api(&ui, &cookie, &format!("/api/file/{id}"));
+    assert_eq!(
+        view["value"]["relations"][0]["missing"],
+        serde_json::Value::Null
+    );
+
+    let (status, refused) = post(
+        &ui,
+        &cookie,
+        "/api/files",
+        r#"{"kind": "event", "keys": {"title": "Concert"}}"#,
+    );
+    assert_eq!(status, 409);
+    assert!(refused["error"].as_str().unwrap().contains("start"));
+
+    // Delete Paul: Marie's file links to him.
+    let (_, form) = api(&ui, &cookie, &format!("/api/file/{paul}/edit"));
+    assert_eq!(form["links"][0]["name"], "Marie Durand");
+    let body = serde_json::json!({"version": form["version"]});
+    let (status, deleted) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{paul}/delete"),
+        &body.to_string(),
+    );
+    assert_eq!(status, 200, "{deleted}");
+    assert!(!ui.vault.join("people/paul-roux.md").exists());
+    assert_eq!(api(&ui, &cookie, &format!("/api/file/{paul}")).0, 404);
+
+    // The owner's own file cannot be deleted.
+    let (_, home) = api(&ui, &cookie, "/api/home");
+    let me = home["me"]["id"].as_str().unwrap().to_owned();
+    let (_, form) = api(&ui, &cookie, &format!("/api/file/{me}/edit"));
+    assert_eq!(form["owner"], true);
+    let body = serde_json::json!({"version": form["version"]});
+    assert_eq!(
+        post(
+            &ui,
+            &cookie,
+            &format!("/api/file/{me}/delete"),
+            &body.to_string()
+        )
+        .0,
+        409
+    );
+}
