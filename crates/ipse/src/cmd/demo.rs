@@ -166,7 +166,7 @@ const FR: Words = Words {
     grandmother: "Mamie",
     nicknames: ["Jo plombier", "Léo escalade", "Sandrine compta"],
     friend_notes: &[
-        "Rencontrée au club d'escalade en 2019.",
+        "Rencontrée au club d’escalade en 2019.",
         "Travaille comme infirmière à Nantes.",
         "Fan de jazz, joue du saxophone le week-end.",
         "Deux enfants, Iris et Léon.",
@@ -176,7 +176,7 @@ const FR: Words = Words {
         "Court le semi-marathon de Paris chaque année.",
         "Allergique aux noix.",
         "Parrain de Léon.",
-        "Revient d'un an au Québec.",
+        "Revient d’un an au Québec.",
         "Fait de la poterie le jeudi soir.",
     ],
     work: "Atelier Nord",
@@ -196,12 +196,12 @@ const FR: Words = Words {
         "Boulangerie Lemoine",
         "Pharmacie Centrale",
         "Mairie du 11e",
-        "Club d'escalade Vertige",
+        "Club d’escalade Vertige",
         "Librairie Le Phare",
         "Cabinet Morel, kinésithérapie",
     ],
     yoga: ("Yoga", "Studio Lotus"),
-    team: "Point d'équipe",
+    team: "Point d’équipe",
     lunch: "Déjeuner avec",
     dinner: "Dîner chez",
     at_home: "Chez",
@@ -215,10 +215,10 @@ const FR: Words = Words {
         "Penser au vin.",
         "Soirée jeux de société.",
     ],
-    leak: ("Fuite sous l'évier", "Jo passe vers 9 h."),
+    leak: ("Fuite sous l’évier", "Jo passe vers 9 h."),
     day_summary: |titles| match titles {
         [] => String::new(),
-        [one] => format!("Une journée tranquille : {}.", lower(one)),
+        [one] => format!("Une journée tranquille\u{a0}: {}.", lower(one)),
         [first, rest @ ..] => format!(
             "{first}, puis {}. Une journée bien remplie.",
             rest.iter()
@@ -227,17 +227,17 @@ const FR: Words = Words {
                 .join(", puis ")
         ),
     },
-    summary_reason: "Le résumé de la journée, d'après votre agenda.",
+    summary_reason: "Le résumé de la journée, d’après votre agenda.",
     facts: [
         (
             "Commence un nouveau travail à la médiathèque en janvier.",
-            "me l'a dit pendant notre conversation.",
+            "me l’a dit pendant notre conversation.",
         ),
-        ("Parle japonais.", "l'a mentionné dans un message."),
+        ("Parle japonais.", "l’a mentionné dans un message."),
         ("Prépare un marathon au printemps.", "en a parlé hier."),
     ],
     refused: "Coréen, pas japonais.",
-    claude_reason: |first| format!("{first} me l'a dit pendant notre conversation."),
+    claude_reason: |first| format!("{first} me l’a dit pendant notre conversation."),
     phone: |i| (i < 10_000).then(|| format!("+33 6 39 98 {:02} {:02}", i / 100, i % 100)),
 };
 
