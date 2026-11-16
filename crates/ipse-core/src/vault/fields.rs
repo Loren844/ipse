@@ -4,6 +4,7 @@
 //! valid and can be written back without further checks.
 
 use std::fmt;
+use std::sync::{Mutex, PoisonError};
 
 use jiff::fmt::temporal::Pieces;
 use jiff::tz::{Offset, TimeZone};
@@ -16,10 +17,19 @@ pub struct Id(String);
 const CROCKFORD_LOWER: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 
 impl Id {
-    /// A new identifier, sortable by creation time.
+    /// A new identifier, sortable by creation time. Within one process, each is
+    /// greater than the one before, even in the same millisecond; across processes,
+    /// only the millisecond orders them.
     #[must_use]
     pub fn generate() -> Self {
-        Self(ulid::Ulid::generate().to_string().to_ascii_lowercase())
+        static GENERATOR: Mutex<ulid::Generator> = Mutex::new(ulid::Generator::new());
+        let mut generator = GENERATOR.lock().unwrap_or_else(PoisonError::into_inner);
+        // The random part only overflows after 2^80 ids in one millisecond: a fresh
+        // id still sorts after every earlier millisecond.
+        let id = generator
+            .generate()
+            .unwrap_or_else(|_| ulid::Ulid::generate());
+        Self(id.to_string().to_ascii_lowercase())
     }
 
     /// Checks that `text` is a lowercase ULID. Returns `None` otherwise.
@@ -474,6 +484,15 @@ pub struct EntityFields {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ids_follow_each_other_within_a_millisecond() {
+        let ids: Vec<Id> = (0..10_000).map(|_| Id::generate()).collect();
+        for pair in ids.windows(2) {
+            assert!(pair[0] < pair[1], "{} then {}", pair[0], pair[1]);
+            assert!(Id::parse(pair[1].as_str()).is_some());
+        }
+    }
 
     #[test]
     fn ids() {
