@@ -2137,7 +2137,13 @@ pre.diagnostics {
 	margin: 0;
 }
 
-.person-head .edit {
+.head-actions {
+	display: flex;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.person-head .head-actions {
 	margin-left: auto;
 	align-self: center;
 }
@@ -2386,4 +2392,230 @@ pre.diagnostics {
 	margin-left: 0.5rem;
 	font-size: var(--step--1);
 	color: var(--thread-ink);
+}
+
+/* The graph (issue #130): the thread's red for the file at the center and its own
+   links, quiet lines for the rest; dashes, never colour alone, for what AIs cannot see. */
+.graph-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 1rem 2rem;
+	margin: 1.5rem 0 1rem;
+}
+
+.graph-filters fieldset {
+	border: 0;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+
+.graph-filters legend {
+	font-weight: 700;
+	font-size: var(--step--1);
+	margin-bottom: 0.4rem;
+	padding: 0;
+}
+
+.toggles {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.35rem;
+}
+
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	font: inherit;
+	font-size: 0.85rem;
+	color: var(--muted);
+	background: transparent;
+	border: 1.5px dashed var(--line-strong);
+	border-radius: 999px;
+	padding: 0.2rem 0.7rem;
+	cursor: pointer;
+}
+
+.toggle svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.toggle[aria-pressed='true'] {
+	color: var(--thread-ink);
+	background: var(--thread-soft);
+	border-style: solid;
+	border-color: var(--thread-faint);
+}
+
+.toggle .toggle-lock {
+	stroke-width: 2;
+	margin-left: -0.1rem;
+}
+
+.toggle:disabled {
+	cursor: not-allowed;
+}
+
+.graph {
+	margin: 0;
+	border: 1.5px solid var(--line);
+	border-radius: 18px;
+	background: var(--surface);
+	overflow: hidden;
+}
+
+.graph svg[data-testid='graph'] {
+	display: block;
+	width: 100%;
+	height: auto;
+	max-height: 78vh;
+	font-family: var(--text-font);
+}
+
+.graph .edges line {
+	stroke: var(--line-strong);
+	stroke-width: 1.2;
+}
+
+.graph .edges line.core {
+	stroke: var(--thread-faint);
+	stroke-width: 1.8;
+}
+
+.graph .edges line.lit {
+	stroke: var(--thread);
+	stroke-width: 2.2;
+}
+
+.graph .node {
+	cursor: pointer;
+}
+
+.graph .node circle {
+	fill: var(--surface);
+	stroke: var(--line-strong);
+	stroke-width: 1.5;
+}
+
+.graph .node.person circle {
+	fill: var(--thread-soft);
+	stroke: var(--thread-faint);
+}
+
+.graph .node.depth-0 circle {
+	fill: var(--thread);
+	stroke: var(--thread);
+}
+
+.graph .node.sensitive circle {
+	stroke: var(--warn);
+	stroke-dasharray: 4 3;
+	stroke-width: 2;
+}
+
+.graph .node .icon path {
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.graph .node.person .icon path {
+	stroke: var(--thread-ink);
+}
+
+.graph .node.depth-0 .icon path {
+	stroke: var(--on-thread);
+}
+
+.graph .node text {
+	font-size: 15px;
+	fill: var(--text);
+	paint-order: stroke;
+	stroke: var(--surface);
+	stroke-width: 4px;
+	stroke-linejoin: round;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.graph .node.depth-0 text {
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 22px;
+}
+
+.graph .node text .day {
+	fill: var(--muted);
+	font-size: 0.85em;
+}
+
+.graph .node.depth-2 text {
+	font-size: 13px;
+	fill: var(--muted);
+}
+
+.graph .node.labelled text,
+.graph .node.lit text {
+	opacity: 1;
+}
+
+.graph .node.lit circle {
+	stroke: var(--thread);
+	stroke-width: 2.5;
+}
+
+.graph figcaption {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.25rem 1rem;
+	padding: 0.7rem 1rem;
+	border-top: 1.5px solid var(--line);
+	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.graph-list {
+	margin-top: 2.5rem;
+}
+
+.graph-list h3 {
+	font-size: 1rem;
+	margin: 1.25rem 0 0.4rem;
+}
+
+.graph-list ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.graph-list li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.25rem 0.6rem;
+}
+
+.graph-list a {
+	color: var(--text);
+	font-weight: 500;
+}
+
+.graph-list .link-button {
+	align-self: baseline;
+}
+
+a.button {
+	display: inline-block;
+	text-decoration: none;
 }

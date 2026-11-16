@@ -6,7 +6,9 @@ use serde::{Deserialize, Serialize};
 
 use super::fold::words;
 use crate::vault::body::{Section, section_text};
-use crate::vault::{Category, EventFields, EventTime, FileType, Id, Language, MemoryFile};
+use crate::vault::{
+    Category, EventFields, EventTime, FileType, Id, Language, MemoryFile, WikiLink,
+};
 
 /// A text and its words as matched, computed once when the file is read.
 #[derive(Debug, Clone)]
@@ -54,6 +56,46 @@ pub(super) struct Document {
     pub(super) notes: Option<Field>,
     /// For an event: when, and who.
     pub(super) event: Option<EventSpan>,
+    /// The files it links to, read once from its relations, or an event's place and
+    /// people: for the graph.
+    pub(super) links: Vec<DocLink>,
+}
+
+/// One link of a document to another file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct DocLink {
+    /// The linked file's stem, in lower case.
+    pub(super) target: String,
+    /// The relation's word; `None` for an event's place or people.
+    pub(super) word: Option<String>,
+}
+
+/// The links of a document: `word : [[target]]` relations, and an event's place and
+/// people, which its facts hold as `[[target]]`.
+fn links_of(relations: &[String], facts: &[String], event: bool) -> Vec<DocLink> {
+    let mut links = Vec::with_capacity(relations.len() + if event { facts.len() } else { 0 });
+    for relation in relations {
+        let Some((word, link)) = relation.split_once(" : ") else {
+            continue;
+        };
+        if let Some(link) = WikiLink::parse(link.trim()) {
+            links.push(DocLink {
+                target: link.target.to_ascii_lowercase(),
+                word: Some(word.trim().to_owned()),
+            });
+        }
+    }
+    if event {
+        for fact in facts {
+            if let Some(link) = WikiLink::parse(fact.trim()) {
+                links.push(DocLink {
+                    target: link.target.to_ascii_lowercase(),
+                    word: None,
+                });
+            }
+        }
+    }
+    links
 }
 
 /// When an event happens and the people it links to.
@@ -119,7 +161,9 @@ impl Document {
                 participants: e.participants,
             }),
         };
+        let links = links_of(&s.relations, &s.facts, event.is_some());
         Some(Self {
+            links,
             id: Id::parse(&s.id)?,
             file_type: FileType::parse(&s.file_type)?,
             category: Category::new(&s.category)?,

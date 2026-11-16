@@ -35,6 +35,7 @@ use serde::Serialize;
 mod ais;
 mod api;
 mod edit;
+mod graph;
 mod history;
 mod memory;
 mod questions;
@@ -312,70 +313,83 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
     }
 }
 
+/// A read of the JSON API: a `GET`, with the owner's rights.
+fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>>> {
+    let param = |name: &str| parameter(query, name);
+    match path {
+        "app" => api::app(gateway).map(|v| Some(to_json(&v))),
+        "home" => api::home(gateway).map(|v| Some(to_json(&v))),
+        "people" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            api::people(gateway, param("q").as_deref(), offset).map(|v| Some(to_json(&v)))
+        }
+        "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
+            .map(|v| Some(to_json(&v))),
+        "proposals" => review::list(gateway).map(|v| Some(to_json(&v))),
+        "ais" => ais::view(gateway).map(|v| Some(to_json(&v))),
+        "history" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            history::changes(gateway, offset).map(|v| Some(to_json(&v)))
+        }
+        "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
+        "settings" => Ok(Some(to_json(&settings::view(gateway)))),
+        "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
+        "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
+        "graph" => graph::view(
+            gateway,
+            param("id").as_deref(),
+            param("depth").as_deref(),
+            param("kinds").as_deref(),
+            param("categories").as_deref(),
+        )
+        .map(|v| v.map(|v| to_json(&v))),
+        "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
+        "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
+        "summaries" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            summaries::page(
+                gateway,
+                param("period").as_deref(),
+                offset,
+                param("before").as_deref(),
+            )
+            .map(|v| Some(to_json(&v)))
+        }
+        _ => {
+            if let Some(folder) = path.strip_prefix("memory/") {
+                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+                memory::list(gateway, folder, param("q").as_deref(), offset)
+                    .map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(id) = path
+                .strip_prefix("file/")
+                .and_then(|rest| rest.strip_suffix("/edit"))
+            {
+                edit::view(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(id) = path.strip_prefix("file/") {
+                api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(id) = path.strip_prefix("proposals/") {
+                review::one(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(instance) = path
+                .strip_prefix("runs/")
+                .and_then(|rest| rest.strip_suffix("/diagnostics"))
+            {
+                history::diagnostics_view(gateway, instance).map(|v| v.map(|v| to_json(&v)))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
 /// The JSON API, every answer read or written with the owner's rights. Reads are
 /// `GET`; a change is a `POST` of JSON from the interface's own page.
 fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<Body> {
     let method = request.method();
     let query = request.uri().query().unwrap_or_default();
-    let param = |name: &str| parameter(query, name);
     let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
     let gateway = &mut *gateway;
     let answer = if method == Method::GET {
-        match path {
-            "app" => api::app(gateway).map(|v| Some(to_json(&v))),
-            "home" => api::home(gateway).map(|v| Some(to_json(&v))),
-            "people" => {
-                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
-                api::people(gateway, param("q").as_deref(), offset).map(|v| Some(to_json(&v)))
-            }
-            "events" => api::events(gateway, param("from").as_deref(), param("to").as_deref())
-                .map(|v| Some(to_json(&v))),
-            "proposals" => review::list(gateway).map(|v| Some(to_json(&v))),
-            "ais" => ais::view(gateway).map(|v| Some(to_json(&v))),
-            "history" => {
-                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
-                history::changes(gateway, offset).map(|v| Some(to_json(&v)))
-            }
-            "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
-            "settings" => Ok(Some(to_json(&settings::view(gateway)))),
-            "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
-            "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
-            "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
-            "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
-            "summaries" => {
-                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
-                summaries::page(
-                    gateway,
-                    param("period").as_deref(),
-                    offset,
-                    param("before").as_deref(),
-                )
-                .map(|v| Some(to_json(&v)))
-            }
-            _ => {
-                if let Some(folder) = path.strip_prefix("memory/") {
-                    let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
-                    memory::list(gateway, folder, param("q").as_deref(), offset)
-                        .map(|v| v.map(|v| to_json(&v)))
-                } else if let Some(id) = path
-                    .strip_prefix("file/")
-                    .and_then(|rest| rest.strip_suffix("/edit"))
-                {
-                    edit::view(gateway, id).map(|v| v.map(|v| to_json(&v)))
-                } else if let Some(id) = path.strip_prefix("file/") {
-                    api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
-                } else if let Some(id) = path.strip_prefix("proposals/") {
-                    review::one(gateway, id).map(|v| v.map(|v| to_json(&v)))
-                } else if let Some(instance) = path
-                    .strip_prefix("runs/")
-                    .and_then(|rest| rest.strip_suffix("/diagnostics"))
-                {
-                    history::diagnostics_view(gateway, instance).map(|v| v.map(|v| to_json(&v)))
-                } else {
-                    Ok(None)
-                }
-            }
-        }
+        read(gateway, path, query)
     } else if method == Method::POST
         && (path.starts_with("proposals/")
             || path == "ais"
