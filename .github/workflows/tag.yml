@@ -1,0 +1,54 @@
+# Tags a release when a pull request that sets the version and dates its changelog
+# section is merged: merging it is the decision to release. The tag is pushed with
+# RELEASE_TOKEN (a token of the owner's with Contents: write on this repository), so
+# that release.yml runs on it; a tag pushed with the workflow's own token would not
+# start another workflow. See CONTRIBUTING.md, "Releasing".
+name: Tag release
+
+on:
+  push:
+    branches: [main]
+    paths: [Cargo.toml, CHANGELOG.md]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tag-release
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Tag the version when its changelog section is dated
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          tag="v$version"
+          if [ -z "$version" ]; then
+            echo "No version in Cargo.toml: nothing to tag."
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" > /dev/null; then
+            echo "$tag already exists: nothing to tag."
+            exit 0
+          fi
+          pattern="^## \[?$(printf '%s' "$version" | sed 's/[.]/\\./g')\]? - [0-9]{4}-[0-9]{2}-[0-9]{2}"
+          if ! grep -Eq "$pattern" CHANGELOG.md; then
+            echo "CHANGELOG.md has no dated section for $version: not released yet."
+            exit 0
+          fi
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::warning::$version is ready, but the RELEASE_TOKEN secret is not set: push $tag by hand, or set the secret (CONTRIBUTING.md, Releasing)."
+            exit 0
+          fi
+          git tag "$tag"
+          git push "https://x-access-token:${RELEASE_TOKEN}@github.com/${REPOSITORY}.git" "refs/tags/$tag"
+          echo "Tagged $tag: release.yml builds and publishes it."
