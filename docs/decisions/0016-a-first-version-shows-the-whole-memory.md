@@ -17,13 +17,14 @@ Decision 0015 put the graph view and editing with the desktop app (milestone 3).
   2. **The whole memory**: every kind of file, searchable, with a page for any file and what links to it; "right now" from current states.
   3. **Editing and creating files** in the interface, as the person's own changes (decision 0005): never overwritten by a source, undoable.
   4. **A graph view** around any file.
-  5. **Views of events**: a calendar by month and week, views by kind of event, a timeline of one's life by years and months, and a map of the places one has been (after location history).
+  5. **Event kinds** (below), so that the data is there for the views that come later.
+- **Other views of events come with milestone 3, after the app**: a calendar by month and week, views by kind of event, a timeline of one's life by years and months, and a map of the places one has been (after location history). They present what the first version already holds; the agenda stays a list until then.
 - **Events get a kind** (trip, meal, appointment…). The person's own AI proposes it, through tasks, and the person accepts it, as for summaries (decision 0010); the person can also set it by hand. Ipse does not guess it on its own.
 - **The launch readiness stage keeps its remaining work** (connecting an AI app in one command, location history), after the interface work; the map waits for location history.
-- **Milestone 3 keeps the packaging**: the desktop app with Tauri, installer, signature, updates, background sync. The public launch still comes after it (decision 0015).
+- **Milestone 3 keeps the packaging** (the desktop app with Tauri, installer, signature, updates, background sync), **then the views of events** above. The public launch still comes after it (decision 0015).
 
 ## Consequences
 
-- 0.1.0 means a memory the person can see whole, change and explore, not only query through an AI.
+- 0.1.0 means a memory the person can see whole, change and explore through its links, not only query through an AI.
 - The README roadmap shows the First version milestone before the desktop app.
 - The demo memory grows with each screen, so that every screen has something to show.

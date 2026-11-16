@@ -8,7 +8,7 @@ A pre-release of 0.1.0, to try the binaries and the installers before the first 
 
 ## 0.1.0 - Unreleased
 
-Not released yet: 0.1.0 waits for the First version milestone (settings, the whole memory, editing, graph view, views of events; [decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)). What is already done, from milestones 1 and 2 and the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)):
+Not released yet: 0.1.0 waits for the First version milestone (settings, the whole memory, editing, graph view, event kinds; [decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)). What is already done, from milestones 1 and 2 and the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)):
 
 ### Your memory
 
