@@ -21,3 +21,4 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0013](0013-interface-framework.md) | The interface is written with Svelte | Accepted |
 | [0014](0014-imported-data-is-untrusted.md) | Imported data is untrusted | Accepted |
 | [0015](0015-launch-with-the-desktop-app.md) | Get ready to launch, then launch with the desktop app | Accepted |
+| [0016](0016-a-first-version-shows-the-whole-memory.md) | A first version shows the whole memory | Accepted |
