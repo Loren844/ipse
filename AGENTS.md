@@ -63,7 +63,7 @@ Data flows through five layers:
 1. **Connectors** — one per source, each a separate process speaking a JSON protocol to the core, so they can be written in any language.
 2. **Raw journal** — everything connectors bring back, timestamped, append-only, never modified.
 3. **Markdown vault** — entities, facts and summaries. The source of truth, editable by the person.
-4. **Derived index** — graph, full-text and semantic search, rebuildable at any time from the vault.
+4. **Derived index** — links between files and full-text search, rebuildable at any time from the vault. Semantic search, with a local model, is planned as an option (decision 0015).
 5. **AI gateway** — an MCP server that enforces each connected AI's rights.
 
 Write rule: data a connector produces deterministically is written directly; anything an AI infers or changes is a proposal the person must accept.

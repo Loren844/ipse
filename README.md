@@ -4,14 +4,14 @@
 
 Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, memories, habits, and the data already sitting in their services — into a local graph they can see, correct and control. Any AI, local or online, can then plug into it with the rights the person chooses, and act as a truly personal assistant without being told everything again.
 
-> **Status: early.** The first milestone works from the command line: import your contacts and your calendar, connect your AI app, and ask it about the people you know and your week. [Getting started](docs/guide/getting-started.md) shows how. The app comes with the next milestones.
+> **Status: early, not released yet.** Today you can import your contacts and your calendar, connect your AI app, and ask it about the people you know and your week ([Getting started](docs/guide/getting-started.md)). Your AI can tidy up your memory: it proposes facts from your notes, merges of duplicates, the full names of people saved under a nickname, and summaries of your days; you review its proposals in `ipse ui`, in your browser ([Review what it proposes](docs/guide/review.md)). Installation still needs Rust; ready-made binaries come with the launch.
 
 ## What it will do
 
 - **Local storage.** Your memory lives in a folder you pick, on your machine.
 - **Open files.** Everything is Markdown, readable in Obsidian or any editor.
 - **Connectors.** Calendar, contacts, location history and more fill your memory on their own.
-- **Graph view.** People, places, projects and memories, and how they relate, in one navigable view.
+- **Graph view** (planned). People, places, projects and memories, and how they relate, in one navigable view; today the links live in the files.
 - **You stay in charge.** The AI proposes, you accept or refuse. Every change is visible and can be undone.
 - **Per-AI rights.** Each AI you connect gets read and write access category by category, enforced by the software.
 - **Any model.** Works with a local model or an online one, through the open [Model Context Protocol](https://modelcontextprotocol.io).
@@ -27,11 +27,14 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 
 ## Roadmap
 
-1. **Core without interface** — vault format, raw journal, index and graph, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
-2. **Review and proposals** — the interface starts, in the browser (`ipse ui`): daily summary, review inbox, proposals with diff and undo.
-3. **Desktop app** — the same interface as an app for Windows, macOS and Linux: installer, updates, graph view, editing, connector and rights management.
-4. **Widening** — more connectors (location history first), weekly to yearly summaries, AI writes.
-5. **Mobile** — sync, quick capture, questions of the day.
+✅ shipped · 🔜 planned
+
+1. ✅ **Core without interface** — vault format, raw journal, index, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
+2. ✅ **Review and proposals** — the interface starts, in the browser (`ipse ui`): home, people, agenda, review inbox with diff and undo, history, connected AIs and their rights; tasks for your AI (facts from notes, duplicates, questions about nicknames, day to year summaries).
+- 🔜 **Launch readiness** ([decision 0015](docs/decisions/0015-launch-before-the-desktop-app.md)) — binaries for Windows, macOS and Linux, an AI app connected in one command, a demo memory, imported data treated as untrusted, location history (Google Maps Timeline).
+3. 🔜 **Desktop app** — the same interface as an app for Windows, macOS and Linux: installer, updates, graph view, editing, connector management. Synchronized calendars and contacts (CalDAV, CardDAV).
+4. 🔜 **Widening** — more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…); a kit for anyone to write one; semantic search with a local model, as an option.
+5. 🔜 **Mobile** — sync, quick capture.
 
 ## Repository layout
 
