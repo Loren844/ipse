@@ -19,4 +19,4 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0011](0011-no-silent-merge.md) | People and events are never merged silently | Accepted |
 | [0012](0012-local-web-interface.md) | The interface is a local web app, packaged with Tauri later | Accepted |
 | [0013](0013-interface-framework.md) | The interface is written with Svelte | Accepted |
-| [0015](0015-launch-before-the-desktop-app.md) | Prepare the public launch before the desktop app | Accepted |
+| [0015](0015-launch-with-the-desktop-app.md) | Get ready to launch, then launch with the desktop app | Accepted |
