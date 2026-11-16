@@ -72,6 +72,18 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Show or change the memory's language and time zone
+    Settings {
+        /// Language of the words Ipse writes in files: en or fr
+        #[arg(long)]
+        language: Option<String>,
+        /// Time zone, like Europe/Paris
+        #[arg(long)]
+        time_zone: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Look for people who may be the same, and events copied into two calendars, and
     /// propose to merge them; nothing is merged until you accept
     Duplicates {
@@ -296,6 +308,11 @@ fn main() -> ExitCode {
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),
         Command::Duplicates { vault } => cmd::duplicates::run(vault),
+        Command::Settings {
+            language,
+            time_zone,
+            vault,
+        } => cmd::settings::run(language.as_deref(), time_zone.as_deref(), vault),
         Command::Proposals { action } => match action {
             ProposalsAction::List { all, vault } => cmd::proposals::list(all, vault),
             ProposalsAction::Show { id, vault } => cmd::proposals::show(&id, vault),

@@ -170,6 +170,21 @@ impl Gateway {
         self.vault.settings()
     }
 
+    /// Changes the memory's language and time zone, as the person (see
+    /// [`Vault::change_settings`]).
+    ///
+    /// # Errors
+    ///
+    /// Errors of [`Vault::change_settings`].
+    pub fn change_settings(
+        &mut self,
+        language: crate::vault::Language,
+        time_zone: &str,
+    ) -> Result<()> {
+        self.vault.change_settings(language, time_zone)?;
+        Ok(())
+    }
+
     /// The vault.
     #[must_use]
     pub fn vault(&self) -> &Vault {

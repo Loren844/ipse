@@ -22,7 +22,7 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveURL(`${ipse.origin}/`);
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
-	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Personnes', 'Agenda', 'Résumés', 'À revoir', 'IA connectées', 'Historique']);
+	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Personnes', 'Agenda', 'Résumés', 'À revoir', 'IA connectées', 'Historique', 'Réglages']);
 	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
 	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
@@ -37,15 +37,25 @@ test('the sections and the language switch', async ({ page }) => {
 	await expect(page).toHaveURL(`${ipse.origin}/history`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Historique');
 
-	await page.getByRole('button', { name: 'EN' }).click();
+	await page.getByRole('link', { name: 'Réglages' }).click();
+	await page.getByRole('group', { name: 'Langue de l’interface' }).getByRole('button', { name: 'English' }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('History');
-	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveText(['Home', 'People', 'Agenda', 'Summaries', 'To review', 'Connected AIs', 'History']);
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveText([
+		'Home',
+		'People',
+		'Agenda',
+		'Summaries',
+		'To review',
+		'Connected AIs',
+		'History',
+		'Settings'
+	]);
 
 	// The choice stays in this browser; a reload keeps the page and the language.
 	await page.reload();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('History');
-	await expect(page.getByRole('button', { name: 'EN' })).toHaveAttribute('aria-pressed', 'true');
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
+	await expect(page.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('the keyboard reaches every section', async ({ page }) => {

@@ -29,26 +29,25 @@
 	color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-	:root {
-		--ground: #171314;
-		--surface: #211b1c;
-		--text: #f0eaea;
-		--muted: #ada2a3;
-		--line: #2e2627;
-		--line-strong: #3a3132;
-		--thread: #cf6874;
-		--thread-ink: #f3c5ca;
-		--thread-soft: #3a2226;
-		--thread-faint: #5a3238;
-		--focus: #cf6874;
-		--on-thread: #171314;
-		--added: #8fd1ad;
-		--added-soft: #1c3127;
-		--warn: #ecc46f;
-		--warn-soft: #382d14;
-		color-scheme: dark;
-	}
+/* Dark: set by static/theme.js from the person's choice, or the system's. */
+:root[data-theme='dark'] {
+	--ground: #171314;
+	--surface: #211b1c;
+	--text: #f0eaea;
+	--muted: #ada2a3;
+	--line: #2e2627;
+	--line-strong: #3a3132;
+	--thread: #cf6874;
+	--thread-ink: #f3c5ca;
+	--thread-soft: #3a2226;
+	--thread-faint: #5a3238;
+	--focus: #cf6874;
+	--on-thread: #171314;
+	--added: #8fd1ad;
+	--added-soft: #1c3127;
+	--warn: #ecc46f;
+	--warn-soft: #382d14;
+	color-scheme: dark;
 }
 
 *,
@@ -249,16 +248,16 @@ nav a[aria-current='page'] svg {
 	overflow-wrap: anywhere;
 }
 
-.languages {
+.segmented {
 	display: inline-flex;
 	align-self: flex-start;
-	margin-left: 0.4rem;
+	flex-wrap: wrap;
 	border: 1.5px solid var(--line-strong);
 	border-radius: 999px;
 	padding: 2px;
 }
 
-.languages button {
+.segmented button {
 	font: inherit;
 	font-size: 0.78rem;
 	font-weight: 700;
@@ -270,7 +269,7 @@ nav a[aria-current='page'] svg {
 	cursor: pointer;
 }
 
-.languages button[aria-pressed='true'] {
+.segmented button[aria-pressed='true'] {
 	background: var(--thread-soft);
 	color: var(--thread-ink);
 }
@@ -1715,10 +1714,6 @@ pre.diagnostics {
 		padding: 0;
 	}
 
-	.languages {
-		margin: 0;
-	}
-
 	nav {
 		grid-area: nav;
 	}
@@ -1879,4 +1874,66 @@ pre.diagnostics {
 	.question .open {
 		margin-left: 0;
 	}
+}
+
+/* Settings. */
+.settings section {
+	display: flex;
+	flex-direction: column;
+	gap: 1.1rem;
+	margin-top: 2.25rem;
+}
+
+.settings h2 {
+	margin: 0;
+}
+
+.settings .quiet {
+	margin: -0.6rem 0 0;
+}
+
+.setting {
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+}
+
+.setting .label {
+	font-weight: 700;
+}
+
+.settings .segmented button {
+	font-size: 0.95rem;
+	padding: 0.4rem 1.05rem;
+}
+
+.setting-form {
+	display: flex;
+	flex-direction: column;
+	gap: 1.1rem;
+	max-width: 28rem;
+}
+
+.setting-form select {
+	font: inherit;
+	color: var(--text);
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: 10px;
+	padding: 0.55rem 0.8rem;
+}
+
+.setting-form select:focus {
+	outline: none;
+	border-color: var(--thread);
+}
+
+.setting-form .hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.settings .live:empty {
+	margin-top: 0;
 }

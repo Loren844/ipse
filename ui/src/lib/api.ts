@@ -26,6 +26,8 @@ import type { SummariesView } from './types/SummariesView.ts';
 import type { SummaryView } from './types/SummaryView.ts';
 export type { SummariesView, SummaryView };
 import type { QuestionsView } from './types/QuestionsView.ts';
+import type { SettingsView } from './types/SettingsView.ts';
+export type { SettingsView };
 export type { QuestionsView };
 export type { QuestionView } from './types/QuestionView.ts';
 export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
@@ -103,5 +105,7 @@ export const api = {
 	questions: () => get<QuestionsView>('/api/questions'),
 	answer: (id: string, name: string, word: string) =>
 		post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/answer`, { name, word: word.trim() || undefined }),
-	skipQuestion: (id: string) => post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/skip`)
+	skipQuestion: (id: string) => post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/skip`),
+	settings: () => get<SettingsView>('/api/settings'),
+	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone })
 };

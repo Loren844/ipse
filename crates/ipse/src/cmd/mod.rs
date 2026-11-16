@@ -8,5 +8,6 @@ pub(crate) mod duplicates;
 pub(crate) mod import;
 pub(crate) mod init;
 pub(crate) mod proposals;
+pub(crate) mod settings;
 pub(crate) mod sync;
 pub(crate) mod tasks;

@@ -37,6 +37,7 @@ mod api;
 mod history;
 mod questions;
 mod review;
+mod settings;
 mod summaries;
 
 mod assets {
@@ -287,6 +288,26 @@ fn has_session(headers: &HeaderMap, state: &State) -> bool {
         })
 }
 
+/// A change asked by the interface: a `POST` of JSON, already checked.
+fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u8>>> {
+    if path.starts_with("proposals/") {
+        review::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
+    } else if path == "settings" {
+        settings::change(gateway, body).map(|v| Some(to_json(&v)))
+    } else if path.starts_with("questions/") {
+        questions::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
+    } else if path.starts_with("summaries/") {
+        summaries::correct(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
+    } else if let Some(id) = path
+        .strip_prefix("history/")
+        .and_then(|rest| rest.strip_suffix("/undo"))
+    {
+        history::undo(gateway, id).map(|v| Some(to_json(&v)))
+    } else {
+        ais::change(gateway, path, body)
+    }
+}
+
 /// The JSON API, every answer read or written with the owner's rights. Reads are
 /// `GET`; a change is a `POST` of JSON from the interface's own page.
 fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<Body> {
@@ -312,6 +333,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                 history::changes(gateway, offset).map(|v| Some(to_json(&v)))
             }
             "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
+            "settings" => Ok(Some(to_json(&settings::view(gateway)))),
             "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
             "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
             "summaries" => {
@@ -346,7 +368,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path == "categories"
             || path.starts_with("history/")
             || path.starts_with("summaries/")
-            || path.starts_with("questions/"))
+            || path.starts_with("questions/")
+            || path == "settings")
     {
         let json = request
             .headers()
@@ -356,20 +379,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         if !json {
             return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
-        if path.starts_with("proposals/") {
-            review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
-        } else if path.starts_with("questions/") {
-            questions::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
-        } else if path.starts_with("summaries/") {
-            summaries::correct(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
-        } else if let Some(id) = path
-            .strip_prefix("history/")
-            .and_then(|rest| rest.strip_suffix("/undo"))
-        {
-            history::undo(gateway, id).map(|v| Some(to_json(&v)))
-        } else {
-            ais::change(gateway, path, request.body())
-        }
+        change(gateway, path, request.body())
     } else {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
     };

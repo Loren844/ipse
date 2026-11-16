@@ -233,6 +233,71 @@ impl Settings {
         Ok(settings)
     }
 
+    /// Sets the memory's `language` and `time_zone` in the settings file at `path`,
+    /// keeping every other line, comments included. Returns the settings as they now
+    /// are.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] for a time zone that is not an IANA name like Europe/Paris;
+    /// errors of [`Settings::read`]; [`Error::Io`] when the file cannot be written.
+    pub fn change(path: &Path, language: Language, time_zone: &str) -> Result<Self> {
+        let time_zone = time_zone.trim();
+        if TimeZone::get(time_zone).is_err() {
+            return Err(Error::Refused(
+                "The time zone must be a name like Europe/Paris.".to_owned(),
+            ));
+        }
+        let text = std::fs::read_to_string(path).map_err(|source| Error::Io {
+            action: "read",
+            path: path.to_owned(),
+            source,
+        })?;
+        let mut out = String::with_capacity(text.len() + 40);
+        let (mut language_set, mut zone_set, mut in_table) = (false, false, false);
+        let mut wanted = |key: &str, out: &mut String| match key {
+            "language" if !language_set => {
+                language_set = true;
+                let _ = writeln!(out, "language = \"{language}\"");
+                true
+            }
+            "time_zone" if !zone_set => {
+                zone_set = true;
+                let _ = writeln!(out, "time_zone = \"{time_zone}\"");
+                true
+            }
+            _ => false,
+        };
+        for line in text.lines() {
+            let trimmed = line.trim_start();
+            if trimmed.starts_with('[') {
+                in_table = true;
+            }
+            let key = trimmed.split('=').next().unwrap_or_default().trim();
+            if !in_table && wanted(key, &mut out) {
+                continue;
+            }
+            out.push_str(line);
+            out.push('\n');
+        }
+        // Keys missing from an older file go before the first table, after the rest.
+        let missing: String = [("language", language_set), ("time_zone", zone_set)]
+            .iter()
+            .filter(|(_, set)| !set)
+            .map(|(key, _)| match *key {
+                "language" => format!("language = \"{language}\"\n"),
+                _ => format!("time_zone = \"{time_zone}\"\n"),
+            })
+            .collect();
+        if !missing.is_empty() {
+            let at = out.find("\n[").map_or(out.len(), |i| i + 1);
+            out.insert_str(at, &missing);
+        }
+        let settings = Self::parse(path, &out)?;
+        super::write_atomic(path, out.as_bytes())?;
+        Ok(settings)
+    }
+
     /// The text of the settings file.
     #[must_use]
     pub fn render(&self) -> String {
