@@ -36,34 +36,13 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 4. 🔜 **Widening** — more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…); a kit for anyone to write one; semantic search with a local model, as an option.
 5. 🔜 **Mobile** — sync, quick capture.
 
-## Repository layout
+## Install
 
-| Path | What it holds |
-| --- | --- |
-| `crates/ipse` | The `ipse` program: command line, MCP server, built-in connectors. |
-| `crates/ipse-core` | The core library: vault, journal, index, rights. |
-| `crates/ipse-protocol` | Messages of the connector protocol, shared by the core and connectors. |
-| `ui` | The interface (Svelte), served by `ipse ui`; its build is embedded in the binary. |
-| `docs/guide` | How to use Ipse, starting with [Getting started](docs/guide/getting-started.md). |
-| `docs/spec` | The specification: vault, journal, connectors, rights. |
-| `docs/decisions` | Architecture decisions, one dated file each. |
-| `AGENTS.md` | Rules every contributor and coding agent follows. |
-| `.github` | CI, issue and pull request templates. |
-
-## Building from source
-
-Requires [Rust](https://rustup.rs) (the exact version is pinned in `rust-toolchain.toml` and installed automatically).
-
-To use Ipse, follow [Getting started](docs/guide/getting-started.md). To work on it:
-
-```sh
-cargo test --workspace     # run the tests
-cargo bench --workspace    # run the benchmarks
-```
+Ready-made binaries for Windows, macOS and Linux come with each [release](https://github.com/Loren844/ipse/releases); [Getting started](docs/guide/getting-started.md) shows how to install one and go from there.
 
 ## Contributing
 
-The project is not open to outside contributions yet, while the specification settles. Read [`AGENTS.md`](AGENTS.md) for how work is organized.
+The project is not open to outside code contributions yet; bug reports are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for the repository layout and building from source, and [SECURITY.md](SECURITY.md) to report a flaw.
 
 ## License
 

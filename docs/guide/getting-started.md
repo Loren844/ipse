@@ -6,15 +6,19 @@ You need a terminal, and [Claude Desktop](https://claude.ai/download) or [LM Stu
 
 ## 1. Install Ipse
 
-Ipse has no installer yet. Install Rust from [rustup.rs](https://rustup.rs), then:
+On macOS or Linux, in a terminal:
 
 ```sh
-git clone https://github.com/Loren844/ipse
-cd ipse
-cargo install --path crates/ipse
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Loren844/ipse/releases/latest/download/ipse-installer.sh | sh
 ```
 
-The command is now in `~/.cargo/bin/ipse` (on Windows, `%USERPROFILE%\.cargo\bin\ipse.exe`).
+On Windows, in PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/Loren844/ipse/releases/latest/download/ipse-installer.ps1 | iex"
+```
+
+The installer puts the `ipse` command in `~/.ipse/bin` (on Windows, `%USERPROFILE%\.ipse\bin\ipse.exe`) and adds it to your path: open a new terminal and check with `ipse --version`. You can also download the file for your system from the [releases page](https://github.com/Loren844/ipse/releases), and check it against its `.sha256`. To build it yourself, see [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Try it first, without your data
 
@@ -63,7 +67,7 @@ In Claude Desktop, **Settings → Developer → Edit Config** opens `claude_desk
 {
   "mcpServers": {
     "ipse": {
-      "command": "/Users/you/.cargo/bin/ipse",
+      "command": "/Users/you/.ipse/bin/ipse",
       "args": ["mcp", "--vault", "/Users/you/Ipse"],
       "env": { "IPSE_TOKEN": "ipse_paste_your_code_here" }
     }
