@@ -49,6 +49,9 @@ pub(crate) struct ProposalLine {
     changes: usize,
     /// When it was decided, for a decided one.
     decided: Option<String>,
+    /// It merges files that may be the same (decision 0011): accepting merges them,
+    /// refusing says they are different, and is remembered.
+    merge: bool,
 }
 
 /// The inbox.
@@ -73,7 +76,8 @@ pub(crate) struct InboxView {
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
 pub(crate) struct ChangeView {
-    /// `key`, `fact`, `relation`, `notes` or `summary`.
+    /// `key`, `fact`, `relation`, `notes`, `summary`, `merged` (before: the other
+    /// file's name) or `links` (after: how many files link here now).
     what: String,
     /// For a key: its name, `phones`.
     key: Option<String>,
@@ -365,9 +369,14 @@ fn line(proposal: &Proposal, names: &[(String, String)], owner: &Access<'_>) -> 
     };
     let mut touches: Vec<String> = Vec::new();
     for change in &proposal.changes {
-        let name = touched(change, owner);
-        if !touches.contains(&name) {
-            touches.push(name);
+        let mut names = vec![touched(change, owner)];
+        if let ipse_core::proposals::Change::Merge { remove, .. } = change {
+            names.push(name_at(remove, owner));
+        }
+        for name in names {
+            if !touches.contains(&name) {
+                touches.push(name);
+            }
         }
     }
     let decided = match &proposal.status {
@@ -385,6 +394,10 @@ fn line(proposal: &Proposal, names: &[(String, String)], owner: &Access<'_>) -> 
         touches,
         changes: proposal.changes.len(),
         decided,
+        merge: proposal
+            .changes
+            .iter()
+            .any(|c| matches!(c, ipse_core::proposals::Change::Merge { .. })),
     }
 }
 
@@ -399,7 +412,11 @@ fn touched(change: &ipse_core::proposals::Change, owner: &Access<'_>) -> String 
     {
         return name.to_owned();
     }
-    let file = change.file().unwrap_or_default();
+    name_at(change.file().unwrap_or_default(), owner)
+}
+
+/// The name of the file at `file`, from the index, else its name on disk.
+fn name_at(file: &str, owner: &Access<'_>) -> String {
     owner.at(file).map_or_else(
         || {
             file.rsplit('/')
@@ -442,6 +459,8 @@ fn change_view(item: DiffItem) -> ChangeView {
         What::Relation => ("relation", None),
         What::Notes => ("notes", None),
         What::Summary => ("summary", None),
+        What::Merged => ("merged", None),
+        What::Links => ("links", None),
     };
     ChangeView {
         what: what.to_owned(),

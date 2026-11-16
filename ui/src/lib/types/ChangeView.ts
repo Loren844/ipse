@@ -5,7 +5,8 @@
  */
 export type ChangeView = { 
 /**
- * `key`, `fact`, `relation`, `notes` or `summary`.
+ * `key`, `fact`, `relation`, `notes`, `summary`, `merged` (before: the other
+ * file's name) or `links` (after: how many files link here now).
  */
 what: string, 
 /**

@@ -100,12 +100,16 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
     if synced.tasks > 0 {
         lines.push(tasks_line(synced.tasks));
     }
+    if synced.duplicates > 0 {
+        lines.push(super::duplicates::line(synced.duplicates));
+    }
     lines
 }
 
 fn nothing_changed(synced: &Synced) -> bool {
     synced.progress.is_empty()
         && synced.tasks == 0
+        && synced.duplicates == 0
         && synced
             .events
             .is_none_or(|s| s.added + s.updated + s.cancelled + s.conflicts == 0)

@@ -75,3 +75,7 @@ harness = false
 [[bench]]
 name = "browse"
 harness = false
+
+[[bench]]
+name = "duplicates"
+harness = false

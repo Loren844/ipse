@@ -6,8 +6,9 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::Proposal;
-use super::change::{Change, fact_id, memory_path};
+use super::change::{Change, fact_id, memory_path, relative};
 use super::key;
+use super::merge;
 use crate::search::SearchIndex;
 use crate::summaries::{self, Span};
 use crate::vault::body::{self, Body, Fact, Relation};
@@ -68,6 +69,10 @@ pub enum What {
     Notes,
     /// A summary's text.
     Summary,
+    /// Another file merged into this one: its name before, this one's after.
+    Merged,
+    /// Links in other files redirected to this one: how many files, after.
+    Links,
 }
 
 /// A file as the proposal leaves it.
@@ -75,6 +80,32 @@ pub(super) struct Pending {
     file: MemoryFile,
     created: bool,
     changed: bool,
+    /// Removed by a merge, not written.
+    removed: bool,
+}
+
+impl Pending {
+    /// An existing file, changed.
+    fn changed(file: MemoryFile) -> Self {
+        Self {
+            file,
+            created: false,
+            changed: true,
+            removed: false,
+        }
+    }
+}
+
+/// The diff of a file written with another and not listed on its own.
+fn unlisted() -> FileDiff {
+    FileDiff {
+        file: String::new(),
+        name: String::new(),
+        file_type: String::new(),
+        category: String::new(),
+        created: false,
+        items: Vec::new(),
+    }
 }
 
 /// The changes applied in memory, not yet written.
@@ -87,6 +118,13 @@ pub(super) struct Plan {
 /// without writing anything. A change that no longer fits makes the plan stale; the
 /// others are still shown.
 pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
+    plan_with(vault, proposal, true)
+}
+
+/// As [`plan`]; without `links`, a merge does not look for the links to redirect,
+/// which reads every file: to check a proposal when it is submitted.
+#[allow(clippy::too_many_lines)] // one branch per kind of change
+pub(super) fn plan_with(vault: &Vault, proposal: &Proposal, links: bool) -> Result<Plan> {
     let root = vault.root();
     let language = vault.settings().language();
     let mut files: Vec<Pending> = Vec::new();
@@ -102,6 +140,48 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
                 "A new file of this proposal has no path.".to_owned(),
             ));
         };
+        if let Change::Merge { keep, remove, .. } = change {
+            match merge::plan(vault, keep, remove, links)? {
+                Err(reason) => {
+                    stale.get_or_insert(reason);
+                }
+                Ok(merged) => {
+                    index.insert(rel.clone(), files.len());
+                    diffs.push(merged.diff);
+                    files.push(Pending::changed(merged.keep));
+                    // Files whose links are redirected, and the one removed, are
+                    // written with the kept one but not listed: the kept one's diff
+                    // says so.
+                    for file in merged.redirected {
+                        let at = relative(root, file.path());
+                        // Already changed by this proposal: redirect in that version.
+                        if let Some(&before) = index.get(&at) {
+                            let pending = &mut files[before];
+                            if pending.removed {
+                                continue;
+                            }
+                            let text = pending.file.render()?;
+                            if let Some(new) = merge::redirect(&text, &merged.from, &merged.to) {
+                                pending.file = MemoryFile::parse(pending.file.path(), &new)?;
+                                pending.changed = true;
+                            }
+                            continue;
+                        }
+                        index.insert(at, files.len());
+                        diffs.push(unlisted());
+                        files.push(Pending::changed(file));
+                    }
+                    let removed = MemoryFile::read(&merged.removed)?;
+                    index.insert(relative(root, &merged.removed), files.len());
+                    diffs.push(unlisted());
+                    files.push(Pending {
+                        removed: true,
+                        ..Pending::changed(removed)
+                    });
+                }
+            }
+            continue;
+        }
         if matches!(change, Change::WriteSummary { .. }) {
             match summary_step(vault, proposal, &rel, change, &mut search)? {
                 SummaryStep::Stale(reason) => {
@@ -129,6 +209,7 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
                     file,
                     created: true,
                     changed: true,
+                    removed: false,
                 });
                 Step::Done(None)
             }
@@ -144,6 +225,7 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
                 file,
                 created: false,
                 changed: false,
+                removed: false,
             });
             edit(&mut files[at].file, change, &rel, language)?.at(at)
         } else {
@@ -171,7 +253,9 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
     for (pending, diff) in files.into_iter().zip(diffs) {
         if pending.changed {
             kept.push(pending);
-            shown_files.push(diff);
+            if !diff.file.is_empty() {
+                shown_files.push(diff);
+            }
         }
     }
     Ok(Plan {
@@ -265,6 +349,7 @@ fn summary_step(
             file,
             created,
             changed: true,
+            removed: false,
         },
     ))))
 }
@@ -342,7 +427,9 @@ fn edit(file: &mut MemoryFile, change: &Change, rel: &str, language: Language) -
         ))
     };
     let item = match change {
-        Change::Create { .. } | Change::WriteSummary { .. } => unreachable!("not an edit"),
+        Change::Create { .. } | Change::WriteSummary { .. } | Change::Merge { .. } => {
+            unreachable!("not an edit")
+        }
         Change::SetKey { key, from, to, .. } => {
             let Some(now) = key::get(file, key) else {
                 return Err(Error::Refused(format!("`{key}` cannot be set on {rel}.")));
@@ -464,6 +551,22 @@ pub(super) fn write(
     let now = DateTime::now(vault.settings().time_zone());
     let mut written = Vec::with_capacity(files.len());
     for mut pending in files {
+        if pending.removed {
+            let path = pending.file.path();
+            match std::fs::remove_file(path) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(source) => {
+                    return Err(Error::Io {
+                        action: "remove",
+                        path: path.to_owned(),
+                        source,
+                    });
+                }
+            }
+            change.touched(path);
+            continue;
+        }
         if !pending.created {
             pending.file.common_mut().updated = now;
         }
@@ -749,6 +852,14 @@ fn described_items(change: &Change) -> (Vec<DiffItem>, bool) {
             vec![DiffItem {
                 what: What::Relation,
                 before: Some(relation(word, target, None)),
+                after: None,
+            }],
+            false,
+        ),
+        Change::Merge { remove, .. } => (
+            vec![DiffItem {
+                what: What::Merged,
+                before: Some(display_stem(remove)),
                 after: None,
             }],
             false,

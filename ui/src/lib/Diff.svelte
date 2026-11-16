@@ -13,6 +13,8 @@
 		if (change.what === 'fact') return i18n.t.fact;
 		if (change.what === 'relation') return i18n.t.relation;
 		if (change.what === 'summary') return i18n.t.summaryLabel;
+		if (change.what === 'merged') return i18n.t.mergedLabel;
+		if (change.what === 'links') return i18n.t.linksLabel;
 		return i18n.t.notesLabel;
 	}
 
@@ -21,6 +23,7 @@
 
 	type Side = { removed: string[]; added: string[] };
 	function sides(change: ChangeView): Side {
+		if (change.what === 'merged' || change.what === 'links') return { removed: [], added: [] };
 		const before = change.before === null ? [] : [shown(change, change.before)];
 		const after = change.after === null ? [] : [shown(change, change.after)];
 		if (change.what !== 'key' || !LISTS.has(change.key ?? '')) return { removed: before, added: after };
@@ -51,6 +54,11 @@
 			<li>
 				<span class="what">{label(change)}</span>
 				<div class="sides">
+					{#if change.what === 'merged'}
+						<p class="said">{i18n.t.mergedInto(change.before ?? '', change.after ?? file.name)}</p>
+					{:else if change.what === 'links'}
+						<p class="said">{i18n.t.linksRedirected(Number(change.after ?? 0))}</p>
+					{/if}
 					{#each both.removed as text, j (j)}
 						<p class="removed">
 							<span class="sign" aria-hidden="true">−</span>

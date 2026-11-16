@@ -130,21 +130,18 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     let tasks = Tasks::new(&vault).extract_from(&touched)?;
     run.tasks = tasks as u64;
     record_run(vault.root(), &run)?;
+    let duplicates = ipse_core::duplicates::propose(&vault)?;
     println!("{line}");
-    if conflicts.0 > 0 {
-        println!("{}", conflicts_line(conflicts));
-    }
-    if deleted > 0 {
-        println!("{}", deleted_line(deleted));
-    }
-    if owner {
-        println!("{OWNER_LINE}");
-    }
-    if relations > 0 {
-        println!("{}", relations_line(relations));
-    }
-    if tasks > 0 {
-        println!("{}", tasks_line(tasks));
+    let optional = [
+        (conflicts.0 > 0).then(|| conflicts_line(conflicts)),
+        (deleted > 0).then(|| deleted_line(deleted)),
+        owner.then(|| OWNER_LINE.to_owned()),
+        (relations > 0).then(|| relations_line(relations)),
+        (tasks > 0).then(|| tasks_line(tasks)),
+        (duplicates > 0).then(|| super::duplicates::line(duplicates)),
+    ];
+    for line in optional.into_iter().flatten() {
+        println!("{line}");
     }
     Ok(())
 }
