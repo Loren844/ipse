@@ -195,3 +195,33 @@ fn git_sees_a_clean_folder() {
         "Ipse\nAdd x\n\nIpse-Source: person"
     );
 }
+
+#[test]
+fn a_file_is_read_as_a_change_left_it_or_before_it_removed_it() {
+    let dir = tempfile::tempdir().unwrap();
+    init(dir.path());
+    let history = History::open(dir.path()).unwrap();
+    let path = write(dir.path(), "people/lea-roux.md", "Léa, avant\n");
+    let mut change = history.change(Source::Person);
+    change.touched(&path);
+    let added = change.commit("Add Léa").unwrap().unwrap();
+    std::fs::remove_file(&path).unwrap();
+    let mut change = history.change(Source::Person);
+    change.touched(&path);
+    let removed = change.commit("Remove Léa").unwrap().unwrap();
+    assert!(removed.at >= added.at && added.at > 0);
+
+    let read = |id: &str, file: &str| history.read_at(id, file).unwrap();
+    assert_eq!(
+        read(&added.id, "people/lea-roux.md").unwrap(),
+        "Léa, avant\n".as_bytes()
+    );
+    assert_eq!(
+        read(&removed.id, "people/lea-roux.md").unwrap(),
+        "Léa, avant\n".as_bytes(),
+        "as it was before the change removed it"
+    );
+    assert!(read(&added.id, "people/nobody.md").is_none());
+    assert!(read(&added.id, "people").is_none(), "a folder is no file");
+    assert!(history.read_at("0000", "people/lea-roux.md").is_err());
+}

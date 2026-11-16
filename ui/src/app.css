@@ -1449,7 +1449,9 @@ dialog.confirm .actions {
 /* History: the changes on the thread, the AIs' reads, the imports. */
 .views {
 	display: inline-flex;
-	flex-wrap: wrap;
+	flex-wrap: nowrap;
+	max-width: 100%;
+	overflow-x: auto;
 	gap: 0.25rem;
 	padding: 0.25rem;
 	margin-top: 0.5rem;
@@ -1459,6 +1461,7 @@ dialog.confirm .actions {
 }
 
 .views a {
+	white-space: nowrap;
 	padding: 0.35rem 0.95rem;
 	border-radius: 999px;
 	color: var(--muted);
@@ -1686,6 +1689,27 @@ pre.diagnostics {
 
 	.access-list li {
 		grid-template-columns: 1fr;
+	}
+
+	/* Three equal columns that always fit; a long label goes on two lines. */
+	.views {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		width: 100%;
+		border-radius: 14px;
+		overflow: visible;
+	}
+
+	.views a {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		text-align: center;
+		white-space: normal;
+		line-height: 1.25;
+		padding: 0.45rem 0.4rem;
+		border-radius: 10px;
+		font-size: 0.875rem;
 	}
 
 	.diff .what {

@@ -5,7 +5,7 @@
 use ipse_core::connector::{RunRecord, diagnostics, runs};
 use ipse_core::proposals::{Author, Proposals, Status};
 use ipse_core::rights::{Clients, Gateway, access_days};
-use ipse_core::vault::{DateTime, Source};
+use ipse_core::vault::{DateTime, History, MemoryFile, Source};
 use ipse_core::{Error, Result};
 use jiff::ToSpan;
 use serde::Serialize;
@@ -239,9 +239,10 @@ pub(crate) fn changes(gateway: &mut Gateway, offset: usize) -> Result<HistoryVie
                 .into_iter()
                 .take(FILES_SHOWN)
                 .map(|file| {
-                    owner
-                        .at(file)
-                        .map_or_else(|| LinkView::text(&display_stem(file)), LinkView::from)
+                    owner.at(file).map_or_else(
+                        || LinkView::text(&former_name(&history, &entry.id, file)),
+                        LinkView::from,
+                    )
                 })
                 .collect();
             ChangeLine {
@@ -282,8 +283,24 @@ fn proposal_by(author: Option<&Author>, names: &[(String, String)]) -> ByView {
     }
 }
 
-/// A file's name on disk without its folder and `.md`, for a file the index no longer
-/// holds.
+/// The name or title of a file the memory no longer holds, as the change `id` left it
+/// or just before it removed it; its name on disk when it cannot be read.
+fn former_name(history: &History, id: &str, file: &str) -> String {
+    history
+        .read_at(id, file)
+        .ok()
+        .flatten()
+        .and_then(|bytes| String::from_utf8(bytes).ok())
+        .and_then(|text| MemoryFile::parse(file, &text).ok())
+        .and_then(|f| {
+            f.entity()
+                .and_then(|e| e.name.clone())
+                .or_else(|| f.event().map(|e| e.title.clone()))
+        })
+        .unwrap_or_else(|| display_stem(file))
+}
+
+/// A file's name on disk without its folder and `.md`.
 fn display_stem(file: &str) -> String {
     file.rsplit('/')
         .next()

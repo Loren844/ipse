@@ -298,6 +298,63 @@ impl History {
         Ok(entries)
     }
 
+    /// The content of `file` (relative to the vault, with `/`) as the change `id` left
+    /// it, or as it was just before when that change removed it: to name a file that
+    /// no longer exists. `None` when neither holds it.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] for an unknown change; [`Error::History`] when the history
+    /// cannot be read.
+    pub fn read_at(&self, id: &str, file: &str) -> Result<Option<Vec<u8>>> {
+        let unknown =
+            || Error::Refused("This change is not in the history of this memory.".to_owned());
+        let id = ObjectId::from_hex(id.as_bytes()).map_err(|_| unknown())?;
+        let commit = self.repo.find_commit(id).map_err(|_| unknown())?;
+        let tree = commit.tree_id().map_err(|_| failed("read"))?.detach();
+        if let Some(blob) = self.blob_in(tree, file)? {
+            return Ok(Some(blob));
+        }
+        let Some(parent) = commit.parent_ids().next() else {
+            return Ok(None);
+        };
+        let parent_tree = self
+            .repo
+            .find_commit(parent.detach())
+            .and_then(|c| c.tree_id())
+            .map_err(|_| failed("read"))?
+            .detach();
+        self.blob_in(parent_tree, file)
+    }
+
+    /// The content of the file at `path` in `tree`, if it holds one.
+    fn blob_in(&self, tree: ObjectId, path: &str) -> Result<Option<Vec<u8>>> {
+        let mut current = tree;
+        let mut parts = path.split('/').peekable();
+        while let Some(part) = parts.next() {
+            let last = parts.peek().is_none();
+            let Some((_, id, is_tree)) = self
+                .tree_entries(current)?
+                .into_iter()
+                .find(|(name, _, _)| name == part)
+            else {
+                return Ok(None);
+            };
+            if last {
+                if is_tree {
+                    return Ok(None);
+                }
+                let blob = self.repo.find_object(id).map_err(|_| failed("read"))?;
+                return Ok(Some(blob.data.clone()));
+            }
+            if !is_tree {
+                return Ok(None);
+            }
+            current = id;
+        }
+        Ok(None)
+    }
+
     /// Undoes the change `id` as a new change by `source`: every file it touched goes
     /// back to what it was before it, or is removed if it did not exist. History is
     /// never rewritten. Returns `None` when the files already are as before the change.

@@ -55,6 +55,9 @@ test('see who changed what, and undo an import', async ({ page }) => {
 	expect(existsSync(join(ipse.vault, 'people/ana-silva.md'))).toBe(false);
 	await expect(changes.first()).toContainText('Vous');
 	await expect(changes.first()).toContainText('Changement annulé');
+	// A removed file keeps its name, not its file name.
+	await expect(changes.first()).toContainText('Ana Silva');
+	await expect(changes.first()).not.toContainText('ana-silva');
 	// The history keeps both.
 	await expect(changes.nth(1)).toContainText('Import de contacts');
 });

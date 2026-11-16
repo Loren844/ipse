@@ -785,6 +785,15 @@ fn the_history_through_the_api() {
     let (_, history) = api(&ui, &cookie, "/api/history");
     assert_eq!(history["changes"][0]["by"]["kind"], "person");
     assert_eq!(history["changes"][0]["summary"], "Undo a change");
+    // The files it removed are named as they were, not by their file name.
+    let names: Vec<&str> = history["changes"][0]["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["name"].as_str().unwrap())
+        .collect();
+    assert!(names.contains(&"Ana Silva"), "{names:?}");
+    assert!(history["changes"][0]["files"][0]["id"].is_null());
     assert_eq!(
         history["changes"][1]["id"],
         marie.as_str(),
