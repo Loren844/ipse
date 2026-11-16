@@ -55,3 +55,22 @@ test('the agenda goes back in time', async ({ page }) => {
 	}
 	await expect(page.getByRole('link', { name: 'Dîner chez Julie' })).toBeVisible();
 });
+
+test('the search box is one line, and a click anywhere in it lets you type', async ({ page }) => {
+	await page.goto(ipse.url);
+	for (const scheme of ['light', 'dark'] as const) {
+		await page.emulateMedia({ colorScheme: scheme });
+		await page.goto(`${ipse.origin}/people`);
+		const field = page.locator('.search .field');
+		const input = page.getByLabel('Chercher une personne');
+		const box = (await field.boundingBox())!;
+		const typed = (await input.boundingBox())!;
+		const icon = (await field.locator('svg').boundingBox())!;
+		expect(typed.width, scheme).toBeGreaterThan(box.width * 0.85);
+		expect(Math.abs(icon.y + icon.height / 2 - (typed.y + typed.height / 2)), 'icon and input on one line').toBeLessThan(4);
+		// Near the right end of the box, where the input used to be missing.
+		await page.mouse.click(box.x + box.width - 30, box.y + box.height / 2);
+		await page.keyboard.type('leroy');
+		await expect(page.getByTestId('people').getByRole('link')).toHaveText([/Marc Leroy/]);
+	}
+});

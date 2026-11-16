@@ -89,7 +89,7 @@
 					{/each}
 				</div>
 			</fieldset>
-			<div class="field">
+			<div class="form-field">
 				<label for="ai-name">{i18n.t.aiName}</label>
 				<input id="ai-name" type="text" bind:value={name} required maxlength="80" aria-describedby="ai-name-hint" autocomplete="off" />
 				<p class="hint" id="ai-name-hint">{i18n.t.aiNameHint}</p>
