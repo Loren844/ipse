@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { app } from '#lib/app.svelte.ts';
-	import { i18n, type Language } from '#lib/i18n.svelte.ts';
+	import { i18n } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
 	import Mark from '#lib/Mark.svelte';
 	import { initials } from '#lib/format.ts';
@@ -30,7 +30,8 @@
 		[
 			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },
 			{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
-			{ href: '/history', label: i18n.t.history, icon: icons.history }
+			{ href: '/history', label: i18n.t.history, icon: icons.history },
+			{ href: '/settings', label: i18n.t.settings, icon: icons.settings }
 		]
 	]);
 
@@ -40,10 +41,6 @@
 		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
 	}
 
-	const languages: { code: Language; label: string; name: string }[] = [
-		{ code: 'fr', label: 'FR', name: 'Français' },
-		{ code: 'en', label: 'EN', name: 'English' }
-	];
 </script>
 
 <svelte:head>
@@ -84,17 +81,6 @@
 						<span class="name" data-testid="memory-name">{info.name}</span>
 					</span>
 				</p>
-				<div class="languages" role="group" aria-label={i18n.t.language}>
-					{#each languages as language (language.code)}
-						<button
-							type="button"
-							lang={language.code}
-							aria-pressed={i18n.language === language.code}
-							title={language.name}
-							onclick={() => i18n.choose(language.code)}>{language.label}</button
-						>
-					{/each}
-				</div>
 			</div>
 		</header>
 		<main id="content" tabindex="-1">

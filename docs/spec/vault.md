@@ -289,6 +289,8 @@ music = "21d"
 watching = "30d"
 ```
 
+The person changes `language` and `time_zone` with `ipse settings --language en --time-zone America/Toronto`, or in the interface's **Settings**: Ipse rewrites those two lines and keeps every other line, comments included, as one change of the history by the person ("Change the settings"). Files already written keep their section headings; Ipse reads them in every supported language. The interface's theme and language are not settings of the memory: they stay in the browser.
+
 ## 9. History and who changed what
 
 The vault is a git repository, invisible to the person: no git word appears in the interface (decision 0007).

@@ -944,3 +944,42 @@ fn the_questions_through_the_api() {
         404
     );
 }
+
+#[test]
+fn the_settings_through_the_api() {
+    let ui = start();
+    let cookie = login(&ui);
+    let (status, view) = api(&ui, &cookie, "/api/settings");
+    assert_eq!(status, 200);
+    assert_eq!(
+        (&view["language"], &view["time_zone"]),
+        (&"fr".into(), &"Europe/Paris".into())
+    );
+    assert_eq!(view["version"], env!("CARGO_PKG_VERSION"));
+    assert!(view["folder"].as_str().unwrap().ends_with("memoire"));
+
+    let (status, view) = post(
+        &ui,
+        &cookie,
+        "/api/settings",
+        r#"{"language": "en", "time_zone": "America/Toronto"}"#,
+    );
+    assert_eq!(status, 200, "{view}");
+    assert_eq!(view["time_zone"], "America/Toronto");
+    assert_eq!(
+        api(&ui, &cookie, "/api/app").1["time_zone"],
+        "America/Toronto"
+    );
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["by"]["kind"], "person");
+    assert_eq!(history["changes"][0]["summary"], "Change the settings");
+
+    for bad in [
+        r#"{"language": "de", "time_zone": "Europe/Paris"}"#,
+        r#"{"language": "fr", "time_zone": "Mars/Olympus"}"#,
+        r#"{"language": "fr"}"#,
+    ] {
+        assert_eq!(post(&ui, &cookie, "/api/settings", bad).0, 409, "{bad}");
+    }
+    assert_eq!(api(&ui, &cookie, "/api/settings").1["language"], "en");
+}

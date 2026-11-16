@@ -6,6 +6,7 @@ use super::atomic::write_atomic;
 use super::fields::{Category, Common, EntityFields, FileType};
 use super::file::MemoryFile;
 use super::history::{History, Source};
+use super::lang::Language;
 use super::naming;
 use super::settings::Settings;
 use crate::{Error, Result};
@@ -186,6 +187,30 @@ impl Vault {
     #[must_use]
     pub fn owner_file(&self) -> &Path {
         &self.owner
+    }
+
+    /// Changes the memory's language (of the words Ipse writes in files) and time zone,
+    /// as one change of the history by the person; returns the settings as they now
+    /// are. Files already written keep their words: Ipse reads them in either language.
+    ///
+    /// # Errors
+    ///
+    /// Errors of [`Settings::change`]; [`Error::History`] when the change cannot be
+    /// recorded.
+    pub fn change_settings(&mut self, language: Language, time_zone: &str) -> Result<&Settings> {
+        let path = self.root.join(SETTINGS_FILE);
+        if self.settings.language() == language
+            && self.settings.time_zone_name() == time_zone.trim()
+        {
+            return Ok(&self.settings);
+        }
+        let history = self.history()?;
+        let mut change = history.change(Source::Person);
+        let settings = Settings::change(&path, language, time_zone)?;
+        change.touched(&path);
+        change.commit("Change the settings")?;
+        self.settings = settings;
+        Ok(&self.settings)
     }
 }
 
