@@ -171,7 +171,7 @@
 
 			<form class="form add-category" onsubmit={addCategory}>
 				<h3>{i18n.t.addCategory}</h3>
-				<div class="field">
+				<div class="form-field">
 					<label for="category-name">{i18n.t.categoryName}</label>
 					<input id="category-name" type="text" bind:value={label} required maxlength="80" aria-describedby="category-name-hint" autocomplete="off" />
 					<p class="hint" id="category-name-hint">{i18n.t.categoryNameHint}</p>

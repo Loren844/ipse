@@ -1278,18 +1278,18 @@ h1.proposal-title {
 	margin-top: 2rem;
 }
 
-.field {
+.form-field {
 	display: flex;
 	flex-direction: column;
 	gap: 0.35rem;
 }
 
-.field label,
+.form-field label,
 .form legend {
 	font-weight: 700;
 }
 
-.field input[type='text'] {
+.form-field input[type='text'] {
 	font: inherit;
 	color: var(--text);
 	background: var(--surface);
@@ -1298,7 +1298,7 @@ h1.proposal-title {
 	padding: 0.55rem 0.8rem;
 }
 
-.field input[type='text']:focus {
+.form-field input[type='text']:focus {
 	outline: none;
 	border-color: var(--thread);
 }

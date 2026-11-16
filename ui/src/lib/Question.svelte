@@ -61,11 +61,11 @@
 	{/if}
 
 	<form class="answer" onsubmit={save}>
-		<div class="field">
+		<div class="form-field">
 			<label for="name-{key}">{i18n.t.fullName}</label>
 			<input id="name-{key}" type="text" bind:value={name} maxlength="200" autocomplete="off" required />
 		</div>
-		<div class="field">
+		<div class="form-field">
 			<label for="word-{key}">{i18n.t.howKnown}</label>
 			<input id="word-{key}" type="text" bind:value={word} maxlength="60" autocomplete="off" aria-describedby="word-hint-{key}" />
 			<p class="hint" id="word-hint-{key}">{i18n.t.howKnownHint}</p>
