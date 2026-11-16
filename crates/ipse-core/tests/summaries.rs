@@ -437,3 +437,68 @@ fn summary_tasks_are_for_an_ai_that_may_propose_summaries() {
         .unwrap();
     assert_eq!(proposed.status, "waiting");
 }
+
+#[test]
+fn summaries_are_listed_newest_first_and_corrected_by_the_person() {
+    use ipse_core::summaries::{self, Period, Span};
+    use ipse_core::vault::{History, Source};
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let dinner = event(dir.path(), "Dîner chez Julie", "2026-11-14T19:30:00+01:00");
+    event(dir.path(), "Yoga", "2026-11-10T08:00:00+01:00");
+    plan(&vault, TODAY);
+    answer(&vault, "day:2026-11-10", "Yoga.");
+    answer(&vault, "day:2026-11-14", "Dîner chez Julie.");
+    std::fs::write(
+        dir.path().join("summaries/day/2026/notes.md"),
+        "Pas un résumé.",
+    )
+    .unwrap();
+
+    let (days, more) = summaries::list(dir.path(), Period::Day, (None, None), 0, 10).unwrap();
+    let starts: Vec<String> = days.iter().map(|s| s.span.start.to_string()).collect();
+    assert_eq!(starts, ["2026-11-14", "2026-11-10"]);
+    assert!(!more);
+    assert_eq!(days[0].text, "Dîner chez Julie.");
+    let stem = dinner.rsplit('/').next().unwrap().trim_end_matches(".md");
+    assert_eq!(days[0].events, [stem]);
+    let (page, more) = summaries::list(dir.path(), Period::Day, (None, None), 0, 1).unwrap();
+    assert_eq!((page.len(), more), (1, true));
+    let (before, _) = summaries::list(
+        dir.path(),
+        Period::Day,
+        (None, Some(date(2026, 11, 12))),
+        0,
+        10,
+    )
+    .unwrap();
+    assert_eq!(before[0].span.start, date(2026, 11, 10));
+    let (range, _) = summaries::list(
+        dir.path(),
+        Period::Day,
+        (Some(date(2026, 11, 11)), Some(date(2026, 11, 30))),
+        0,
+        10,
+    )
+    .unwrap();
+    assert_eq!(range.len(), 1);
+    assert!(
+        summaries::list(dir.path(), Period::Year, (None, None), 0, 10)
+            .unwrap()
+            .0
+            .is_empty()
+    );
+
+    let span = Span::holding(Period::Day, date(2026, 11, 14));
+    assert!(summaries::correct(&vault, span, "Dîner chez Julie, très drôle.").unwrap());
+    assert!(!summaries::correct(&vault, span, "Dîner chez Julie, très drôle.").unwrap());
+    assert!(summaries::correct(&vault, span, " ").is_err());
+    let missing = Span::holding(Period::Day, date(2026, 11, 1));
+    assert!(summaries::correct(&vault, missing, "Rien.").is_err());
+    let text = std::fs::read_to_string(dir.path().join(span.file())).unwrap();
+    assert!(text.contains("\n## Résumé\n\nDîner chez Julie, très drôle.\n\n## Événements\n\n- [["));
+    let last = &History::open(dir.path()).unwrap().entries(1).unwrap()[0];
+    assert_eq!(last.source, Some(Source::Person));
+    assert_eq!(last.summary, "Correct a summary");
+    assert_eq!(last.files, [span.file()]);
+}

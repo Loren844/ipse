@@ -301,6 +301,177 @@ pub fn write_file(
     MemoryFile::parse(path, &text)
 }
 
+/// One summary, read from its file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Summary {
+    /// Its period.
+    pub span: Span,
+    /// Its `Summary` text; empty when the file has none.
+    pub text: String,
+    /// The events its `Events` section links to, as file stems.
+    pub events: Vec<String>,
+}
+
+impl Span {
+    /// The period a summary's file name names: `2026-11-14`, `2026-W46`, `2026-11`,
+    /// `2026`.
+    #[must_use]
+    pub fn from_label(period: Period, label: &str) -> Option<Self> {
+        let start: Date = match period {
+            Period::Day => label.parse().ok()?,
+            Period::Week => {
+                let (year, week) = label.split_once("-W")?;
+                let week = jiff::civil::ISOWeekDate::new(
+                    year.parse().ok()?,
+                    week.parse().ok()?,
+                    Weekday::Monday,
+                )
+                .ok()?;
+                week.date()
+            }
+            Period::Month => format!("{label}-01").parse().ok()?,
+            Period::Year => format!("{label}-01-01").parse().ok()?,
+        };
+        let span = Self::holding(period, start);
+        (span.label() == label).then_some(span)
+    }
+}
+
+/// The summaries of `period` in the vault at `root`, newest first, starting within
+/// `range` (`since` and `before`, both included, when given): `limit` of them after
+/// skipping `offset`. Returns them and whether there are more. Only file names are
+/// listed; only the page's files are read.
+///
+/// # Errors
+///
+/// [`Error::Io`] when a folder exists but cannot be read.
+pub fn list(
+    root: &Path,
+    period: Period,
+    (since, before): (Option<Date>, Option<Date>),
+    offset: usize,
+    limit: usize,
+) -> Result<(Vec<Summary>, bool)> {
+    let dir = root.join("summaries").join(period.as_str());
+    let mut spans: Vec<Span> = Vec::new();
+    let mut folders = vec![dir];
+    while let Some(folder) = folders.pop() {
+        let entries = match std::fs::read_dir(&folder) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(source) => {
+                return Err(Error::Io {
+                    action: "read",
+                    path: folder,
+                    source,
+                });
+            }
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                folders.push(path);
+            } else if let Some(span) = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .and_then(|n| n.strip_suffix(".md"))
+                .and_then(|label| Span::from_label(period, label))
+                .filter(|span| span.file() == slashed(path.strip_prefix(root).unwrap_or(&path)))
+            {
+                spans.push(span);
+            }
+        }
+    }
+    spans.sort_unstable_by_key(|s| std::cmp::Reverse(s.start));
+    let kept: Vec<Span> = spans
+        .into_iter()
+        .filter(|s| before.is_none_or(|b| s.start <= b) && since.is_none_or(|a| s.start >= a))
+        .skip(offset)
+        .collect();
+    let more = kept.len() > limit;
+    let page = kept
+        .into_iter()
+        .take(limit)
+        .filter_map(|span| read(root, span))
+        .collect();
+    Ok((page, more))
+}
+
+/// The summary of `span` in the vault at `root`, if there is one.
+#[must_use]
+pub fn read(root: &Path, span: Span) -> Option<Summary> {
+    let file = MemoryFile::read(path_of(root, span)).ok()?;
+    if file.common().file_type != FileType::Summary {
+        return None;
+    }
+    let events = section_text(file.body(), Section::Events)
+        .map(|text| {
+            text.lines()
+                .filter_map(|line| {
+                    let link = line.trim().strip_prefix("- ")?;
+                    crate::vault::WikiLink::parse(link.trim()).map(|l| l.target)
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    Some(Summary {
+        span,
+        text: section_text(file.body(), Section::Summary).unwrap_or_default(),
+        events,
+    })
+}
+
+/// The person corrects the summary of `span` with `text`: only its `Summary` section
+/// changes, as one change of the history by the person, so that Ipse never writes
+/// over it again without a proposal they accept. Returns `false` when the text was
+/// already so.
+///
+/// # Errors
+///
+/// [`Error::Refused`] when there is no such summary, or `text` is empty or longer than
+/// 8 000 characters; [`Error::Io`], [`Error::Invalid`] or [`Error::History`] when the
+/// file or the history cannot be written.
+pub fn correct(vault: &Vault, span: Span, text: &str) -> Result<bool> {
+    let path = path_of(vault.root(), span);
+    if read(vault.root(), span).is_none() {
+        return Err(Error::Refused(format!(
+            "There is no summary {}.",
+            span.label()
+        )));
+    }
+    let text = text.trim();
+    if text.is_empty() {
+        return Err(Error::Refused("A summary cannot be empty.".to_owned()));
+    }
+    if text.chars().count() > MAX_TEXT {
+        return Err(Error::Refused(format!(
+            "A summary holds at most {MAX_TEXT} characters."
+        )));
+    }
+    // Edits made outside Ipse are recorded first, as theirs too.
+    let history = vault.history()?;
+    let mut file = MemoryFile::read(&path)?;
+    if section_text(file.body(), Section::Summary).as_deref() == Some(text) {
+        return Ok(false);
+    }
+    let body = replace_section(
+        file.body(),
+        Section::Summary,
+        text,
+        vault.settings().language(),
+    );
+    file.set_body(body);
+    file.common_mut().updated = crate::vault::DateTime::now(vault.settings().time_zone());
+    let mut change = history.change(crate::vault::Source::Person);
+    file.write()?;
+    change.touched(&path);
+    change.commit("Correct a summary")?;
+    Ok(true)
+}
+
+/// The longest summary, in characters.
+pub const MAX_TEXT: usize = 8_000;
+
 /// The path of `span`'s summary in the vault at `root`.
 #[must_use]
 pub fn path_of(root: &Path, span: Span) -> PathBuf {
@@ -414,5 +585,12 @@ mod tests {
         assert!(Span::parse("month", "2026-11-01").is_ok());
         assert!(Span::parse("decade", "2026-01-01").is_err());
         assert!(Span::parse("day", "14/11/2026").is_err());
+
+        for span in [day, week, straddling, first, month, year] {
+            assert_eq!(Span::from_label(span.period, &span.label()), Some(span));
+        }
+        assert_eq!(Span::from_label(Period::Week, "2026-W54"), None);
+        assert_eq!(Span::from_label(Period::Month, "2026-13"), None);
+        assert_eq!(Span::from_label(Period::Day, "notes"), None);
     }
 }

@@ -290,7 +290,7 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
 }
 
 /// The longest summary, in characters.
-const MAX_SUMMARY: usize = 8_000;
+const MAX_SUMMARY: usize = summaries::MAX_TEXT;
 
 /// The identifier of a fact, from its text.
 pub(super) fn fact_id(text: &str) -> Result<FactId> {

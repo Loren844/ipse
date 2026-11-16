@@ -24,7 +24,8 @@
 		[
 			{ href: '/', label: i18n.t.home, icon: icons.home },
 			{ href: '/people', label: i18n.t.people, icon: icons.people },
-			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda }
+			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
+			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
 		],
 		[
 			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },

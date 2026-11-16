@@ -1597,6 +1597,73 @@ pre.diagnostics {
 	overflow-wrap: anywhere;
 }
 
+/* Summaries: read like the pages of a diary. */
+.summaries {
+	display: flex;
+	flex-direction: column;
+}
+
+.summary {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+	padding: 1.6rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.summary:first-child {
+	padding-top: 0.25rem;
+}
+
+.summary .summary-title {
+	font-family: var(--display);
+	font-size: 1.3rem;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	margin: 0;
+}
+
+.summary-text p {
+	font-size: 1.075rem;
+	line-height: 1.65;
+	margin: 0 0 0.6rem;
+	max-width: 62ch;
+}
+
+.summary-text p:last-child {
+	margin-bottom: 0;
+}
+
+.summary .live:empty {
+	margin-top: -0.75rem;
+}
+
+.summary-parts .quiet {
+	font-size: 0.9rem;
+	margin-right: 0.2rem;
+}
+
+.latest-summary .summary {
+	padding: 0;
+	border-bottom: 0;
+}
+
+.latest-summary .quiet-link {
+	margin: 0.75rem 0 0;
+}
+
+.day-summary {
+	margin: 0.45rem 0 0;
+	padding: 0.55rem 0.85rem;
+	border-radius: 10px;
+	background: var(--thread-soft);
+	color: var(--text);
+	font-size: 0.95rem;
+	line-height: 1.55;
+	max-width: 62ch;
+	white-space: pre-line;
+}
+
 /* Phones and narrow windows: the navigation becomes a band at the top. */
 @media (max-width: 760px) {
 	.frame {
@@ -1694,7 +1761,8 @@ pre.diagnostics {
 	/* Three equal columns that always fit; a long label goes on two lines. */
 	.views {
 		display: grid;
-		grid-template-columns: repeat(3, 1fr);
+		grid-auto-flow: column;
+		grid-auto-columns: 1fr;
 		width: 100%;
 		border-radius: 14px;
 		overflow: visible;

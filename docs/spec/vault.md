@@ -274,6 +274,7 @@ A summary of a longer period is built from the summaries of the shorter periods 
 - **Longer periods:** a week, a month or a year that has ended gets a task once every shorter period inside it that holds something has its summary (or its task was closed with nothing worth keeping). Only the periods since Ipse first asked count.
 - A period is asked again only when what it holds changed: a new or changed event, a summary inside it rewritten. `.ipse/tasks/summaries.json` remembers what each held when asked. The current summary is then one of the items, and the task asks to keep the person's words: the answer is an update proposal, showing their text and the new one.
 - The tasks are planned when an AI lists them (`tasks`) and by `ipse tasks list`.
+- The interface (`ipse ui`, **Résumés**) lists them by period, newest first, shows a day's summary in the agenda and the latest on the home screen. Correcting one there changes only its `Summary` text, as one change of history by the person (`Correct a summary`).
 
 ## 8. Settings: `.ipse/vault.toml`
 
