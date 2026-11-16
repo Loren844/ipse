@@ -3,13 +3,20 @@
 //! `tasks` call of an AI does: 5 000 events over two years, the first time, then with
 //! nothing new. Last, planning `question` tasks, as each `tasks` call and each screen of
 //! the interface does: 20 people of the 20 000 known by a first name only, asked three
-//! a day, then nobody left to ask.
-#![allow(missing_docs, clippy::unwrap_used, clippy::print_stdout)]
+//! a day, then nobody left to ask. Then planning `classify` tasks (issue #131): the
+//! 5 000 events without a kind, the first two batches, then with two waiting (nothing
+//! to do), then with room but every event already asked about.
+#![allow(
+    missing_docs,
+    clippy::unwrap_used,
+    clippy::print_stdout,
+    clippy::too_many_lines // one memory, measured step by step
+)]
 
 use std::time::Instant;
 
 use ipse_core::search::SearchIndex;
-use ipse_core::tasks::{TaskKind, TaskStatus, Tasks, question};
+use ipse_core::tasks::{TaskKind, TaskStatus, Tasks, classify, question};
 use ipse_core::vault::{Language, Settings, Vault};
 use jiff::ToSpan;
 use jiff::civil::date;
@@ -109,4 +116,41 @@ fn main() {
         }
         day = day.tomorrow().unwrap();
     }
+
+    let start = Instant::now();
+    let made = tasks.plan_classify(&index, today).unwrap();
+    println!(
+        "{:<18} {EVENTS} events  {made:>5} tasks  {:>9.2?}",
+        "classify, first",
+        start.elapsed()
+    );
+    for label in ["classify, second", "classify, waiting"] {
+        let start = Instant::now();
+        let made = tasks.plan_classify(&index, today).unwrap();
+        println!(
+            "{label:<18} {EVENTS} events  {made:>5} tasks  {:>9.2?}",
+            start.elapsed()
+        );
+    }
+    // Every event asked about: close each task, a day apart, until none is made.
+    let mut day = today;
+    loop {
+        for task in tasks.list().unwrap() {
+            if task.kind == TaskKind::Classify && task.status == TaskStatus::Open {
+                tasks.dismiss(&task.id).unwrap();
+            }
+        }
+        day = day.tomorrow().unwrap();
+        if tasks.plan_classify(&index, day).unwrap() == 0 {
+            break;
+        }
+    }
+    let start = Instant::now();
+    let made = tasks.plan_classify(&index, day).unwrap();
+    println!(
+        "{:<18} {EVENTS} events  {made:>5} tasks  {:>9.2?}  ({} a task)",
+        "classify, all asked",
+        start.elapsed(),
+        classify::PER_TASK
+    );
 }

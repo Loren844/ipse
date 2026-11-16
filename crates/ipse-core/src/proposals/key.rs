@@ -3,7 +3,7 @@
 
 use serde_json::Value;
 
-use crate::vault::{Birthday, EventStatus, EventTime, LinkOrText, MemoryFile, WikiLink};
+use crate::vault::{Birthday, EventKind, EventStatus, EventTime, LinkOrText, MemoryFile, WikiLink};
 
 /// The keys a proposal may set on an entity.
 pub(super) const ENTITY_KEYS: [&str; 7] = [
@@ -17,8 +17,15 @@ pub(super) const ENTITY_KEYS: [&str; 7] = [
 ];
 
 /// The keys a proposal may set on an event.
-pub(super) const EVENT_KEYS: [&str; 6] =
-    ["title", "start", "end", "place", "participants", "status"];
+pub(super) const EVENT_KEYS: [&str; 7] = [
+    "title",
+    "start",
+    "end",
+    "place",
+    "participants",
+    "status",
+    "kind",
+];
 
 /// Keys whose value is a list.
 const LISTS: [&str; 4] = ["aliases", "emails", "phones", "participants"];
@@ -61,6 +68,7 @@ pub(crate) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
                 .collect(),
         ),
         "status" => text(e.status.map(|s| s.as_str().to_owned())),
+        "kind" => text(e.kind.map(|k| k.as_str().to_owned())),
         _ => return None,
     })
 }
@@ -121,6 +129,14 @@ pub(super) fn set(file: &mut MemoryFile, key: &str, value: &Value) -> Result<(),
         }
         "status" => {
             e.status = optional(key, value, EventStatus::parse, "planned, done or cancelled")?;
+        }
+        "kind" => {
+            e.kind = optional(
+                key,
+                value,
+                EventKind::parse,
+                &format!("one of: {}", EventKind::names()),
+            )?;
         }
         _ => return Err(format!("`{key}` cannot be set on this file")),
     }

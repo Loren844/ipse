@@ -14,12 +14,12 @@ test('the demo memory has something on every screen', async ({ page }) => {
 	await expect(page.getByTestId('memory-name')).toHaveText('Camille Laurent');
 	const sections = page.getByRole('navigation', { name: 'Sections' });
 	await expect(page.getByText('Dernier résumé')).toBeVisible();
-	await expect(page.locator('.banner')).toContainText('5 propositions et 3 questions attendent votre avis');
+	await expect(page.locator('.banner')).toContainText('6 propositions et 3 questions attendent votre avis');
 
-	// Two duplicates found by Ipse, two summaries and a fact from Claude, and questions.
-	await expect(sections.getByRole('link', { name: /À revoir/ }).locator('.count')).toHaveText('8');
+	// Two duplicates found by Ipse, two summaries, a fact and kinds of events from Claude, and questions.
+	await expect(sections.getByRole('link', { name: /À revoir/ }).locator('.count')).toHaveText('9');
 	await sections.getByRole('link', { name: /À revoir/ }).click();
-	await expect(page.getByTestId('proposal')).toHaveCount(5);
+	await expect(page.getByTestId('proposal')).toHaveCount(6);
 	await expect(page.getByTestId('question')).toHaveCount(3);
 	await expect(page.getByTestId('decided').filter({ hasText: 'Refusée' })).toHaveCount(1);
 

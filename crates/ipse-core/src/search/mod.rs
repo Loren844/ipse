@@ -813,6 +813,20 @@ impl SearchIndex {
         events
     }
 
+    /// Every event no one gave a kind yet, in no particular order: its id, file,
+    /// category and start.
+    pub fn events_without_kind(&self) -> impl Iterator<Item = (&Id, &Path, &Category, &EventTime)> {
+        self.events
+            .iter()
+            .filter_map(|&slot| self.document(slot))
+            .filter_map(|d| {
+                let span = d.event.as_ref()?;
+                span.kind
+                    .is_none()
+                    .then_some((&d.id, d.path.as_path(), &d.category, &span.start))
+            })
+    }
+
     /// The files matching every word of `query`, best first, among the allowed
     /// categories only. `limit` is clamped to 1–50.
     #[must_use]

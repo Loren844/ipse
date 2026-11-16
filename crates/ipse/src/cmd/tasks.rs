@@ -20,6 +20,7 @@ pub(crate) fn list(all: bool, vault: Option<PathBuf>) -> Result<()> {
     let today = summaries::today(&vault);
     Tasks::new(&vault).plan_summaries(&index, today)?;
     Tasks::new(&vault).plan_questions(&index, today)?;
+    Tasks::new(&vault).plan_classify(&index, today)?;
     let tasks = Tasks::new(&vault).list()?;
     let shown: Vec<_> = tasks
         .iter()

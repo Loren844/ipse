@@ -7,7 +7,7 @@ use saphyr_parser::ScalarStyle;
 
 use super::atomic::{write_atomic, write_atomic_unsynced};
 use super::emit::{self, Out};
-use super::event::{EventFields, EventStatus, EventTime};
+use super::event::{EventFields, EventKind, EventStatus, EventTime};
 use super::fields::{
     Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
 };
@@ -505,6 +505,7 @@ fn is_known_key(key: &str) -> bool {
             | "place"
             | "participants"
             | "organizer"
+            | "kind"
             | "status"
             | "topic"
             | "year"
@@ -573,6 +574,15 @@ impl<'n> Reader<'_, 'n> {
                 self.wrong(node, "`status` must be one of: planned, done, cancelled")
             })?),
         };
+        let kind = match self.get("kind") {
+            None => None,
+            Some(node) => Some(node.as_text().and_then(EventKind::parse).ok_or_else(|| {
+                self.wrong(
+                    node,
+                    format!("`kind` must be one of: {}", EventKind::names()),
+                )
+            })?),
+        };
         Ok(EventFields {
             title,
             start,
@@ -581,6 +591,7 @@ impl<'n> Reader<'_, 'n> {
             participants: self.links_or_texts("participants")?,
             status,
             organizer: self.link_or_text("organizer")?,
+            kind,
         })
     }
 

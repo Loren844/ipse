@@ -279,6 +279,9 @@ pub struct Entry {
     /// For an event: `planned`, `done` or `cancelled`, when known.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<String>,
+    /// For an event: what kind it is (`meal`, `trip`…), when someone said.
+    #[serde(rename = "kind", skip_serializing_if = "Option::is_none")]
+    pub event_kind: Option<String>,
     /// For an event: who sent the invitation, when it is not the person; its title,
     /// place and notes were written by them. `someone else` when this AI may not see
     /// who (decision 0014).
@@ -720,6 +723,7 @@ impl<'g> Access<'g> {
                     .filter_map(|p| self.visible(p))
                     .collect(),
                 status: event.status.map(|s| s.as_str().to_owned()),
+                event_kind: event.kind.map(|k| k.as_str().to_owned()),
                 invited_by: event
                     .organizer
                     .as_ref()

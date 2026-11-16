@@ -32,6 +32,10 @@ start: string | null, end: string | null, place: LinkField | null, participants:
  */
 status: string | null, 
 /**
+ * What kind of event it is: `meal`, `trip`…
+ */
+event_kind: string | null, 
+/**
  * In order; a saved form names each by its position here.
  */
 facts: Array<string>, relations: Array<RelationField>, notes: string | null, 

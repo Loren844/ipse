@@ -2175,6 +2175,7 @@ pre.diagnostics {
 .editor input[type='tel'],
 .editor input[type='date'],
 .editor input[type='time'],
+.editor select,
 .editor textarea {
 	font: inherit;
 	color: var(--text);
@@ -2618,4 +2619,16 @@ pre.diagnostics {
 a.button {
 	display: inline-block;
 	text-decoration: none;
+}
+
+/* An event's kind (issue #131): a quiet word beside its time, never a colour code. */
+.kind-tag {
+	display: inline-block;
+	padding: 0 0.55rem;
+	border: 1.5px solid var(--line-strong);
+	border-radius: 999px;
+	color: var(--muted);
+	font-size: 0.78rem;
+	font-weight: 700;
+	line-height: 1.5;
 }

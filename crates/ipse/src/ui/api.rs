@@ -98,6 +98,8 @@ pub(crate) struct EventView {
     people: Vec<LinkView>,
     /// `planned`, `done` or `cancelled`, when known.
     status: Option<String>,
+    /// What kind of event it is: `meal`, `trip`…, when someone said.
+    event_kind: Option<String>,
     notes: Option<String>,
     category: String,
     /// Closed to AIs unless the person opens its category.
@@ -539,6 +541,7 @@ fn event_view(details: Details) -> EventView {
         place: details.place.map(Into::into),
         people: details.participants.into_iter().map(Into::into).collect(),
         status: entry.status,
+        event_kind: entry.event_kind,
         notes: entry.notes,
         category: details.category,
         sensitive: details.sensitive,

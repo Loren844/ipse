@@ -21,6 +21,7 @@
 			place: null,
 			participants: [],
 			status: null,
+			event_kind: null,
 			facts: [],
 			relations: [],
 			notes: null,
@@ -84,6 +85,8 @@
 		initial.participants.map((p) => ({ value: p.value, target: null, name: p.link.name, id: p.link.id, kind: p.link.kind }))
 	);
 	let status = $state(initial.status ?? '');
+	let eventKind = $state(initial.event_kind ?? '');
+	const EVENT_KINDS = ['meal', 'celebration', 'outing', 'culture', 'sport', 'trip', 'travel', 'work', 'study', 'appointment', 'health', 'other'];
 	let facts = $state(initial.facts.map((text, was) => ({ was: was as number | null, text })));
 	type Row = { word: string; target: string; display: string | null; name: string; key: number };
 	let key = 0;
@@ -114,7 +117,8 @@
 					end: timeOf(end, endAt, initial.end, true),
 					place: place?.value ?? null,
 					participants: people.map((p) => p.value),
-					status: status || null
+					status: status || null,
+					kind: eventKind || null
 				}
 			: {
 					name: name.trim(),
@@ -208,6 +212,13 @@
 					</div>
 				{/if}
 			</div>
+		</div>
+		<div class="form-field">
+			<label for="edit-kind">{i18n.t.keys.kind}</label>
+			<select id="edit-kind" bind:value={eventKind}>
+				<option value="">{i18n.t.eventKindNone}</option>
+				{#each EVENT_KINDS as kind (kind)}<option value={kind}>{i18n.t.eventKinds[kind]}</option>{/each}
+			</select>
 		</div>
 		<fieldset class="status">
 			<legend>{i18n.t.keys.status}</legend>
