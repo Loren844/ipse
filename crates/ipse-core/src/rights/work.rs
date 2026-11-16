@@ -136,6 +136,24 @@ impl Access<'_> {
         self.reads(category) && self.client.propose.iter().any(|c| c == effective)
     }
 
+    /// The owner's file, relative to the vault with `/`, when this AI may propose
+    /// changes to it.
+    fn owner_file_if_proposes(&self) -> Option<String> {
+        let vault = &self.gateway.vault;
+        let owner = MemoryFile::read(vault.owner_file()).ok()?;
+        if !self.proposes(owner.common().category.as_str()) {
+            return None;
+        }
+        let relative = vault.owner_file().strip_prefix(vault.root()).ok()?;
+        Some(
+            relative
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy())
+                .collect::<Vec<_>>()
+                .join("/"),
+        )
+    }
+
     /// A task is for an AI that may propose in all its categories; a summary task, for
     /// one that may propose summaries and read the rest.
     fn sees(&self, task: &Task) -> bool {
@@ -177,7 +195,9 @@ impl Access<'_> {
         let limit = limit.clamp(1, MAX_TASKS);
         let tasks = Tasks::new(&self.gateway.vault);
         // The days that ended since the last call are due now.
-        tasks.plan_summaries(&self.gateway.index, summaries::today(&self.gateway.vault))?;
+        let today = summaries::today(&self.gateway.vault);
+        tasks.plan_summaries(&self.gateway.index, today)?;
+        tasks.plan_questions(&self.gateway.index, today)?;
         let mut open: Vec<Task> = tasks
             .list()?
             .into_iter()
@@ -236,8 +256,19 @@ impl Access<'_> {
             })
             .collect();
         let mut example: Value = serde_json::from_str(&detail.example).unwrap_or(Value::Null);
+        // A question's answer may link the person from the owner's own file: shown only
+        // to an AI that may propose there.
+        let owner = (task.kind == TaskKind::Question)
+            .then(|| self.owner_file_if_proposes())
+            .flatten();
         // The example names a file of the task: never one this AI may no longer read.
         if let Some(changes) = example.get_mut("changes").and_then(Value::as_array_mut) {
+            if task.kind == TaskKind::Question {
+                changes.retain(|c| {
+                    c.get("kind").and_then(Value::as_str) != Some("add_relation")
+                        || c.get("file").and_then(Value::as_str) == owner.as_deref()
+                });
+            }
             let fallback = items
                 .first()
                 .map_or("people/marie-dupont.md", |i| i.file.as_str());
@@ -245,7 +276,8 @@ impl Access<'_> {
                 let Some(file) = change.get("file").and_then(Value::as_str) else {
                     continue;
                 };
-                let visible = items.iter().any(|i| i.file == file);
+                let visible =
+                    items.iter().any(|i| i.file == file) || owner.as_deref() == Some(file);
                 if !visible {
                     change["file"] = Value::String(fallback.to_owned());
                 }

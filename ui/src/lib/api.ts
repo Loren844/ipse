@@ -25,6 +25,9 @@ import type { UndoneView } from './types/UndoneView.ts';
 import type { SummariesView } from './types/SummariesView.ts';
 import type { SummaryView } from './types/SummaryView.ts';
 export type { SummariesView, SummaryView };
+import type { QuestionsView } from './types/QuestionsView.ts';
+export type { QuestionsView };
+export type { QuestionView } from './types/QuestionView.ts';
 export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
 export type { ChangeLine } from './types/ChangeLine.ts';
 export type { RunView } from './types/RunView.ts';
@@ -96,5 +99,9 @@ export const api = {
 	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`),
 	summaries: (period: string, offset?: number, before?: string) => get<SummariesView>('/api/summaries', { period, offset, before }),
 	correctSummary: (period: string, start: string, text: string) =>
-		post<SummaryView>(`/api/summaries/${encodeURIComponent(period)}/${encodeURIComponent(start)}`, { text })
+		post<SummaryView>(`/api/summaries/${encodeURIComponent(period)}/${encodeURIComponent(start)}`, { text }),
+	questions: () => get<QuestionsView>('/api/questions'),
+	answer: (id: string, name: string, word: string) =>
+		post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/answer`, { name, word: word.trim() || undefined }),
+	skipQuestion: (id: string) => post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/skip`)
 };

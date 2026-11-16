@@ -38,7 +38,7 @@ pub(crate) struct AppInfo {
     pub(crate) language: String,
     /// The vault's time zone, an IANA name: dates are shown in it.
     pub(crate) time_zone: String,
-    /// Proposals waiting for the person, stale ones included.
+    /// Proposals waiting for the person, stale ones included, and questions.
     pub(crate) waiting: usize,
 }
 
@@ -229,7 +229,7 @@ pub(crate) struct HomeView {
     upcoming: Vec<EventView>,
     /// People of recent events, the most recent first.
     recent: Vec<LinkView>,
-    /// Proposals waiting for the person.
+    /// Proposals and questions waiting for the person.
     waiting: usize,
     /// The most recent day summary.
     latest: Option<super::summaries::SummaryView>,
@@ -244,6 +244,7 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
     let settings = gateway.settings();
     let language = settings.language().code().to_owned();
     let time_zone = settings.time_zone_name().to_owned();
+    super::questions::plan(gateway)?;
     let waiting = waiting(gateway)?;
     let owner = gateway.fresh_owner()?;
     let name = owner.about_me().and_then(|me| me.name).unwrap_or_default();
@@ -255,12 +256,14 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
     })
 }
 
+/// Proposals and questions waiting for the person.
 fn waiting(gateway: &Gateway) -> Result<usize> {
-    Ok(Proposals::new(gateway.vault())
+    let proposals = Proposals::new(gateway.vault())
         .list()?
         .iter()
         .filter(|p| matches!(p.status, Status::Waiting | Status::Stale { .. }))
-        .count())
+        .count();
+    Ok(proposals + super::questions::waiting(gateway)?)
 }
 
 /// Today in the vault's time zone.

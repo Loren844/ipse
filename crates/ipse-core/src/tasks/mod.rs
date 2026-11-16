@@ -8,6 +8,7 @@
 //! comment, when they refuse it.
 
 mod extract;
+pub mod question;
 mod summary;
 
 pub use summary::WINDOW_DAYS;
@@ -244,7 +245,8 @@ impl<'v> Tasks<'v> {
         Ok(match task.kind {
             TaskKind::Extract => extract::detail(self.vault, task),
             TaskKind::Summary => summary::detail(self.vault, task),
-            _ => TaskDetail {
+            TaskKind::Question => question::detail(self.vault, task),
+            TaskKind::Merge => TaskDetail {
                 expected: String::new(),
                 items: Vec::new(),
                 example: String::new(),
@@ -278,6 +280,21 @@ impl<'v> Tasks<'v> {
         today: jiff::civil::Date,
     ) -> Result<usize> {
         summary::plan(self, index, today)
+    }
+
+    /// Makes the `question` tasks due on `today`: people known only by a first name or
+    /// a nickname, each asked about once, at most [`question::OPEN`] waiting and
+    /// [`question::PER_DAY`] new a day. Returns how many tasks it made.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when a task cannot be saved.
+    pub fn plan_questions(
+        &self,
+        index: &crate::search::SearchIndex,
+        today: jiff::civil::Date,
+    ) -> Result<usize> {
+        question::plan(self, index, today)
     }
 
     /// Notes that `proposal` answers the open task `id`.

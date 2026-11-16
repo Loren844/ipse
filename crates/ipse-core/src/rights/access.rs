@@ -158,6 +158,12 @@ impl Gateway {
         Ok(())
     }
 
+    /// The search index, as last read: for the interface's own planning.
+    #[must_use]
+    pub fn index(&self) -> &SearchIndex {
+        &self.index
+    }
+
     /// The vault's settings.
     #[must_use]
     pub fn settings(&self) -> &crate::vault::Settings {

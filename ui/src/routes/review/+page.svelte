@@ -1,20 +1,36 @@
 <script lang="ts">
-	import { api, Conflict, SessionEnded, type DecisionView, type InboxView, type ProposalLine } from '#lib/api.ts';
+	import { tick } from 'svelte';
+	import {
+		api,
+		Conflict,
+		SessionEnded,
+		type DecisionView,
+		type InboxView,
+		type ProposalLine,
+		type QuestionsView
+	} from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Empty from '#lib/Empty.svelte';
-	import { ago, authorName, periodName } from '#lib/format.ts';
+	import { ago, authorName, dayOf, periodName } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Notice from '#lib/Notice.svelte';
+	import Question from '#lib/Question.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 
 	const inbox = new Loader<InboxView>();
 	inbox.load(() => api.proposals());
+	const asked = new Loader<QuestionsView>();
+	asked.load(() => api.questions());
+	const today = dayOf(new Date().toISOString());
 
 	let selected: string[] = $state([]);
 	let busy = $state(false);
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
+	let status: HTMLDivElement | undefined = $state();
 
 	const ready = $derived(inbox.state.kind === 'ready' ? inbox.state.value : null);
+	/** Questions are a bonus: the inbox shows its proposals even if they fail to load. */
+	const questions = $derived(asked.state.kind === 'ready' ? asked.state.value.questions : []);
 	/** Those that can be accepted: a stale one can only be refused, on its own page. */
 	const acceptable = $derived(ready ? ready.waiting.filter((p) => p.status === 'waiting').map((p) => p.id) : []);
 	const allSelected = $derived(acceptable.length > 0 && acceptable.every((id) => selected.includes(id)));
@@ -48,23 +64,31 @@
 		busy = false;
 		await Promise.all([inbox.load(() => api.proposals(), true), app.refresh()]);
 	}
+
+	async function answered(left: QuestionsView | null, tone: 'done' | 'warn', text: string) {
+		outcome = { tone, text };
+		await Promise.all([asked.load(async () => left ?? (await api.questions()), true), app.refresh()]);
+		// The card answered is gone: the focus goes to what was said about it.
+		await tick();
+		status?.focus();
+	}
 </script>
 
 <svelte:head><title>{i18n.t.inbox} · Ipse</title></svelte:head>
 
-{#if ready && (ready.waiting.length || ready.decided.length || outcome)}
+{#if ready && (ready.waiting.length || ready.decided.length || questions.length || outcome)}
 	<div class="screen">
 		<header class="page-head">
 			<h1>{i18n.t.inbox}</h1>
 			{#if ready.waiting.length}
 				<p class="lead">{i18n.t.inboxWaiting(ready.waiting.length)}</p>
 				<p class="quiet">{i18n.t.inboxHint}</p>
-			{:else}
+			{:else if !questions.length}
 				<p class="lead">{i18n.t.inboxEmpty}</p>
 			{/if}
 		</header>
 
-		<div class="live" role="status" aria-live="polite">
+		<div class="live" role="status" aria-live="polite" tabindex="-1" bind:this={status}>
 			{#if outcome}<Notice tone={outcome.tone}>{outcome.text}</Notice>{/if}
 		</div>
 
@@ -100,6 +124,18 @@
 								</ul>
 							</div>
 						</li>
+					{/each}
+				</ul>
+			</section>
+		{/if}
+
+		{#if questions.length}
+			<section aria-labelledby="questions" class="questions">
+				<h2 id="questions">{i18n.t.questions}</h2>
+				<p class="quiet">{i18n.t.questionsLead}</p>
+				<ul class="inbox">
+					{#each questions as question (question.id)}
+						<Question {question} {today} done={answered} />
 					{/each}
 				</ul>
 			</section>

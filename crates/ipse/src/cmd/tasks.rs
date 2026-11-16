@@ -17,7 +17,9 @@ pub(crate) fn list(all: bool, vault: Option<PathBuf>) -> Result<()> {
     let vault = open(vault)?;
     // The days that ended since the last look are due now, as for an AI.
     let index = SearchIndex::load(vault.root())?;
-    Tasks::new(&vault).plan_summaries(&index, summaries::today(&vault))?;
+    let today = summaries::today(&vault);
+    Tasks::new(&vault).plan_summaries(&index, today)?;
+    Tasks::new(&vault).plan_questions(&index, today)?;
     let tasks = Tasks::new(&vault).list()?;
     let shown: Vec<_> = tasks
         .iter()

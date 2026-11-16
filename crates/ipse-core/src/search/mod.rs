@@ -571,6 +571,13 @@ impl SearchIndex {
         self.documents().count()
     }
 
+    /// How many ids the index knows, at once: a cheap sign that files were added or
+    /// removed since this number was last read.
+    #[must_use]
+    pub fn ids(&self) -> usize {
+        self.by_id.len()
+    }
+
     /// True when the vault has nothing searchable.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -589,6 +596,20 @@ impl SearchIndex {
     pub fn path_of(&self, id: &Id, allowed: impl Fn(&Category) -> bool) -> Option<&Path> {
         let d = self.document(*self.by_id.get(id)?)?;
         allowed(&d.category).then_some(d.path.as_path())
+    }
+
+    /// Every entity of `file_type`, in no particular order: for a pass over all of
+    /// them that does not need [`SearchIndex::entities`]'s sort.
+    pub fn each_entity(&self, file_type: FileType) -> impl Iterator<Item = Listed<'_>> {
+        self.documents()
+            .filter(move |d| d.file_type == file_type)
+            .map(|d| Listed {
+                id: &d.id,
+                name: &d.name.text,
+                aliases: d.aliases.iter().map(|a| a.text.as_str()).collect(),
+                category: &d.category,
+                path: &d.path,
+            })
     }
 
     /// The entities of `file_type` among the allowed categories, sorted by name as

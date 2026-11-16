@@ -69,7 +69,17 @@ pub(crate) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
 pub(super) fn set(file: &mut MemoryFile, key: &str, value: &Value) -> Result<(), String> {
     if let Some(e) = file.entity_mut() {
         match key {
-            "name" => e.name = optional_text(key, value)?,
+            "name" => {
+                // The old name stays as another name: the person may still say it.
+                let new = optional_text(key, value)?;
+                if let (Some(old), Some(new)) = (&e.name, &new)
+                    && old != new
+                    && !e.aliases.contains(old)
+                {
+                    e.aliases.push(old.clone());
+                }
+                e.name = new;
+            }
             "aliases" => e.aliases = list(key, value)?,
             "birthday" => {
                 e.birthday = optional(

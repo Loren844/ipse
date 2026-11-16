@@ -15,10 +15,18 @@ use serde_json::json;
 
 fn person(root: &Path, stem: &str, category: &str, i: usize) -> PathBuf {
     let path = root.join(format!("people/{stem}.md"));
+    // A full name: a first name alone would be a question for the person.
+    let mut letters = stem.chars();
+    let first: String = letters
+        .next()
+        .into_iter()
+        .flat_map(char::to_uppercase)
+        .collect();
+    let name = format!("{first}{} Durand", letters.as_str());
     std::fs::write(
         &path,
         format!(
-            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z8{i:02}\ntype: person\ncategory: {category}\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\nname: {stem}\n---\n\n## Notes\n\nNotes de {stem}.\n"
+            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z8{i:02}\ntype: person\ncategory: {category}\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\nname: {name}\n---\n\n## Notes\n\nNotes de {stem}.\n"
         ),
     )
     .unwrap();
@@ -379,8 +387,8 @@ fn the_owner_reads_every_category_and_is_not_logged() {
             .map(|h| h.name)
             .collect()
     };
-    assert_eq!(names("lea"), ["lea"], "health");
-    assert_eq!(names("theo"), ["theo"], "an undeclared category");
+    assert_eq!(names("lea"), ["Lea Durand"], "health");
+    assert_eq!(names("theo"), ["Theo Durand"], "an undeclared category");
     assert!(
         !f.root.join(".ipse/access").exists(),
         "the owner's reads are not logged"
