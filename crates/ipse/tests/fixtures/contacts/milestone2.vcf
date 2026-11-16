@@ -1,0 +1,39 @@
+BEGIN:VCARD
+VERSION:3.0
+FN:Marc Leroy
+N:Leroy;Marc;;;
+EMAIL;TYPE=INTERNET:marc.leroy@example.org
+TEL;TYPE=CELL:+33 6 00 00 00 11
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Marc Leroy Pro
+N:Leroy;Marc;;;
+EMAIL;TYPE=INTERNET;TYPE=WORK:marc.leroy@example.org
+ORG:Atelier Leroy
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Robert Martin
+N:Martin;Robert;;;
+EMAIL;TYPE=INTERNET:robert.martin@example.org
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Bob Martin
+N:Martin;Bob;;;
+TEL;TYPE=CELL:+33 6 00 00 00 12
+NOTE:C'est Robert\, du club de tennis.
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Jo plombier
+TEL;TYPE=CELL:+33 6 00 00 00 13
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+FN:Élodie Petit
+N:Petit;Élodie;;;
+EMAIL;TYPE=INTERNET:elodie.petit@example.org
+NOTE:Infirmière à Nantes. Sœur de Marc.
+END:VCARD

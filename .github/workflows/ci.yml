@@ -43,6 +43,8 @@ jobs:
       - run: cargo test --workspace
       - name: Milestone 1 scenario time
         run: cargo test -p ipse --test milestone1 -- --nocapture
+      - name: Milestone 2 scenario time
+        run: cargo test -p ipse --test milestone2 -- --nocapture
 
   bench:
     name: Benchmarks compile
