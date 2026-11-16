@@ -16,6 +16,15 @@ cargo install --path crates/ipse
 
 The command is now in `~/.cargo/bin/ipse` (on Windows, `%USERPROFILE%\.cargo\bin\ipse.exe`).
 
+## Try it first, without your data
+
+```sh
+ipse init ~/Ipse-demo --demo
+ipse ui --vault ~/Ipse-demo
+```
+
+This makes an invented memory, Camille Laurent's (Alex Morgan's with `--language en`): about 150 people, two years of agenda, summaries of the last days, and proposals waiting for a decision as if an AI had made them. Nothing in it is real: emails are at `example.org`, phone numbers are in ranges kept for fiction. Delete the folder when you are done.
+
 ## 2. Create your memory
 
 ```sh

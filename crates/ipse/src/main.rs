@@ -37,6 +37,9 @@ enum Command {
         /// Time zone, like Europe/Paris (default: the computer's)
         #[arg(long)]
         time_zone: Option<String>,
+        /// Make an invented memory to try Ipse without your own data
+        #[arg(long, conflicts_with = "name")]
+        demo: bool,
     },
     /// Import a file into the memory: contacts (.vcf) or a calendar (.ics)
     Import {
@@ -271,7 +274,14 @@ fn main() -> ExitCode {
             name,
             language,
             time_zone,
-        } => cmd::init::run(folder, name, language.as_deref(), time_zone.as_deref()),
+            demo,
+        } => cmd::init::run(
+            folder,
+            name,
+            language.as_deref(),
+            time_zone.as_deref(),
+            demo,
+        ),
         Command::Import { file, vault } => cmd::import::run(&file, vault),
         Command::Calendar { action } => match action {
             CalendarAction::Subscribe {

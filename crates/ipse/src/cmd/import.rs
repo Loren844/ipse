@@ -46,8 +46,21 @@ impl Kind {
 }
 
 /// Imports `file` into the memory in `vault` (the current folder by default).
-pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
+pub(crate) fn run(file: &std::path::Path, vault: Option<PathBuf>) -> Result<()> {
     let vault = Vault::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
+    for line in import_into(&vault, file)? {
+        println!("{line}");
+    }
+    Ok(())
+}
+
+/// Imports `file` into `vault` as `ipse import` does; returns what to tell the person.
+///
+/// # Errors
+///
+/// [`Error::Refused`] for a file Ipse cannot import or a connector that failed;
+/// errors writing the journal, the files, the history or the tasks.
+pub(crate) fn import_into(vault: &Vault, file: &std::path::Path) -> Result<Vec<String>> {
     let kind = Kind::of(file).ok_or_else(|| {
         Error::Refused(
             "Ipse can import contacts files (.vcf) and calendar files (.ics) for now.".to_owned(),
@@ -84,9 +97,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
             )));
         }
     }
-    for line in &report.progress {
-        println!("{line}");
-    }
+    let mut lines = report.progress.clone();
 
     // The person's own edits are recorded first, so that the import never hides them.
     let history = vault.history()?;
@@ -95,7 +106,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     let mut owner = false;
     let (line, conflicts, deleted) = match kind {
         Kind::Contacts => {
-            let summary = contacts_to_people(&vault, &journal, instance, &mut change)?;
+            let summary = contacts_to_people(vault, &journal, instance, &mut change)?;
             run.people(&summary);
             relations = summary.relations;
             owner = summary.owner;
@@ -107,7 +118,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         }
         Kind::Calendar => {
             let summary = calendar_to_events(
-                &vault,
+                vault,
                 &journal,
                 instance,
                 &mut change,
@@ -127,11 +138,11 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     };
     let touched = change.paths();
     change.commit(summary)?;
-    let tasks = Tasks::new(&vault).extract_from(&touched)?;
+    let tasks = Tasks::new(vault).extract_from(&touched)?;
     run.tasks = tasks as u64;
     record_run(vault.root(), &run)?;
-    let duplicates = ipse_core::duplicates::propose(&vault)?;
-    println!("{line}");
+    let duplicates = ipse_core::duplicates::propose(vault)?;
+    lines.push(line);
     let optional = [
         (conflicts.0 > 0).then(|| conflicts_line(conflicts)),
         (deleted > 0).then(|| deleted_line(deleted)),
@@ -140,10 +151,8 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         (tasks > 0).then(|| tasks_line(tasks)),
         (duplicates > 0).then(|| super::duplicates::line(duplicates)),
     ];
-    for line in optional.into_iter().flatten() {
-        println!("{line}");
-    }
-    Ok(())
+    lines.extend(optional.into_iter().flatten());
+    Ok(lines)
 }
 
 /// How to start the built-in connector for `kind` on `file`.

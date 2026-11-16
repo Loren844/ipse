@@ -6,15 +6,31 @@ use std::path::PathBuf;
 use ipse_core::vault::{Language, Settings, Vault};
 use ipse_core::{Error, Result};
 
-/// Creates a memory in `folder` (the current folder by default).
+/// Creates a memory in `folder` (the current folder by default); with `demo`, an
+/// invented one, full of people, events and what an AI proposed.
 pub(crate) fn run(
     folder: Option<PathBuf>,
     name: Option<String>,
     language: Option<&str>,
     time_zone: Option<&str>,
+    demo: bool,
 ) -> Result<()> {
     let folder = folder.unwrap_or_else(|| PathBuf::from("."));
     let settings = settings(language, time_zone)?;
+    if demo {
+        let name = super::demo::owner_name(settings.language());
+        let vault = Vault::init(&folder, &name, settings)?;
+        let made = super::demo::fill(&vault)?;
+        println!(
+            "A demo memory is ready in {}: {}, {} people and {} events, all invented, with what an AI proposed.",
+            folder.display(),
+            made.owner,
+            made.people,
+            made.events
+        );
+        println!("Open it with: ipse ui --vault {}", folder.display());
+        return Ok(());
+    }
     let name = match name {
         Some(name) => name,
         None => ask_name()?,
