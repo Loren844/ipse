@@ -32,6 +32,7 @@ Not released yet: 0.1.0 waits for the First version milestone (settings, the who
 ### The interface
 
 - `ipse ui` opens your memory in your browser, on this computer only: home, people, agenda, summaries, review inbox with what each proposal changes, connected AIs and their rights per category, history of changes, of AI reads and of imports. French and English.
+- Edit any file yourself in `ipse ui`: names, phones, emails, birthday, address, an event's times, place and people, facts, relations and notes. Create a file of any kind, including the one a link already points to, and delete one after seeing what links to it. Each save is one change you can undo from the history; a file changed meanwhile is never written over.
 
 ### Installing
 

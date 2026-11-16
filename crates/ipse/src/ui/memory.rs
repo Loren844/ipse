@@ -77,6 +77,8 @@ pub(crate) struct ListView {
 )]
 pub(crate) struct FoundView {
     id: String,
+    /// Its file's name in the memory, for a link to it: `marie-dupont`.
+    stem: String,
     /// `person`, `place`, `event`, `summary`…
     kind: String,
     name: String,
@@ -194,6 +196,11 @@ pub(crate) fn search(gateway: &mut Gateway, query: Option<&str>) -> Result<Searc
                 FoundView {
                     sensitive: owner.sensitive(h.category.as_str()),
                     id: h.id.to_string(),
+                    stem: h
+                        .path
+                        .file_stem()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
                     kind: h.file_type.as_str().to_owned(),
                     excerpt: if excerpt == h.name {
                         String::new()

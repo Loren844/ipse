@@ -117,6 +117,9 @@ pub(crate) struct RelationView {
     /// The relation word, as written: `sœur`.
     word: String,
     to: LinkView,
+    /// For a link to a file that does not exist yet, the name it gives that file
+    /// (`paul-roux`), to create it.
+    missing: Option<String>,
 }
 
 /// A person, a place or another entity, in full.
@@ -443,6 +446,7 @@ pub(crate) fn events(
 /// Errors reading the vault.
 pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> {
     let today = today(gateway);
+    let gateway_root = gateway.vault().root().to_owned();
     let owner = gateway.fresh_owner()?;
     let Some(details) = owner.details(id) else {
         return Ok(None);
@@ -486,6 +490,23 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
             word: b.word,
         })
         .collect();
+    // The person reads every file: a link to a file that does not exist yet is shown
+    // too, to create it.
+    let relations = owner
+        .file_of(id)
+        .and_then(|file| ipse_core::vault::MemoryFile::read(gateway_root.join(file)).ok())
+        .map(|file| file.sections().relations)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|r| {
+            let to = owner.link(&LinkOrText::Link(r.link.clone()));
+            RelationView {
+                word: r.word,
+                missing: to.id.is_none().then_some(r.link.target),
+                to: to.into(),
+            }
+        })
+        .collect();
     let entry = details.entry;
     Ok(Some(FileView::Entity(EntityView {
         id: entry.id,
@@ -497,14 +518,7 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         phones: entry.phones,
         address: entry.address,
         facts: entry.facts,
-        relations: details
-            .relations
-            .into_iter()
-            .map(|r| RelationView {
-                word: r.word,
-                to: r.to.into(),
-            })
-            .collect(),
+        relations,
         notes: entry.notes,
         category: details.category,
         sensitive: details.sensitive,

@@ -11,6 +11,7 @@ mod apply;
 mod change;
 mod key;
 mod merge;
+mod person;
 
 use std::path::{Path, PathBuf};
 
@@ -19,6 +20,7 @@ use serde::{Deserialize, Serialize};
 pub use apply::{DiffItem, FileDiff, Preview, What};
 pub use change::{Change, NewRelation};
 pub(crate) use key::get as key_value;
+pub use person::{Created, Draft, DraftFact, version};
 
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Id, Source, Vault, write_atomic};

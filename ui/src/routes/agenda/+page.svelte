@@ -51,7 +51,10 @@
 </script>
 
 <div class="screen">
-	<header class="page-head"><h1>{i18n.t.agenda}</h1></header>
+	<header class="page-head head-row">
+		<h1>{i18n.t.agenda}</h1>
+		<a class="button small" href="/memory/new?kind=event">+ {i18n.t.addKind.event}</a>
+	</header>
 	{#if ready}
 		<button type="button" class="more" onclick={() => load(shift(from, -90), shift(from, -1), 'before')}>{i18n.t.earlier}</button>
 		{#if days.length}

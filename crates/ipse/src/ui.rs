@@ -34,6 +34,7 @@ use serde::Serialize;
 
 mod ais;
 mod api;
+mod edit;
 mod history;
 mod memory;
 mod questions;
@@ -295,6 +296,8 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
         review::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "settings" {
         settings::change(gateway, body).map(|v| Some(to_json(&v)))
+    } else if path == "files" || path.starts_with("file/") {
+        edit::change(gateway, path, body)
     } else if path.starts_with("questions/") {
         questions::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
     } else if path.starts_with("summaries/") {
@@ -354,6 +357,11 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                     let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
                     memory::list(gateway, folder, param("q").as_deref(), offset)
                         .map(|v| v.map(|v| to_json(&v)))
+                } else if let Some(id) = path
+                    .strip_prefix("file/")
+                    .and_then(|rest| rest.strip_suffix("/edit"))
+                {
+                    edit::view(gateway, id).map(|v| v.map(|v| to_json(&v)))
                 } else if let Some(id) = path.strip_prefix("file/") {
                     api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
                 } else if let Some(id) = path.strip_prefix("proposals/") {
@@ -376,6 +384,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path.starts_with("history/")
             || path.starts_with("summaries/")
             || path.starts_with("questions/")
+            || path == "files"
+            || path.starts_with("file/")
             || path == "settings")
     {
         let json = request

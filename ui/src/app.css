@@ -2122,3 +2122,268 @@ pre.diagnostics {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* Editing a file (issue #129): one column of plain fields, the thread's red kept for
+   the primary action; removing is a small cross beside what it removes. */
+.head-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+	flex-wrap: wrap;
+}
+
+.head-row h1 {
+	margin: 0;
+}
+
+.person-head .edit {
+	margin-left: auto;
+	align-self: center;
+}
+
+.editor {
+	display: flex;
+	flex-direction: column;
+	gap: 1.4rem;
+	max-width: 40rem;
+	margin: 1.5rem 0 1rem;
+}
+
+.editor fieldset {
+	border: 0;
+	margin: 0;
+	padding: 0;
+	min-width: 0;
+}
+
+.editor legend,
+.editor .label {
+	font-weight: 700;
+	padding: 0;
+	margin-bottom: 0.35rem;
+}
+
+.editor input[type='text'],
+.editor input[type='email'],
+.editor input[type='tel'],
+.editor input[type='date'],
+.editor input[type='time'],
+.editor textarea {
+	font: inherit;
+	color: var(--text);
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: var(--radius);
+	padding: 0.55rem 0.8rem;
+	width: 100%;
+	min-width: 0;
+}
+
+.editor textarea {
+	resize: vertical;
+	line-height: 1.5;
+}
+
+.editor input:focus,
+.editor textarea:focus {
+	outline: none;
+	border-color: var(--thread);
+}
+
+.editor .hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.list-input ul {
+	list-style: none;
+	margin: 0 0 0.5rem;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.45rem;
+}
+
+.list-input li {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.list-input .hint {
+	margin-bottom: 0.5rem;
+}
+
+.relations-input li > input {
+	flex: 0 1 12rem;
+}
+
+.relations-input li > .picker {
+	flex: 1 1 auto;
+}
+
+.relations-input li > .chosen {
+	flex: 0 1 auto;
+	margin-right: auto;
+}
+
+.remove {
+	flex: none;
+	display: inline-grid;
+	place-items: center;
+	width: 2rem;
+	height: 2rem;
+	border: 0;
+	border-radius: 999px;
+	background: transparent;
+	color: var(--muted);
+	cursor: pointer;
+}
+
+.remove svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+	stroke-linecap: round;
+}
+
+.remove:hover {
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+}
+
+.chosen {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.15rem;
+	margin: 0;
+	padding: 0.1rem 0.1rem 0.1rem 0.75rem;
+	border-radius: 999px;
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+	font-weight: 500;
+	width: fit-content;
+}
+
+.chosen .remove {
+	width: 1.7rem;
+	height: 1.7rem;
+	color: inherit;
+}
+
+.chips {
+	flex-direction: row !important;
+	flex-wrap: wrap;
+}
+
+.picker {
+	position: relative;
+	flex: 1 1 auto;
+}
+
+.picker [role='listbox'] {
+	position: absolute;
+	z-index: 5;
+	inset: calc(100% + 0.25rem) 0 auto;
+	list-style: none;
+	margin: 0;
+	padding: 0.3rem;
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: var(--radius);
+	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.picker [role='option'] {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.45rem 0.6rem;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.picker [role='option'] svg {
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.7;
+	flex: none;
+}
+
+.picker [role='option'][aria-selected='true'] {
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+}
+
+.picker .kind {
+	margin-left: auto;
+	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.edit-when {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.edit-when .pair {
+	display: flex;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+}
+
+.edit-when .pair .form-field {
+	flex: 1 1 10rem;
+}
+
+.check {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	font-weight: 500;
+	width: fit-content;
+	cursor: pointer;
+}
+
+.check input {
+	width: 1.1rem;
+	height: 1.1rem;
+	accent-color: var(--thread);
+}
+
+.editor .segmented button,
+.kind-choice .segmented button {
+	font-size: 0.9rem;
+	padding: 0.3rem 0.85rem;
+}
+
+.kind-choice {
+	border: 0;
+	margin: 1.5rem 0 0;
+	padding: 0;
+}
+
+.kind-choice legend {
+	font-weight: 700;
+	margin-bottom: 0.5rem;
+	padding: 0;
+}
+
+.kind-choice .segmented {
+	flex-wrap: wrap;
+	border-radius: 18px;
+}
+
+.link-button.danger {
+	color: var(--muted);
+	margin-top: 1.5rem;
+}
+
+.create-missing {
+	margin-left: 0.5rem;
+	font-size: var(--step--1);
+	color: var(--thread-ink);
+}

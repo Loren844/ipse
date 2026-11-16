@@ -96,6 +96,16 @@ impl Pending {
     }
 }
 
+impl Pending {
+    /// `file`, to remove.
+    pub(super) fn removal(file: MemoryFile) -> Self {
+        Self {
+            removed: true,
+            ..Self::changed(file)
+        }
+    }
+}
+
 /// The diff of a file written with another and not listed on its own.
 fn unlisted() -> FileDiff {
     FileDiff {
@@ -123,8 +133,20 @@ pub(super) fn plan(vault: &Vault, proposal: &Proposal) -> Result<Plan> {
 
 /// As [`plan`]; without `links`, a merge does not look for the links to redirect,
 /// which reads every file: to check a proposal when it is submitted.
-#[allow(clippy::too_many_lines)] // one branch per kind of change
 pub(super) fn plan_with(vault: &Vault, proposal: &Proposal, links: bool) -> Result<Plan> {
+    let source = format!("proposal:{}", proposal.id);
+    plan_changes(vault, &proposal.changes, Some(&source), links)
+}
+
+/// As [`plan_with`], for `changes` whose new files get `source` as their only source;
+/// none for the person's own files.
+#[allow(clippy::too_many_lines)] // one branch per kind of change
+pub(super) fn plan_changes(
+    vault: &Vault,
+    changes: &[Change],
+    source: Option<&str>,
+    links: bool,
+) -> Result<Plan> {
     let root = vault.root();
     let language = vault.settings().language();
     let mut files: Vec<Pending> = Vec::new();
@@ -134,7 +156,7 @@ pub(super) fn plan_with(vault: &Vault, proposal: &Proposal, links: bool) -> Resu
     // Read once, for a proposal that writes summaries.
     let mut search: Option<SearchIndex> = None;
 
-    for change in &proposal.changes {
+    for change in changes {
         let Some(rel) = change.file().map(str::to_owned) else {
             return Err(Error::Refused(
                 "A new file of this proposal has no path.".to_owned(),
@@ -183,7 +205,7 @@ pub(super) fn plan_with(vault: &Vault, proposal: &Proposal, links: bool) -> Resu
             continue;
         }
         if matches!(change, Change::WriteSummary { .. }) {
-            match summary_step(vault, proposal, &rel, change, &mut search)? {
+            match summary_step(vault, source, &rel, change, &mut search)? {
                 SummaryStep::Stale(reason) => {
                     stale.get_or_insert(reason);
                 }
@@ -202,7 +224,7 @@ pub(super) fn plan_with(vault: &Vault, proposal: &Proposal, links: bool) -> Resu
             if path.exists() || index.contains_key(&rel) {
                 Step::Stale(format!("{rel} was created meanwhile."))
             } else {
-                let (file, items) = create(vault, proposal, &path, change)?;
+                let (file, items) = create(vault, source, &path, change)?;
                 index.insert(rel.clone(), files.len());
                 diffs.push(file_diff(&rel, &file, true, items));
                 files.push(Pending {
@@ -300,7 +322,7 @@ enum SummaryStep {
 /// Plans one `write_summary` change; `search` is read once, for the first.
 fn summary_step(
     vault: &Vault,
-    proposal: &Proposal,
+    source: Option<&str>,
     rel: &str,
     change: &Change,
     search: &mut Option<SearchIndex>,
@@ -334,8 +356,14 @@ fn summary_step(
         None => search.insert(SearchIndex::load(root)?),
     };
     let events = summaries::events_in(found, span);
-    let source = format!("proposal:{}", proposal.id);
-    let file = summaries::write_file(vault, &path, span, text, &events, &source)?;
+    let file = summaries::write_file(
+        vault,
+        &path,
+        span,
+        text,
+        &events,
+        source.unwrap_or("person"),
+    )?;
     let created = !path.is_file();
     let item = DiffItem {
         what: What::Summary,
@@ -357,7 +385,7 @@ fn summary_step(
 /// The file a `create` change makes, and what it holds.
 fn create(
     vault: &Vault,
-    proposal: &Proposal,
+    source: Option<&str>,
     path: &std::path::Path,
     change: &Change,
 ) -> Result<(MemoryFile, Vec<DiffItem>)> {
@@ -375,7 +403,7 @@ fn create(
     };
     let file = new_file(
         vault,
-        proposal,
+        source,
         path,
         file_type,
         category.as_deref(),
@@ -525,6 +553,37 @@ fn edit(file: &mut MemoryFile, change: &Change, rel: &str, language: Language) -
                 Some(added(What::Relation, relation_text(&relation)))
             }
         }
+        Change::SetNotes { from, to, .. } => {
+            let now = file.sections().notes;
+            let clean = |t: &Option<String>| {
+                t.as_deref()
+                    .map(|t| t.trim_matches('\n').trim_end())
+                    .filter(|t| !t.trim().is_empty())
+                    .map(str::to_owned)
+            };
+            if clean(&now) != clean(from) {
+                return Ok(Step::Stale(format!(
+                    "The notes of {rel} changed since the change was made."
+                )));
+            }
+            let to = clean(to);
+            if to == clean(&now) {
+                None
+            } else {
+                let new = body::replace_section(
+                    file.body(),
+                    body::Section::Notes,
+                    to.as_deref().unwrap_or_default(),
+                    language,
+                );
+                file.set_body(new);
+                Some(DiffItem {
+                    what: What::Notes,
+                    before: clean(&now),
+                    after: to,
+                })
+            }
+        }
         Change::RemoveRelation { word, target, .. } => {
             let Some(new) = body::remove_relation(file.body(), word, target) else {
                 return Ok(Step::Stale(format!(
@@ -581,7 +640,7 @@ pub(super) fn write(
 #[allow(clippy::too_many_arguments)]
 fn new_file(
     vault: &Vault,
-    proposal: &Proposal,
+    source: Option<&str>,
     path: &std::path::Path,
     file_type: &str,
     category: Option<&str>,
@@ -599,7 +658,8 @@ fn new_file(
         common.category = Category::new(category)
             .ok_or_else(|| refused("`category` must be a category name.".to_owned()))?;
     }
-    common.sources = vec![format!("proposal:{}", proposal.id)];
+    // A file without sources is the person's.
+    common.sources = source.map(str::to_owned).into_iter().collect();
     let body = body::render(
         &Body {
             facts: facts
@@ -853,6 +913,14 @@ fn described_items(change: &Change) -> (Vec<DiffItem>, bool) {
                 what: What::Relation,
                 before: Some(relation(word, target, None)),
                 after: None,
+            }],
+            false,
+        ),
+        Change::SetNotes { from, to, .. } => (
+            vec![DiffItem {
+                what: What::Notes,
+                before: from.clone(),
+                after: to.clone(),
             }],
             false,
         ),

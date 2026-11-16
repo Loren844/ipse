@@ -133,6 +133,18 @@ pub enum Change {
         /// The linked file's stem.
         target: String,
     },
+    /// Rewrites the notes, if they still say `from`: the person's own change, made in
+    /// the interface. An AI cannot propose it: notes are the person's free text, which
+    /// an AI turns into facts instead.
+    #[serde(skip_deserializing)]
+    SetNotes {
+        /// The file.
+        file: String,
+        /// The notes when the change was made; `None` for none.
+        from: Option<String>,
+        /// The new notes; `None` removes them.
+        to: Option<String>,
+    },
 }
 
 /// A relation of a file a proposal creates.
@@ -159,6 +171,7 @@ impl Change {
             | Self::RemoveFact { file, .. }
             | Self::AddRelation { file, .. }
             | Self::RemoveRelation { file, .. }
+            | Self::SetNotes { file, .. }
             | Self::Merge { keep: file, .. } => Some(file),
         }
     }
@@ -275,6 +288,14 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
             Ok(category(vault, file)?)
         }
         Change::RemoveRelation { file, .. } => Ok(category(vault, file)?),
+        Change::SetNotes { file, to, .. } => {
+            if to.as_deref().is_some_and(|t| t.chars().count() > MAX_NOTES) {
+                return refused(format!(
+                    "The notes are too long: keep them under {MAX_NOTES} characters."
+                ));
+            }
+            Ok(category(vault, file)?)
+        }
         Change::Merge { keep, remove, .. } => {
             if keep == remove {
                 return refused("A file cannot be merged into itself.".to_owned());
@@ -321,6 +342,9 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
     }
 }
 
+/// The longest notes, in characters.
+const MAX_NOTES: usize = 100_000;
+
 /// The longest summary, in characters.
 const MAX_SUMMARY: usize = summaries::MAX_TEXT;
 
@@ -361,7 +385,7 @@ fn category(vault: &Vault, file: &str) -> Result<String> {
 }
 
 /// The memory file at `file`, which must exist, in a folder a proposal may write in.
-fn existing(vault: &Vault, file: &str) -> Result<MemoryFile> {
+pub(super) fn existing(vault: &Vault, file: &str) -> Result<MemoryFile> {
     let path = memory_path(vault.root(), file)?;
     if !path.is_file() {
         return Err(Error::Refused(format!("There is no file {file}.")));
