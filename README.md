@@ -32,7 +32,7 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 1. ✅ **Core without interface** — vault format, raw journal, index, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
 2. ✅ **Review and proposals** — the interface starts, in the browser (`ipse ui`): home, people, agenda, review inbox with diff and undo, history, connected AIs and their rights; tasks for your AI (facts from notes, duplicates, questions about nicknames, day to year summaries).
 - 🔜 **Launch readiness** ([decision 0015](docs/decisions/0015-launch-before-the-desktop-app.md)) — binaries for Windows, macOS and Linux, an AI app connected in one command, a demo memory, imported data treated as untrusted, location history (Google Maps Timeline).
-3. 🔜 **Desktop app** — the same interface as an app for Windows, macOS and Linux: installer, updates, graph view, editing, connector management. Synchronized calendars and contacts (CalDAV, CardDAV).
+3. 🔜 **Desktop app** — Ipse as an app for Windows, macOS and Linux, to see your memory without a terminal or a browser: installer, updates, sync in the background, graph view, editing, connector management. Synchronized calendars and contacts (CalDAV, CardDAV).
 4. 🔜 **Widening** — more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…); a kit for anyone to write one; semantic search with a local model, as an option.
 5. 🔜 **Mobile** — sync, quick capture.
 
