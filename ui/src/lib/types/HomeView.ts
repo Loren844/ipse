@@ -24,7 +24,7 @@ upcoming: Array<EventView>,
  */
 recent: Array<LinkView>, 
 /**
- * Proposals waiting for the person.
+ * Proposals and questions waiting for the person.
  */
 waiting: number, 
 /**

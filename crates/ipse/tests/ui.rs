@@ -879,3 +879,62 @@ fn the_summaries_through_the_api() {
         409
     );
 }
+
+#[test]
+fn the_questions_through_the_api() {
+    let ui = start_with(|vault| {
+        std::fs::write(
+            vault.join("people/jo.md"),
+            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z801\ntype: person\ncategory: people\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\nname: Jo plombier\nphones:\n- +33 6 00 00 00 01\n---\n",
+        )
+        .unwrap();
+        std::fs::write(
+            vault.join("people/lou.md"),
+            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z802\ntype: person\ncategory: people\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\nname: Lou\n---\n",
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+
+    let (status, view) = api(&ui, &cookie, "/api/questions");
+    assert_eq!(status, 200, "{view}");
+    let questions = view["questions"].as_array().unwrap();
+    assert_eq!(questions.len(), 2);
+    let jo = questions
+        .iter()
+        .find(|q| q["name"] == "Jo plombier")
+        .unwrap();
+    assert_eq!(jo["phones"], serde_json::json!(["+33 6 00 00 00 01"]));
+    assert_eq!(jo["person"], "01jcx8m2p4q6r8t0v2w4y6z801");
+    assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 2);
+
+    let jo_id = jo["id"].as_str().unwrap().to_owned();
+    let answer = format!("/api/questions/{jo_id}/answer");
+    assert_eq!(post(&ui, &cookie, &answer, r#"{"name": " "}"#).0, 409);
+    let (status, after) = post(
+        &ui,
+        &cookie,
+        &answer,
+        r#"{"name": "Jo Lambert", "word": "plombier"}"#,
+    );
+    assert_eq!(status, 200, "{after}");
+    assert_eq!(after["questions"].as_array().unwrap().len(), 1);
+    let jo_file = std::fs::read_to_string(ui.vault.join("people/jo.md")).unwrap();
+    assert!(jo_file.contains("name: Jo Lambert\n"), "{jo_file}");
+    assert!(jo_file.contains("aliases:\n  - Jo plombier\n"), "{jo_file}");
+    let me = std::fs::read_to_string(ui.vault.join("people/ines-roux.md")).unwrap();
+    assert!(me.contains("- plombier : [[jo]]"), "{me}");
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["by"]["kind"], "person");
+    assert_eq!(post(&ui, &cookie, &answer, r#"{"name": "Jo L"}"#).0, 409);
+
+    let lou = after["questions"][0]["id"].as_str().unwrap().to_owned();
+    let (status, none) = post(&ui, &cookie, &format!("/api/questions/{lou}/skip"), "{}");
+    assert_eq!(status, 200);
+    assert_eq!(none["questions"], serde_json::json!([]));
+    assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 0);
+    assert_eq!(
+        post(&ui, &cookie, &format!("/api/questions/{lou}/wave"), "{}").0,
+        404
+    );
+}

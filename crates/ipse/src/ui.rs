@@ -35,6 +35,7 @@ use serde::Serialize;
 mod ais;
 mod api;
 mod history;
+mod questions;
 mod review;
 mod summaries;
 
@@ -310,6 +311,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                 let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
                 history::changes(gateway, offset).map(|v| Some(to_json(&v)))
             }
+            "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
             "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
             "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
             "summaries" => {
@@ -343,7 +345,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path.starts_with("ais/")
             || path == "categories"
             || path.starts_with("history/")
-            || path.starts_with("summaries/"))
+            || path.starts_with("summaries/")
+            || path.starts_with("questions/"))
     {
         let json = request
             .headers()
@@ -355,6 +358,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         }
         if path.starts_with("proposals/") {
             review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+        } else if path.starts_with("questions/") {
+            questions::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
         } else if path.starts_with("summaries/") {
             summaries::correct(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
         } else if let Some(id) = path

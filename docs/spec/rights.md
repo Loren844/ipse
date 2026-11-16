@@ -134,7 +134,7 @@ Every tool answers in JSON, both as text and as structured content:
 
 ### 4.2 Processing tools
 
-Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right (and `read`) on the categories involved: a task touching another category is invisible to that client, and a change to a file of another category is refused in the same words as a change to a file that does not exist ("There is no file …"). A client sees only the proposals it made. A `summary` task needs the `propose` right on `summaries` and `read` on the categories of its items (the events and people it is written from), which it reads but does not change.
+Decision 0010: the person's own AI does the work that needs a language model. These tools need the `propose` right (and `read`) on the categories involved: a task touching another category is invisible to that client, and a change to a file of another category is refused in the same words as a change to a file that does not exist ("There is no file …"). A client sees only the proposals it made. A `summary` task needs the `propose` right on `summaries` and `read` on the categories of its items (the events and people it is written from), which it reads but does not change. A `question` task needs the `propose` right on the person's category; linking that person from the owner's file (`identity`) needs the right there too, and the example a client gets shows that change only when it has it.
 
 | Tool | Arguments | Returns |
 | --- | --- | --- |

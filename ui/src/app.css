@@ -1796,3 +1796,87 @@ pre.diagnostics {
 		animation: none !important;
 	}
 }
+
+/* Questions in the inbox: who is someone saved under a first name or a nickname. */
+.questions .inbox {
+	margin-top: 1rem;
+}
+
+.question {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+	padding: 1.1rem 1.25rem 1.2rem;
+	background: var(--surface);
+	border: 1.5px solid var(--line);
+	border-left: 4px solid var(--thread);
+	border-radius: 12px;
+}
+
+.question .asked {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+}
+
+.question h3 {
+	margin: 0;
+	font-family: var(--display);
+	font-size: var(--step-1);
+	line-height: 1.2;
+}
+
+.question .clues {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.25rem;
+	font-size: 0.95rem;
+}
+
+.question .clue {
+	display: inline-block;
+	min-width: 6.5rem;
+	color: var(--muted);
+}
+
+.question .answer {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 0.9rem 1rem;
+	align-items: start;
+}
+
+.question .answer .actions {
+	grid-column: 1 / -1;
+}
+
+.question .hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.question .open {
+	margin-left: auto;
+	color: var(--thread-ink);
+	font-size: 0.95rem;
+}
+
+@media (max-width: 40rem) {
+	.question .answer {
+		grid-template-columns: 1fr;
+	}
+
+	.question .clue {
+		display: block;
+		min-width: 0;
+		font-size: 0.85rem;
+	}
+
+	.question .open {
+		margin-left: 0;
+	}
+}

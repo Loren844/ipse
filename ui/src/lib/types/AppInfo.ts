@@ -18,6 +18,6 @@ language: string,
  */
 time_zone: string, 
 /**
- * Proposals waiting for the person, stale ones included.
+ * Proposals waiting for the person, stale ones included, and questions.
  */
 waiting: number, };
