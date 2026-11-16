@@ -6,6 +6,7 @@
 	import Mention from '#lib/Mention.svelte';
 
 	let events: EventView[] = $state([]);
+	let summaries: Record<string, string> = $state({});
 	let from = $state('');
 	let to = $state('');
 	let ready = $state(false);
@@ -22,6 +23,7 @@
 		try {
 			const view = await api.events(start, end);
 			const fresh = view.events.filter((e) => !events.some((x) => x.id === e.id));
+			for (const summary of view.summaries) summaries[summary.day] = summary.text;
 			if (where === 'before') events = [...fresh, ...events];
 			else if (where === 'after') events = [...events, ...fresh];
 			else events = view.events;
@@ -57,6 +59,12 @@
 				{#each days as group (group.day)}
 					<li class="day-label" class:today={group.day === today}>
 						<h2>{group.day === today ? i18n.t.today : longDay(group.day, today)}</h2>
+						{#if summaries[group.day]}
+							<p class="day-summary">
+								{summaries[group.day]}
+								<a href="/summaries?before={group.day}#day-{group.day}" class="visually-hidden">{i18n.t.readSummary}</a>
+							</p>
+						{/if}
 					</li>
 					{#each group.events as event (event.id)}
 						<li class="knot" class:past={group.day < today} class:cancelled={event.status === 'cancelled'}>

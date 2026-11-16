@@ -36,6 +36,7 @@ mod ais;
 mod api;
 mod history;
 mod review;
+mod summaries;
 
 mod assets {
     include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
@@ -311,6 +312,16 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             }
             "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
             "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
+            "summaries" => {
+                let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+                summaries::page(
+                    gateway,
+                    param("period").as_deref(),
+                    offset,
+                    param("before").as_deref(),
+                )
+                .map(|v| Some(to_json(&v)))
+            }
             _ => {
                 if let Some(id) = path.strip_prefix("file/") {
                     api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
@@ -331,7 +342,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path == "ais"
             || path.starts_with("ais/")
             || path == "categories"
-            || path.starts_with("history/"))
+            || path.starts_with("history/")
+            || path.starts_with("summaries/"))
     {
         let json = request
             .headers()
@@ -343,6 +355,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         }
         if path.starts_with("proposals/") {
             review::decide(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
+        } else if path.starts_with("summaries/") {
+            summaries::correct(gateway, path, request.body()).map(|v| v.map(|v| to_json(&v)))
         } else if let Some(id) = path
             .strip_prefix("history/")
             .and_then(|rest| rest.strip_suffix("/undo"))

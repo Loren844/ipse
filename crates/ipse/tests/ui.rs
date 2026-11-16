@@ -801,3 +801,81 @@ fn the_history_through_the_api() {
     );
     assert_eq!(post(&ui, &cookie, "/api/history/0000/undo", "").0, 409);
 }
+
+#[test]
+fn the_summaries_through_the_api() {
+    let ui = start_with(|vault| {
+        import(vault, "calendar/google.ics");
+        let json = r#"{"format": 1, "id": "01jd3k8m2p4q6r8t0v2w4y6z8a", "by": "client:claude", "created": "2026-11-15T09:00:00+01:00",
+            "reason": "Résumé de samedi.", "categories": ["summaries"],
+            "changes": [{"kind": "write_summary", "file": "summaries/day/2026/2026-11-14.md", "period": "day", "start": "2026-11-14", "text": "Dîner chez Julie."}],
+            "status": {"state": "waiting"}}"#;
+        std::fs::create_dir_all(vault.join(".ipse/proposals")).unwrap();
+        std::fs::write(
+            vault.join(".ipse/proposals/01jd3k8m2p4q6r8t0v2w4y6z8a.json"),
+            json,
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+
+    let (status, empty) = api(&ui, &cookie, "/api/summaries");
+    assert_eq!(status, 200);
+    assert_eq!(empty["items"], serde_json::json!([]));
+    assert_eq!(empty["waiting"], 1, "one waits in the inbox");
+    assert_eq!(api(&ui, &cookie, "/api/summaries?period=decade").0, 400);
+
+    let accept = "/api/proposals/01jd3k8m/accept";
+    assert_eq!(post(&ui, &cookie, accept, "").0, 200);
+    let (_, days) = api(&ui, &cookie, "/api/summaries?period=day");
+    let day = &days["items"][0];
+    assert_eq!(
+        (&day["label"], &day["text"]),
+        (&"2026-11-14".into(), &"Dîner chez Julie.".into())
+    );
+    assert_eq!(day["events"][0]["name"], "Dîner chez Julie");
+    assert!(
+        day["events"][0]["id"].is_string(),
+        "the event can be opened"
+    );
+    assert_eq!(days["waiting"], 0);
+
+    let (_, agenda) = api(&ui, &cookie, "/api/events?from=2026-11-14&to=2026-11-14");
+    assert_eq!(
+        agenda["summaries"],
+        serde_json::json!([{"day": "2026-11-14", "text": "Dîner chez Julie."}])
+    );
+    assert_eq!(
+        api(&ui, &cookie, "/api/home").1["latest"]["label"],
+        "2026-11-14"
+    );
+
+    // The person corrects it: their own change, in the file and the history.
+    let (status, corrected) = post(
+        &ui,
+        &cookie,
+        "/api/summaries/day/2026-11-14",
+        r#"{"text": "Dîner chez Julie, très drôle."}"#,
+    );
+    assert_eq!(status, 200, "{corrected}");
+    assert_eq!(corrected["text"], "Dîner chez Julie, très drôle.");
+    let file = std::fs::read_to_string(ui.vault.join("summaries/day/2026/2026-11-14.md")).unwrap();
+    assert!(file.contains("\n## Résumé\n\nDîner chez Julie, très drôle.\n\n## Événements\n"));
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["by"]["kind"], "person");
+    assert_eq!(history["changes"][0]["summary"], "Correct a summary");
+
+    let correct = |path: &str, body: &str| post(&ui, &cookie, path, body).0;
+    assert_eq!(
+        correct("/api/summaries/day/2026-11-14", r#"{"text": "  "}"#),
+        409
+    );
+    assert_eq!(
+        correct("/api/summaries/week/2026-11-10", r#"{"text": "Non."}"#),
+        409
+    );
+    assert_eq!(
+        correct("/api/summaries/day/2026-11-01", r#"{"text": "Rien."}"#),
+        409
+    );
+}

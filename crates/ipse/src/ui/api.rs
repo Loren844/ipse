@@ -209,6 +209,8 @@ pub(crate) struct EventsView {
     from: String,
     /// The period's last day, included.
     to: String,
+    /// The summaries of its days that have one.
+    summaries: Vec<super::summaries::DaySummary>,
 }
 
 /// The home screen.
@@ -229,6 +231,8 @@ pub(crate) struct HomeView {
     recent: Vec<LinkView>,
     /// Proposals waiting for the person.
     waiting: usize,
+    /// The most recent day summary.
+    latest: Option<super::summaries::SummaryView>,
 }
 
 /// What `/api/app` answers.
@@ -274,6 +278,7 @@ fn today(gateway: &Gateway) -> jiff::civil::Date {
 pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let today = today(gateway);
     let waiting = waiting(gateway)?;
+    let latest = super::summaries::latest(gateway)?;
     let owner = gateway.fresh_owner()?;
     let ahead = today.saturating_add(HOME_DAYS_AHEAD.days());
     let upcoming = owner
@@ -314,6 +319,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         upcoming,
         recent,
         waiting,
+        latest,
     })
 }
 
@@ -372,6 +378,7 @@ pub(crate) fn events(
             "The period ends before it starts.".to_owned(),
         ));
     }
+    let summaries = super::summaries::days(gateway, from, to)?;
     let owner = gateway.fresh_owner()?;
     let found = owner.events(&EventTime::Day(from), &EventTime::Day(to), None, 200);
     Ok(EventsView {
@@ -384,6 +391,7 @@ pub(crate) fn events(
         more: found.more,
         from: from.to_string(),
         to: to.to_string(),
+        summaries,
     })
 }
 

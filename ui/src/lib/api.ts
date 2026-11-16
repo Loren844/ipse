@@ -22,6 +22,9 @@ import type { AccessesView } from './types/AccessesView.ts';
 import type { RunsView } from './types/RunsView.ts';
 import type { DiagnosticsView } from './types/DiagnosticsView.ts';
 import type { UndoneView } from './types/UndoneView.ts';
+import type { SummariesView } from './types/SummariesView.ts';
+import type { SummaryView } from './types/SummaryView.ts';
+export type { SummariesView, SummaryView };
 export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
 export type { ChangeLine } from './types/ChangeLine.ts';
 export type { RunView } from './types/RunView.ts';
@@ -90,5 +93,8 @@ export const api = {
 	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
-	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`)
+	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`),
+	summaries: (period: string, offset?: number, before?: string) => get<SummariesView>('/api/summaries', { period, offset, before }),
+	correctSummary: (period: string, start: string, text: string) =>
+		post<SummaryView>(`/api/summaries/${encodeURIComponent(period)}/${encodeURIComponent(start)}`, { text })
 };

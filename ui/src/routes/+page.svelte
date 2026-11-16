@@ -5,6 +5,7 @@
 	import { longDay } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
+	import SummaryCard from '#lib/SummaryCard.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 
 	const home = new Loader<HomeView>();
@@ -37,6 +38,14 @@
 				</div>
 			{/if}
 		</section>
+
+		{#if view.latest}
+			<section aria-labelledby="latest" class="latest-summary">
+				<h2 id="latest">{i18n.t.latestSummary}</h2>
+				<SummaryCard summary={view.latest} today={view.today} level={3} />
+				<p class="quiet-link"><a href="/summaries">{i18n.t.allSummaries}</a></p>
+			</section>
+		{/if}
 
 		{#if view.recent.length}
 			<section aria-labelledby="recent">
