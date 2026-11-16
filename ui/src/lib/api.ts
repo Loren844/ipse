@@ -17,6 +17,14 @@ export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
 import type { AisView } from './types/AisView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
+import type { HistoryView } from './types/HistoryView.ts';
+import type { AccessesView } from './types/AccessesView.ts';
+import type { RunsView } from './types/RunsView.ts';
+import type { DiagnosticsView } from './types/DiagnosticsView.ts';
+import type { UndoneView } from './types/UndoneView.ts';
+export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
+export type { ChangeLine } from './types/ChangeLine.ts';
+export type { RunView } from './types/RunView.ts';
 export type { FileChangesView } from './types/FileChangesView.ts';
 export type { ChangeView } from './types/ChangeView.ts';
 export type { EventView } from './types/EventView.ts';
@@ -77,5 +85,10 @@ export const api = {
 		post<AisView>(`/api/ais/${encodeURIComponent(id)}/rights`, { read, propose }),
 	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),
 	addCategory: (label: string, sensitive: boolean, openTo: string[]) =>
-		post<AisView>('/api/categories', { label, sensitive, open_to: openTo })
+		post<AisView>('/api/categories', { label, sensitive, open_to: openTo }),
+	history: (offset?: number) => get<HistoryView>('/api/history', { offset }),
+	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
+	accesses: () => get<AccessesView>('/api/accesses'),
+	runs: () => get<RunsView>('/api/runs'),
+	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`)
 };

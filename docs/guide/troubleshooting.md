@@ -6,3 +6,4 @@
 - **Ipse could not use the keychain:** on Linux, install and unlock a keyring (GNOME Keyring or KWallet); on macOS, allow `ipse` when the system asks.
 - **A calendar link no longer works:** it was reset in your calendar app. Copy the new one, then `ipse calendar unsubscribe <id>` and `ipse calendar subscribe` again.
 - **Logs:** Claude Desktop keeps what Ipse says in `mcp-server-ipse.log`, in `~/Library/Logs/Claude` on macOS and `%APPDATA%\Claude\logs` on Windows.
+- **An import or a sync went wrong, or you want to undo one:** `ipse ui --vault ~/Ipse`, then **Historique** (**History**). It lists every change with who made it and lets you undo one (as a new change: nothing is lost). Under **Imports et synchros**, each run says what came in or what failed, and a connector's last diagnostic lines can be shown, to attach to a bug report.

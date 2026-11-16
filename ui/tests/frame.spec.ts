@@ -40,7 +40,7 @@ test('the sections and the language switch', async ({ page }) => {
 	await page.getByRole('button', { name: 'EN' }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('History');
-	await expect(page.getByRole('navigation').getByRole('link')).toHaveText(['Home', 'People', 'Agenda', 'To review', 'Connected AIs', 'History']);
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveText(['Home', 'People', 'Agenda', 'To review', 'Connected AIs', 'History']);
 
 	// The choice stays in this browser; a reload keeps the page and the language.
 	await page.reload();

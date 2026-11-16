@@ -62,7 +62,8 @@ A connector declares the modes it supports; the core never asks for another one.
 
 - The core starts the connector with the manifest's `command`, in a working directory of its own, with **no inherited environment** except `PATH`, `HOME`, `LANG` and the variables the connector documents.
 - Messages are **JSON Lines**: one JSON object per line, UTF-8, on `stdin` (core → connector) and `stdout` (connector → core). Nothing else may be written to `stdout`.
-- `stderr` is for logs. The core keeps the last 1 000 lines per instance for diagnosis. Connectors **must not** log personal data.
+- `stderr` is for logs. The core keeps the last 1 000 lines per instance for diagnosis, in `.ipse/connectors/<instance>/stderr.log`, shown on demand in the interface's history. Connectors **must not** log personal data.
+- Every import and sync is logged in `.ipse/connectors/runs.jsonl`, one line each: when, the instance, the mode, how it ended (`done`, or the error code, need or stop reason, never the connector's message), the counts of what came in and the journal lines repaired. The last 500 are kept.
 - One message is at most **8 MiB**. Larger data is split across batches.
 - Every message has a `type`. Unknown fields are ignored; an unknown `type` is answered with an `error` of code `unsupported` and does not stop the session.
 

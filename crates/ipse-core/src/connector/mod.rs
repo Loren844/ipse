@@ -7,9 +7,14 @@
 
 mod host;
 mod instances;
+mod runs;
 
 pub use host::{Launch, Outcome, Report, StopReason, run_session};
 pub use instances::{
     INSTANCES_FILE, Instance, Instances, MemorySecrets, Run, STATE_FILE, SecretStore, SyncState,
     duration, secret_key,
+};
+pub use runs::{
+    CONNECTORS_DIR, DIAGNOSTIC_LINES, KEEP_RUNS, RunRecord, diagnostics, record_run, runs,
+    save_diagnostics,
 };

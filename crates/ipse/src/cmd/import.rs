@@ -3,13 +3,13 @@
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
-use ipse_core::connector::{Launch, Outcome, run_session};
+use ipse_core::connector::{Launch, Outcome, RunRecord, record_run, run_session};
 use ipse_core::journal::Journal;
 use ipse_core::materialize::{
     EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people,
 };
 use ipse_core::tasks::Tasks;
-use ipse_core::vault::{Source, Vault};
+use ipse_core::vault::{DateTime, Source, Vault};
 use ipse_core::{Error, Result};
 
 /// What a file holds, from its extension.
@@ -57,30 +57,22 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         .ok()
         .filter(|p| p.is_file())
         .ok_or_else(|| Error::Refused(format!("{} is not a file.", file.display())))?;
-    let exe = std::env::current_exe().map_err(|source| Error::Io {
-        action: "find",
-        path: PathBuf::from("ipse"),
-        source,
-    })?;
-
     let settings = vault.settings();
     let instance = kind.connector();
-    let mut launch = Launch::new(
-        vec![
-            exe.to_string_lossy().into_owned(),
-            "connector".to_owned(),
-            instance.to_owned(),
-        ],
-        instance,
-        // The command line speaks English, whatever the vault's language.
-        "en",
-        settings.time_zone_name(),
-    );
-    launch.files = vec![file];
-    launch.kinds = Some(vec![kind.record_kind().to_owned()]);
+    let launch = launch(kind, file, settings.time_zone_name())?;
 
     let mut journal = Journal::new(vault.root());
     let report = run_session(&mut journal, &launch)?;
+    let mut run = RunRecord::new(
+        DateTime::now(settings.time_zone()).to_string(),
+        instance,
+        "import",
+        &report,
+        journal.recovered(),
+    );
+    if !matches!(report.outcome, Outcome::Done(_)) {
+        record_run(vault.root(), &run)?;
+    }
     match report.outcome {
         Outcome::Done(_) => {}
         Outcome::Failed { message, .. } | Outcome::Needs { message, .. } => {
@@ -104,6 +96,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     let (line, conflicts, deleted) = match kind {
         Kind::Contacts => {
             let summary = contacts_to_people(&vault, &journal, instance, &mut change)?;
+            run.people(&summary);
             relations = summary.relations;
             owner = summary.owner;
             (
@@ -120,6 +113,7 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
                 &mut change,
                 jiff::Timestamp::now(),
             )?;
+            run.events(&summary);
             (
                 events_line(summary),
                 (summary.conflicts, summary.proposals),
@@ -134,6 +128,8 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
     let touched = change.paths();
     change.commit(summary)?;
     let tasks = Tasks::new(&vault).extract_from(&touched)?;
+    run.tasks = tasks as u64;
+    record_run(vault.root(), &run)?;
     println!("{line}");
     if conflicts.0 > 0 {
         println!("{}", conflicts_line(conflicts));
@@ -151,6 +147,30 @@ pub(crate) fn run(file: &PathBuf, vault: Option<PathBuf>) -> Result<()> {
         println!("{}", tasks_line(tasks));
     }
     Ok(())
+}
+
+/// How to start the built-in connector for `kind` on `file`.
+fn launch(kind: Kind, file: PathBuf, time_zone: &str) -> Result<Launch> {
+    let exe = std::env::current_exe().map_err(|source| Error::Io {
+        action: "find",
+        path: PathBuf::from("ipse"),
+        source,
+    })?;
+    let instance = kind.connector();
+    let mut launch = Launch::new(
+        vec![
+            exe.to_string_lossy().into_owned(),
+            "connector".to_owned(),
+            instance.to_owned(),
+        ],
+        instance,
+        // The command line speaks English, whatever the vault's language.
+        "en",
+        time_zone,
+    );
+    launch.files = vec![file];
+    launch.kinds = Some(vec![kind.record_kind().to_owned()]);
+    Ok(launch)
 }
 
 pub(crate) fn tasks_line(n: usize) -> String {
