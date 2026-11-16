@@ -88,6 +88,7 @@ pub(super) fn make(tasks: &Tasks<'_>, files: &[PathBuf]) -> Result<usize> {
             items: chunk.to_vec(),
             status: TaskStatus::Open,
             comment: None,
+            period: None,
         };
         tasks.save(&task)?;
         made += 1;

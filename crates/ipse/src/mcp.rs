@@ -360,8 +360,9 @@ struct ProposeRequest {
     /// Why, in one or two sentences the person will read, in their language.
     reason: String,
     /// The changes, applied in order. Each is an object with a `kind`: `create`,
-    /// `set_key`, `add_fact`, `edit_fact`, `remove_fact`, `add_relation` or
-    /// `remove_relation`. Empty, with a `task`: the task holds nothing worth keeping.
+    /// `set_key`, `add_fact`, `edit_fact`, `remove_fact`, `add_relation`,
+    /// `remove_relation` or `write_summary`. Empty, with a `task`: the task holds
+    /// nothing worth keeping.
     changes: Vec<Value>,
 }
 
@@ -414,7 +415,7 @@ the fact's id; add_relation {file, word, target} and remove_relation {file, word
 `target` being the linked file's name like \"lea-dupont\"; set_key {file, key, from, to} for \
 name, aliases, birthday, emails, phones, address (lists as arrays, null for none); create {type, \
 keys, facts, relations, notes} for a new person, place, organization, project, thing, topic, \
-work or event (an event needs keys title and start). Example: propose {\"task\": \
+work or event (an event needs keys title and start); write_summary {period, start, text} for the summary of a day, week, month or year, as a `summary` task asks. Example: propose {\"task\": \
 \"01jd5z8x3k4m2n6p7q9r0s1t2v\", \"reason\": \"Read in Marie's notes.\", \"changes\": \
 [{\"kind\": \"add_fact\", \"file\": \"people/marie-dupont.md\", \"text\": \"Works as a nurse in \
 Lyon.\"}]}. When a task's items hold nothing worth keeping, send its `task` with \

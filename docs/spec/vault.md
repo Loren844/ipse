@@ -267,7 +267,13 @@ Path and period as in section 1. Each summary has `type: summary`, `period: day 
 - `Summary`: free text written by the model, then corrected by the person if they wish.
 - `Events`: wikilinks to the events of the period, generated.
 
-A summary of a longer period is built from the summaries of the shorter periods inside it, not from raw data. A summary the person edited is never regenerated over their edit; Ipse proposes changes instead.
+A summary of a longer period is built from the summaries of the shorter periods inside it, not from raw data: a week and a month from the summaries of their days, a year from those of its months. A summary the person edited is never regenerated over their edit; Ipse proposes changes instead.
+
+- The person's AI writes them, as `summary` tasks (section 13) answered with a `write_summary` change (section 12). The front matter also has `period`, `start` and `end`; the category is `summaries`; `sources` names the proposal that created it.
+- **Day tasks:** each past day with events, looked at over the last 30 days (a new memory gets its recent days, then one a day). The items are the day's events, the people and places they link to, and the day's summary if there is one.
+- **Longer periods:** a week, a month or a year that has ended gets a task once every shorter period inside it that holds something has its summary (or its task was closed with nothing worth keeping). Only the periods since Ipse first asked count.
+- A period is asked again only when what it holds changed: a new or changed event, a summary inside it rewritten. `.ipse/tasks/summaries.json` remembers what each held when asked. The current summary is then one of the items, and the task asks to keep the person's words: the answer is an update proposal, showing their text and the new one.
+- The tasks are planned when an AI lists them (`tasks`) and by `ipse tasks list`.
 
 ## 8. Settings: `.ipse/vault.toml`
 
@@ -341,7 +347,8 @@ Decision 0005: anything an AI infers, merges or changes is a **proposal**, which
     - `set_key`: one front-matter key, with its value when the proposal was made (`from`) and its new value (`to`): a string, a list of strings, or `null` for none. Entities: `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`. Events: `title`, `start`, `end`, `place`, `participants`, `status`. Other keys are not proposed: `id`, `type`, `category`, `owner`… stay as they are.
     - `add_fact` (`text`), `edit_fact` (`fact`: its `f-xxxx` identifier, `from`, `to`), `remove_fact` (`fact`, `text`).
     - `add_relation` (`word`, `target`: the linked file's stem, optional `display`), `remove_relation` (`word`, `target`).
-    - Merging two entities (decision 0011) and writing a summary (section 7) are kinds of change added with those features.
+    - `write_summary` (`period`: `day`, `week`, `month` or `year`; `start`: its first day, a Monday for a week; `text`): writes the period's summary (section 7). Its `file` and its `from` (the summary's text when the proposal was made, none for a new one) are set when it is submitted. Accepting it writes the `Summary` text and the generated `Events` list, and keeps everything else in the file; if the person changed the text since, the proposal is stale.
+    - Merging two entities (decision 0011) is a kind of change added with that feature.
 - `status.state`: `waiting`; `accepted` (`at`, `change`: the history change it made); `refused` (`at`, optional `comment`, kept for the AI to try again); `undone` (`at`, `change`); `stale` (`at`, `reason`).
 - **Submitting** checks every change against the files as they are: a key that cannot be proposed, a file that does not exist, a value of the wrong form, a `from` that is no longer true, or a proposal that changes nothing is refused with a message saying what to fix, without quoting values.
 - **Reviewing** shows each file's changes in plain words: before and after, per key, fact and relation. Fact identifiers and front-matter syntax are never shown.
@@ -374,5 +381,6 @@ Decision 0010: the work that needs a language model is left for the person's own
 - An AI opening a task gets what is expected in plain words, the items as they are now (file, name, type, category, text) and an example of a good proposal.
 - `status.state` is `open`, `proposed` (with the `proposal` waiting for the person) or `done` (with the accepted `proposal`, or none when the AI found nothing worth keeping). One proposal at a time answers a task. When the person refuses it, the task is open again with their `comment`; when it no longer applies, or the person undoes it, the task is open again saying so.
 - **`extract`:** after each import or sync, the notes of the files it wrote (a contact's notes, an event's description) that are new or changed since a task last covered them become tasks of 20 items. `.ipse/tasks/extract.json` remembers the hash of the notes each file had then, so the same notes are never asked twice. The AI is asked for lasting facts and relations, in the vault's language.
-- The other kinds come with their features: possible duplicates (`merge`), people known only by a nickname (`question`), summaries (`summary`).
+- **`summary`:** a period to summarize (section 7). The task has its `period` (`day:2026-11-14`); what is expected says how long and how personal the text should be, with an example, in the vault's language.
+- The other kinds come with their features: possible duplicates (`merge`), people known only by a nickname (`question`).
 - `ipse tasks list|show` shows them from the command line, as an AI reads them.

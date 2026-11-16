@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use super::Access;
 use crate::proposals::{Author, Change, Proposals, Status};
+use crate::summaries;
 use crate::tasks::{Task, TaskKind, TaskStatus, Tasks};
 use crate::vault::{Category, FileType, MemoryFile};
 use crate::{Error, Result};
@@ -135,8 +136,16 @@ impl Access<'_> {
         self.reads(category) && self.client.propose.iter().any(|c| c == effective)
     }
 
+    /// A task is for an AI that may propose in all its categories; a summary task, for
+    /// one that may propose summaries and read the rest.
     fn sees(&self, task: &Task) -> bool {
-        !task.categories.is_empty() && task.categories.iter().all(|c| self.proposes(c))
+        if task.categories.is_empty() {
+            return false;
+        }
+        if task.kind == TaskKind::Summary {
+            return self.proposes("summaries") && task.categories.iter().all(|c| self.reads(c));
+        }
+        task.categories.iter().all(|c| self.proposes(c))
     }
 
     /// The open tasks this AI may work on, oldest first, of `kind` if given; with
@@ -166,7 +175,10 @@ impl Access<'_> {
             ),
         };
         let limit = limit.clamp(1, MAX_TASKS);
-        let mut open: Vec<Task> = Tasks::new(&self.gateway.vault)
+        let tasks = Tasks::new(&self.gateway.vault);
+        // The days that ended since the last call are due now.
+        tasks.plan_summaries(&self.gateway.index, summaries::today(&self.gateway.vault))?;
+        let mut open: Vec<Task> = tasks
             .list()?
             .into_iter()
             .filter(|t| t.status == TaskStatus::Open)
@@ -230,10 +242,10 @@ impl Access<'_> {
                 .first()
                 .map_or("people/marie-dupont.md", |i| i.file.as_str());
             for change in changes {
-                let visible = change
-                    .get("file")
-                    .and_then(Value::as_str)
-                    .is_some_and(|f| items.iter().any(|i| i.file == f));
+                let Some(file) = change.get("file").and_then(Value::as_str) else {
+                    continue;
+                };
+                let visible = items.iter().any(|i| i.file == file);
                 if !visible {
                     change["file"] = Value::String(fallback.to_owned());
                 }
@@ -327,6 +339,14 @@ impl Access<'_> {
     /// Refuses a change this AI may not make, in the words used for a file that does
     /// not exist when it touches a file it may not propose on.
     fn may_change(&self, change: &Change) -> Result<()> {
+        if let Change::WriteSummary { .. } = change {
+            if !self.proposes("summaries") {
+                return Err(Error::Refused(
+                    "You cannot propose summaries in this memory.".to_owned(),
+                ));
+            }
+            return Ok(());
+        }
         if let Change::Create {
             file_type,
             category,

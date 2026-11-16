@@ -1,16 +1,18 @@
 <script lang="ts">
 	// What a proposal changes in one file, in plain words: never fact ids or front matter.
 	import type { ChangeView, FileChangesView } from './api.ts';
-	import { birthday, hrefOf, isDay, phone, when } from './format.ts';
+	import { birthday, hrefOf, isDay, periodName, phone, when } from './format.ts';
 	import { i18n } from './i18n.svelte.ts';
 
 	let { file }: { file: FileChangesView } = $props();
 	const href = $derived(hrefOf({ id: file.id, kind: file.kind }));
+	const name = $derived(file.kind === 'summary' ? i18n.t.summaryOf(periodName(file.name)) : file.name);
 
 	function label(change: ChangeView): string {
 		if (change.what === 'key') return i18n.t.keys[change.key ?? ''] ?? change.key ?? '';
 		if (change.what === 'fact') return i18n.t.fact;
 		if (change.what === 'relation') return i18n.t.relation;
+		if (change.what === 'summary') return i18n.t.summaryLabel;
 		return i18n.t.notesLabel;
 	}
 
@@ -40,7 +42,7 @@
 
 <section class="diff-file">
 	<h2>
-		{#if href}<a {href}>{file.name}</a>{:else}{file.name}{/if}
+		{#if href}<a {href}>{name}</a>{:else}{name}{/if}
 		{#if file.created}<span class="badge">{i18n.t.newFile}</span>{/if}
 	</h2>
 	<ul class="diff">

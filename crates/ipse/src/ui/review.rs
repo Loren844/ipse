@@ -73,7 +73,7 @@ pub(crate) struct InboxView {
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
 pub(crate) struct ChangeView {
-    /// `key`, `fact`, `relation` or `notes`.
+    /// `key`, `fact`, `relation`, `notes` or `summary`.
     what: String,
     /// For a key: its name, `phones`.
     key: Option<String>,
@@ -441,6 +441,7 @@ fn change_view(item: DiffItem) -> ChangeView {
         What::Fact => ("fact", None),
         What::Relation => ("relation", None),
         What::Notes => ("notes", None),
+        What::Summary => ("summary", None),
     };
     ChangeView {
         what: what.to_owned(),

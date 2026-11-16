@@ -135,3 +135,27 @@ test('nothing to review', async ({ page }) => {
 		empty.stop();
 	}
 });
+
+test('a summary the AI wrote, accepted from the inbox', async ({ page }) => {
+	const summary = await startIpse('Inès Roux', 'fr', true, (vault) => {
+		propose(vault, '01jd3kdm2p4q6r8t0v2w4y6z8a', 'Résumé de samedi.', [
+			{ kind: 'write_summary', file: 'summaries/day/2026/2026-11-14.md', period: 'day', start: '2026-11-14', text: 'Dîner chez Julie avec Marc.' }
+		]);
+	});
+	try {
+		await page.goto(summary.url);
+		await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /À revoir/ }).click();
+		await expect(page.getByTestId('proposal')).toContainText('Samedi 14 novembre 2026');
+		await page.getByRole('link', { name: 'Résumé de samedi.' }).click();
+		await expect(page.getByRole('heading', { level: 2 })).toHaveText(/Résumé : Samedi 14 novembre 2026/);
+		await expect(page.locator('.diff .what')).toHaveText(['Résumé']);
+		await expect(page.locator('.diff .added')).toHaveText([/Dîner chez Julie avec Marc\./]);
+		await page.getByRole('button', { name: 'Accepter' }).click();
+		await expect(page.getByRole('status')).toContainText('Proposition acceptée.');
+		const text = readFileSync(join(summary.vault, 'summaries/day/2026/2026-11-14.md'), 'utf8');
+		expect(text).toContain('\n## Résumé\n\nDîner chez Julie avec Marc.\n');
+		expect(text).toContain('\n## Événements\n\n- [[2026-11-14-diner-chez-julie]]');
+	} finally {
+		summary.stop();
+	}
+});

@@ -2,7 +2,7 @@
 	import { api, Conflict, SessionEnded, type DecisionView, type InboxView, type ProposalLine } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Empty from '#lib/Empty.svelte';
-	import { ago, authorName } from '#lib/format.ts';
+	import { ago, authorName, periodName } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Notice from '#lib/Notice.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
@@ -96,7 +96,7 @@
 									{#if line.status === 'stale'}<span class="badge warn">{i18n.t.status.stale}</span>{/if}
 								</p>
 								<ul class="touches">
-									{#each line.touches as name, i (i)}<li class="mention plain">{name}</li>{/each}
+									{#each line.touches as name, i (i)}<li class="mention plain">{periodName(name)}</li>{/each}
 								</ul>
 							</div>
 						</li>

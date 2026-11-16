@@ -124,6 +124,7 @@ fn line(item: &DiffItem) -> String {
         What::Fact => "fact".to_owned(),
         What::Relation => "relation".to_owned(),
         What::Notes => "notes".to_owned(),
+        What::Summary => "summary".to_owned(),
     };
     match (&item.before, &item.after) {
         (Some(before), Some(after)) => format!("{what}: {before} → {after}"),

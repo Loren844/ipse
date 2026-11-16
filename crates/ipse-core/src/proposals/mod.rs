@@ -296,6 +296,9 @@ impl<'v> Proposals<'v> {
             let category = change::check(self.vault, change, &planned)?;
             if let Change::Create {
                 file: Some(file), ..
+            }
+            | Change::WriteSummary {
+                file: Some(file), ..
             } = change
             {
                 planned.push(file.clone());

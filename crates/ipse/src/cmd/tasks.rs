@@ -3,6 +3,8 @@
 use std::path::PathBuf;
 
 use ipse_core::Result;
+use ipse_core::search::SearchIndex;
+use ipse_core::summaries;
 use ipse_core::tasks::{TaskStatus, Tasks};
 use ipse_core::vault::Vault;
 
@@ -13,6 +15,9 @@ fn open(vault: Option<PathBuf>) -> Result<Vault> {
 /// Lists the open tasks, or all of them, oldest first.
 pub(crate) fn list(all: bool, vault: Option<PathBuf>) -> Result<()> {
     let vault = open(vault)?;
+    // The days that ended since the last look are due now, as for an AI.
+    let index = SearchIndex::load(vault.root())?;
+    Tasks::new(&vault).plan_summaries(&index, summaries::today(&vault))?;
     let tasks = Tasks::new(&vault).list()?;
     let shown: Vec<_> = tasks
         .iter()

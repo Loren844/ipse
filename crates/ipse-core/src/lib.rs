@@ -14,6 +14,7 @@ pub mod proposals;
 pub mod rights;
 pub mod search;
 pub mod slug;
+pub mod summaries;
 pub mod sync;
 pub mod tasks;
 pub mod time;
