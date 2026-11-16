@@ -18,17 +18,18 @@ const CROCKFORD_LOWER: &[u8; 32] = b"0123456789abcdefghjkmnpqrstvwxyz";
 
 impl Id {
     /// A new identifier, sortable by creation time. Within one process, each is
-    /// greater than the one before, even in the same millisecond; across processes,
-    /// only the millisecond orders them.
+    /// greater than the one before and has a time of its own: an id made in a
+    /// millisecond already used takes the next one, so that its first 14 characters,
+    /// which the command line shows, name it alone. Across processes, only the
+    /// millisecond orders them.
     #[must_use]
     pub fn generate() -> Self {
-        static GENERATOR: Mutex<ulid::Generator> = Mutex::new(ulid::Generator::new());
-        let mut generator = GENERATOR.lock().unwrap_or_else(PoisonError::into_inner);
-        // The random part only overflows after 2^80 ids in one millisecond: a fresh
-        // id still sorts after every earlier millisecond.
-        let id = generator
-            .generate()
-            .unwrap_or_else(|_| ulid::Ulid::generate());
+        static LAST: Mutex<u64> = Mutex::new(0);
+        let fresh = ulid::Ulid::generate();
+        let mut last = LAST.lock().unwrap_or_else(PoisonError::into_inner);
+        let time = fresh.timestamp_ms().max(last.saturating_add(1));
+        *last = time;
+        let id = ulid::Ulid::from_parts(time, fresh.random());
         Self(id.to_string().to_ascii_lowercase())
     }
 
@@ -491,6 +492,11 @@ mod tests {
         for pair in ids.windows(2) {
             assert!(pair[0] < pair[1], "{} then {}", pair[0], pair[1]);
             assert!(Id::parse(pair[1].as_str()).is_some());
+            assert_ne!(
+                pair[0].as_str()[..14],
+                pair[1].as_str()[..14],
+                "the command line shows the first 14 characters"
+            );
         }
     }
 
