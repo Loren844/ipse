@@ -13,6 +13,7 @@
 
 mod document;
 mod fold;
+mod graph;
 
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
@@ -29,6 +30,7 @@ use crate::{Error, Result};
 use document::{Document, Field, Stored};
 
 pub use fold::{fold, stem, words};
+pub use graph::{GraphEdge, GraphNode, Neighbourhood};
 
 /// Results returned when no limit is given.
 pub const DEFAULT_LIMIT: usize = 10;

@@ -47,6 +47,9 @@ export type { LinkView } from './types/LinkView.ts';
 import type { EditView } from './types/EditView.ts';
 import type { SavedView } from './types/SavedView.ts';
 export type { EditView, SavedView };
+import type { GraphView } from './types/GraphView.ts';
+export type { GraphView };
+export type { NodeView } from './types/NodeView.ts';
 export type { LinkField } from './types/LinkField.ts';
 export type { RelationField } from './types/RelationField.ts';
 
@@ -134,6 +137,8 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
+	graph: (id: string | undefined, depth: number, kinds?: string, categories?: string) =>
+		get<GraphView>('/api/graph', { id, depth, kinds, categories }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),

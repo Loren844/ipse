@@ -1206,3 +1206,89 @@ fn editing_creating_and_deleting_through_the_api() {
         409
     );
 }
+
+#[test]
+fn the_graph_through_the_api() {
+    let ui = start_with(|vault| {
+        let write = |rel: &str, i: u8, front: &str, body: &str| {
+            let path = vault.join(rel);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(
+                path,
+                format!("---\nid: 01jcx8m2p4q6r8t0v2w4y6z8{i:02}\n{front}\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\n---\n\n{body}"),
+            )
+            .unwrap();
+        };
+        write(
+            "organizations/atelier-nord.md",
+            1,
+            "type: organization\ncategory: work\nname: Atelier Nord",
+            "",
+        );
+        write(
+            "people/marie-durand.md",
+            2,
+            "type: person\ncategory: people\nname: Marie Durand",
+            "## Relations\n\n- travaille chez : [[atelier-nord]]\n",
+        );
+        write(
+            "people/dr-morel.md",
+            3,
+            "type: person\ncategory: health\nname: Dr Morel",
+            "## Relations\n\n- patiente : [[marie-durand]]\n",
+        );
+    });
+    let cookie = login(&ui);
+
+    // The owner's file by default: nobody links to it yet.
+    let (status, mine) = api(&ui, &cookie, "/api/graph");
+    assert_eq!(status, 200, "{mine}");
+    assert_eq!(mine["nodes"][0]["name"], "Inès Roux");
+    assert!(
+        mine["categories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "health" && c["sensitive"] == true)
+    );
+
+    let marie = "01jcx8m2p4q6r8t0v2w4y6z802";
+    let (_, graph) = api(&ui, &cookie, &format!("/api/graph?id={marie}&depth=2"));
+    let names: Vec<&str> = graph["nodes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|n| n["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["Marie Durand", "Atelier Nord", "Dr Morel"]);
+    assert_eq!(graph["nodes"][2]["sensitive"], true);
+    assert_eq!(graph["edges"][0]["word"], "travaille chez");
+
+    let (_, people) = api(
+        &ui,
+        &cookie,
+        &format!("/api/graph?id={marie}&kinds=person&categories=people,health"),
+    );
+    assert_eq!(people["nodes"].as_array().unwrap().len(), 2);
+    let (_, work) = api(
+        &ui,
+        &cookie,
+        &format!("/api/graph?id={marie}&categories=work"),
+    );
+    assert_eq!(work["nodes"][1]["name"], "Atelier Nord");
+    assert_eq!(work["nodes"].as_array().unwrap().len(), 2);
+
+    assert_eq!(
+        api(
+            &ui,
+            &cookie,
+            &format!("/api/graph?id={marie}&kinds=summary")
+        )
+        .0,
+        400
+    );
+    assert_eq!(
+        api(&ui, &cookie, "/api/graph?id=01jcx8m2p4q6r8t0v2w4y6z899").0,
+        404
+    );
+}

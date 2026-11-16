@@ -165,3 +165,124 @@ fn an_ai_sees_only_what_links_from_what_it_may_read() {
         .collect();
     assert_eq!(names, ["Paul Roux", "Dîner", "Café"]);
 }
+
+/// The names of a graph's files, with their steps away.
+fn shown(graph: &ipse_core::rights::GraphOut) -> Vec<(&str, u8)> {
+    graph
+        .nodes
+        .iter()
+        .map(|n| (n.name.as_str(), n.depth))
+        .collect()
+}
+
+#[test]
+fn the_graph_of_a_file_is_its_neighbourhood() {
+    let dir = tempfile::tempdir().unwrap();
+    memory(dir.path());
+    let mut gateway = Gateway::open(dir.path()).unwrap();
+    let owner = gateway.fresh_owner().unwrap();
+    let marie = owner.people(Some("Marie Durand"), 1, 0).items[0].id.clone();
+
+    let one = owner.graph(&marie, 1, &[], None, 100).unwrap();
+    assert_eq!(
+        shown(&one),
+        [
+            ("Marie Durand", 0),
+            ("Atelier Nord", 1),
+            ("Dr Morel", 1),
+            ("Paul Roux", 1),
+            ("Dîner", 1),
+            ("Café", 1),
+        ],
+        "what it links to and what links to it; entities by name, then events, most recent first"
+    );
+    assert!(one.nodes[2].sensitive, "health is marked");
+    let words: Vec<(&str, &str, Option<&str>)> = one
+        .edges
+        .iter()
+        .map(|e| {
+            (
+                one.nodes[e.from].name.as_str(),
+                one.nodes[e.to].name.as_str(),
+                e.word.as_deref(),
+            )
+        })
+        .collect();
+    assert!(words.contains(&("Marie Durand", "Atelier Nord", Some("travaille chez"))));
+    assert!(words.contains(&("Paul Roux", "Marie Durand", Some("sœur"))));
+    assert!(words.contains(&("Dîner", "Marie Durand", None)));
+    assert_eq!(one.more, 0);
+
+    let two = owner.graph(&marie, 2, &[], None, 100).unwrap();
+    assert!(
+        shown(&two).contains(&("Chez Marie", 2)),
+        "the dinner's place, two steps away"
+    );
+    assert!(
+        two.edges
+            .iter()
+            .any(|e| two.nodes[e.from].name == "Dîner" && two.nodes[e.to].name == "Chez Marie")
+    );
+
+    // Filters: the file at the center stays.
+    let people = owner
+        .graph(&marie, 2, &[FileType::Person], None, 100)
+        .unwrap();
+    assert_eq!(
+        shown(&people),
+        [("Marie Durand", 0), ("Dr Morel", 1), ("Paul Roux", 1)]
+    );
+    let work = owner
+        .graph(&marie, 1, &[], Some(&["work".to_owned()]), 100)
+        .unwrap();
+    assert_eq!(shown(&work), [("Marie Durand", 0), ("Atelier Nord", 1)]);
+    let place = owner.entities(FileType::Place, None, 1, 0).items[0]
+        .id
+        .clone();
+    let alone = owner
+        .graph(&place, 1, &[FileType::Person], None, 100)
+        .unwrap();
+    assert_eq!(shown(&alone), [("Chez Marie", 0)]);
+
+    // A limit keeps the nearest, and says how many are left out.
+    let small = owner.graph(&marie, 2, &[], None, 3).unwrap();
+    assert_eq!(
+        shown(&small),
+        [("Marie Durand", 0), ("Atelier Nord", 1), ("Dr Morel", 1)]
+    );
+    assert_eq!(small.more, 3);
+
+    assert!(
+        owner
+            .graph("01jcx8m2p4q6r8t0v2w4y6z899", 1, &[], None, 10)
+            .is_none()
+    );
+    assert!(owner.graph("nothing", 1, &[], None, 10).is_none());
+}
+
+#[test]
+fn an_ai_graph_holds_only_what_it_may_read() {
+    let dir = tempfile::tempdir().unwrap();
+    memory(dir.path());
+    let vault = Vault::open(dir.path()).unwrap();
+    let mut clients = Clients::load(dir.path()).unwrap();
+    let categories = Categories::of(vault.settings());
+    let (_, token) = clients
+        .add(
+            "Claude",
+            DateTime::now(vault.settings().time_zone()),
+            &categories,
+            false,
+        )
+        .unwrap();
+    let gateway = Gateway::open(dir.path()).unwrap();
+    let ai = gateway.access(Some(token.expose())).unwrap();
+    let marie = ai.people(Some("Marie Durand"), 1, 0).items[0].id.clone();
+    let graph = ai.graph(&marie, 2, &[], None, 100).unwrap();
+    assert!(!graph.nodes.iter().any(|n| n.name == "Dr Morel"));
+    let doctor = "01jcx8m2p4q6r8t0v2w4y6z803";
+    assert!(
+        ai.graph(doctor, 1, &[], None, 10).is_none(),
+        "a hidden file has no graph"
+    );
+}

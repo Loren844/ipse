@@ -99,7 +99,111 @@ pub struct Details {
     pub place: Option<LinkOut>,
 }
 
+/// Most files a graph shows.
+pub const MAX_GRAPH: usize = 300;
+
+/// One file of a graph.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NodeOut {
+    /// Its id.
+    pub id: String,
+    /// Its name, or an event's title.
+    pub name: String,
+    /// `person`, `place`… or `event`.
+    #[serde(rename = "type")]
+    pub file_type: String,
+    /// Its category.
+    pub category: String,
+    /// True when its category is closed to AIs unless the person opens it.
+    pub sensitive: bool,
+    /// Steps from the file at the center: 0 for that file.
+    pub depth: u8,
+    /// For an event, when it starts: `YYYY-MM-DD` or RFC 3339.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub start: Option<String>,
+}
+
+/// A link between two files of a graph.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct EdgeOut {
+    /// The place in the nodes of the file the link is written in.
+    pub from: usize,
+    /// The place of the file it links to.
+    pub to: usize,
+    /// The relation's word; `None` for an event's place or people.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub word: Option<String>,
+}
+
+/// The files around one file, for the graph view.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct GraphOut {
+    /// The file at the center first, then one step away, then two.
+    pub nodes: Vec<NodeOut>,
+    /// The links between them.
+    pub edges: Vec<EdgeOut>,
+    /// Files left out to keep the graph readable.
+    pub more: usize,
+}
+
 impl Access<'_> {
+    /// The files around the entity or event `id`, `depth` steps away (1 or 2), among
+    /// this client's categories that `categories` keeps (all when `None`) and the types
+    /// `kinds` keeps (all entities and events when empty); at most `limit` files
+    /// (clamped to 1–[`MAX_GRAPH`]). `None` when there is no such file, or this client
+    /// may not read it.
+    #[must_use]
+    pub fn graph(
+        &self,
+        id: &str,
+        depth: u8,
+        kinds: &[FileType],
+        categories: Option<&[String]>,
+        limit: usize,
+    ) -> Option<GraphOut> {
+        let id = Id::parse(id)?;
+        let kept = |t: FileType, c: &crate::vault::Category| {
+            let kind = if kinds.is_empty() {
+                t.is_entity() || t == FileType::Event
+            } else {
+                kinds.contains(&t)
+            };
+            kind && categories.is_none_or(|keep| keep.iter().any(|k| k == c.as_str()))
+        };
+        let found = self.gateway.index.neighbourhood(
+            &id,
+            depth,
+            limit.clamp(1, MAX_GRAPH),
+            |c| self.reads(c.as_str()),
+            kept,
+        )?;
+        Some(GraphOut {
+            nodes: found
+                .nodes
+                .into_iter()
+                .map(|n| NodeOut {
+                    id: n.id.to_string(),
+                    name: n.name.to_owned(),
+                    file_type: n.file_type.as_str().to_owned(),
+                    category: n.category.as_str().to_owned(),
+                    sensitive: self.sensitive(n.category.as_str()),
+                    depth: n.depth,
+                    start: n.start.map(ToString::to_string),
+                })
+                .collect(),
+            edges: found
+                .edges
+                .into_iter()
+                .map(|e| EdgeOut {
+                    from: e.from,
+                    to: e.to,
+                    word: e.word.map(str::to_owned),
+                })
+                .collect(),
+            more: found.more,
+        })
+    }
+
     /// True when `category` is closed to AIs unless the person opens it to one.
     #[must_use]
     pub fn sensitive(&self, category: &str) -> bool {

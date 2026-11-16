@@ -106,7 +106,10 @@
 				{#if entity.aliases.length}<p class="date">{i18n.t.alsoCalled(entity.aliases.join(', '))}</p>{/if}
 			</div>
 			{#if !form}
-				<button type="button" class="button small edit" bind:this={editButton} onclick={edit}>{i18n.t.editFile}</button>
+				<div class="head-actions">
+					<a class="button small" href="/graph?id={entity.id}" aria-label={i18n.t.inGraphLabel(entity.name)}>{i18n.t.inGraph}</a>
+					<button type="button" class="button small" bind:this={editButton} onclick={edit}>{i18n.t.editFile}</button>
+				</div>
 			{/if}
 		</header>
 

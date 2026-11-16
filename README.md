@@ -11,7 +11,7 @@ Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, me
 - **Local storage.** Your memory lives in a folder you pick, on your machine.
 - **Open files.** Everything is Markdown, readable in Obsidian or any editor.
 - **Connectors.** Calendar, contacts, location history and more fill your memory on their own.
-- **Graph view** (planned for 0.1.0). People, places, projects and memories, and how they relate, in one navigable view; today the links live in the files.
+- **Graph view.** People, places, projects and events, and how they relate, around any file of your memory, one or two steps away; filtered by kind and category, and readable as a list.
 - **You stay in charge.** The AI proposes, you accept or refuse. Every change is visible and can be undone.
 - **Per-AI rights.** Each AI you connect gets read and write access category by category, enforced by the software.
 - **Any model.** Works with a local model or an online one, through the open [Model Context Protocol](https://modelcontextprotocol.io).

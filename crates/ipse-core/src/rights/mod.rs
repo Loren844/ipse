@@ -14,7 +14,10 @@ pub use access::{
     Access, Entry, Events, FULL_CHECK_EVERY, Gateway, MAX_EVENTS, MAX_STATES, RelationOut,
     StateOut, States,
 };
-pub use browse::{Backlink, Details, ENTITY_KINDS, Line, Lines, LinkOut, MAX_LISTED, RelationLink};
+pub use browse::{
+    Backlink, Details, ENTITY_KINDS, EdgeOut, GraphOut, Line, Lines, LinkOut, MAX_GRAPH,
+    MAX_LISTED, NodeOut, RelationLink,
+};
 pub use clients::{Client, Clients, Token};
 pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
