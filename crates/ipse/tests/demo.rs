@@ -8,7 +8,7 @@ use std::path::Path;
 use std::process::Command;
 use std::time::Instant;
 
-use ipse_core::proposals::{Proposals, Status};
+use ipse_core::proposals::{Change, Proposals, Status};
 use ipse_core::vault::{History, MemoryFile, Source, Vault};
 
 const IPSE: &str = env!("CARGO_BIN_EXE_ipse");
@@ -109,7 +109,7 @@ fn a_demo_memory_full_of_invented_people_and_events() {
     let vault = Vault::open(&root).unwrap();
     let all = Proposals::new(&vault).list().unwrap();
     let count = |f: &dyn Fn(&Status) -> bool| all.iter().filter(|p| f(&p.status)).count();
-    assert_eq!(count(&|s| matches!(s, Status::Waiting)), 5, "{all:#?}");
+    assert_eq!(count(&|s| matches!(s, Status::Waiting)), 6, "{all:#?}");
     assert_eq!(count(&|s| matches!(s, Status::Refused { .. })), 1);
     assert!(count(&|s| matches!(s, Status::Accepted { .. })) >= 4);
     assert!(!files(&root.join("summaries")).is_empty());
@@ -151,6 +151,23 @@ fn a_demo_memory_full_of_invented_people_and_events() {
             .contains("place: \"[[studio-lotus]]\"")),
         "yoga classes linked to their studio"
     );
+
+    // Kinds on part of the events: the older ones; kinds proposed for the nearest.
+    let kinds = events
+        .iter()
+        .filter(|p| std::fs::read_to_string(p).unwrap().contains("\nkind: "))
+        .count();
+    assert!(
+        kinds > 100 && kinds < events.len() - 20,
+        "{kinds} of {}",
+        events.len()
+    );
+    assert!(all.iter().any(|p| {
+        p.status == Status::Waiting
+            && p.changes
+                .iter()
+                .any(|c| matches!(c, Change::SetKey { key, .. } if key == "kind"))
+    }));
 
     // The same memory every time, apart from ids and dates.
     let again = dir.path().join("again");

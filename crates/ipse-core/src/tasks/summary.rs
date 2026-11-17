@@ -313,7 +313,7 @@ fn text_of(file: &MemoryFile) -> Option<String> {
 }
 
 /// An event's fields, each in its own key.
-fn details_of(file: &MemoryFile) -> Option<Value> {
+pub(super) fn details_of(file: &MemoryFile) -> Option<Value> {
     let event = file.event()?;
     let shown = |link: &LinkOrText| match link {
         LinkOrText::Link(l) => l.display.clone().unwrap_or_else(|| l.target.clone()),

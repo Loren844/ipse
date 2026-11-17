@@ -7,6 +7,7 @@
 //! while it waits, `done` once the person accepts it, and open again, with the person's
 //! comment, when they refuse it.
 
+pub mod classify;
 mod extract;
 pub mod question;
 mod summary;
@@ -68,10 +69,21 @@ pub enum TaskKind {
     Question,
     /// A period to summarize.
     Summary,
+    /// Events to give a kind.
+    Classify,
 }
 
 impl TaskKind {
-    /// `extract`, `merge`, `question` or `summary`.
+    /// Every kind of task.
+    pub const ALL: [Self; 5] = [
+        Self::Extract,
+        Self::Merge,
+        Self::Question,
+        Self::Summary,
+        Self::Classify,
+    ];
+
+    /// `extract`, `merge`, `question`, `summary` or `classify`.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
@@ -79,6 +91,7 @@ impl TaskKind {
             Self::Merge => "merge",
             Self::Question => "question",
             Self::Summary => "summary",
+            Self::Classify => "classify",
         }
     }
 }
@@ -250,6 +263,7 @@ impl<'v> Tasks<'v> {
             TaskKind::Extract => extract::detail(self.vault, task),
             TaskKind::Summary => summary::detail(self.vault, task),
             TaskKind::Question => question::detail(self.vault, task),
+            TaskKind::Classify => classify::detail(self.vault, task),
             TaskKind::Merge => TaskDetail {
                 expected: String::new(),
                 items: Vec::new(),
@@ -299,6 +313,22 @@ impl<'v> Tasks<'v> {
         today: jiff::civil::Date,
     ) -> Result<usize> {
         question::plan(self, index, today)
+    }
+
+    /// Makes the `classify` tasks due on `today`: events without a kind, each asked
+    /// about once, [`classify::PER_TASK`] a task, one category a task, at most
+    /// [`classify::OPEN`] waiting and [`classify::PER_DAY`] new a day. Returns how many
+    /// tasks it made.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when a task cannot be saved.
+    pub fn plan_classify(
+        &self,
+        index: &crate::search::SearchIndex,
+        today: jiff::civil::Date,
+    ) -> Result<usize> {
+        classify::plan(self, index, today)
     }
 
     /// Notes that `proposal` answers the open task `id`.

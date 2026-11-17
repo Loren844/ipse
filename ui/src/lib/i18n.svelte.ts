@@ -241,7 +241,8 @@ const words = {
 			end: 'Fin',
 			place: 'Lieu',
 			participants: 'Avec',
-			status: 'État'
+			status: 'État',
+			kind: 'Type d’événement'
 		} as Record<string, string>,
 		fact: 'Fait',
 		relation: 'Relation',
@@ -488,6 +489,21 @@ const words = {
 		inGraph: 'Graphe',
 		inGraphLabel: (name: string) => `Voir ${name} dans le graphe`,
 		graphLabel: (name: string) => `Graphe autour de ${name}`,
+		eventKinds: {
+			meal: 'Repas',
+			celebration: 'Fête',
+			outing: 'Sortie',
+			culture: 'Culture',
+			sport: 'Sport',
+			trip: 'Séjour',
+			travel: 'Trajet',
+			work: 'Travail',
+			study: 'Études',
+			appointment: 'Rendez-vous',
+			health: 'Santé',
+			other: 'Autre'
+		} as Record<string, string>,
+		eventKindNone: 'Non précisé',
 		failed: 'Ipse ne répond pas.',
 		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.'
 	},
@@ -724,7 +740,8 @@ const words = {
 			end: 'End',
 			place: 'Place',
 			participants: 'With',
-			status: 'Status'
+			status: 'Status',
+			kind: 'Kind of event'
 		} as Record<string, string>,
 		fact: 'Fact',
 		relation: 'Relation',
@@ -971,6 +988,21 @@ const words = {
 		inGraph: 'Graph',
 		inGraphLabel: (name: string) => `See ${name} in the graph`,
 		graphLabel: (name: string) => `Graph around ${name}`,
+		eventKinds: {
+			meal: 'Meal',
+			celebration: 'Celebration',
+			outing: 'Outing',
+			culture: 'Culture',
+			sport: 'Sport',
+			trip: 'Trip',
+			travel: 'Travel',
+			work: 'Work',
+			study: 'Study',
+			appointment: 'Appointment',
+			health: 'Health',
+			other: 'Other'
+		} as Record<string, string>,
+		eventKindNone: 'Not said',
 		failed: 'Ipse is not answering.',
 		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.'
 	}

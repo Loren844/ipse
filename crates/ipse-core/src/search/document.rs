@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::fold::words;
 use crate::vault::body::{Section, section_text};
 use crate::vault::{
-    Category, EventFields, EventTime, FileType, Id, Language, MemoryFile, WikiLink,
+    Category, EventFields, EventKind, EventTime, FileType, Id, Language, MemoryFile, WikiLink,
 };
 
 /// A text and its words as matched, computed once when the file is read.
@@ -105,6 +105,8 @@ pub(super) struct EventSpan {
     pub(super) end: Option<EventTime>,
     /// File stems of the participants that are links.
     pub(super) participants: Vec<String>,
+    /// Its kind, when someone said: `meal`, `trip`…
+    pub(super) kind: Option<EventKind>,
 }
 
 impl Document {
@@ -159,6 +161,7 @@ impl Document {
                     Some(end) => Some(EventTime::parse(&end)?),
                 },
                 participants: e.participants,
+                kind: e.kind.as_deref().and_then(EventKind::parse),
             }),
         };
         let links = links_of(&s.relations, &s.facts, event.is_some());
@@ -194,6 +197,7 @@ impl Document {
                 start: e.start.to_string(),
                 end: e.end.as_ref().map(ToString::to_string),
                 participants: e.participants.clone(),
+                kind: e.kind.map(|k| k.as_str().to_owned()),
             }),
         }
     }
@@ -220,6 +224,8 @@ struct StoredEvent {
     start: String,
     end: Option<String>,
     participants: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kind: Option<String>,
 }
 
 impl Stored {
@@ -287,6 +293,7 @@ impl Stored {
                     .iter()
                     .filter_map(|p| p.link().map(|l| l.target.clone()))
                     .collect(),
+                kind: event.kind.map(|k| k.as_str().to_owned()),
             }),
             ..base
         }

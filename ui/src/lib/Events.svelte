@@ -15,6 +15,7 @@
 			<span class="when">
 				{showDay ? when(event.start, today) : timeOf(event.start)}
 				{#if event.status === 'cancelled'}<span class="badge">{i18n.t.cancelled}</span>{/if}
+				{#if event.event_kind}<span class="kind-tag">{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</span>{/if}
 			</span>
 			<a class="title" href="/agenda/{event.id}">{event.title}</a>
 			{#if event.people.length || event.place}

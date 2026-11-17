@@ -76,6 +76,7 @@ pub(crate) fn canonical(keys: &Keys) -> Vec<(&'static str, Option<Out>)> {
                         .collect::<Vec<_>>(),
                 ),
             ),
+            ("kind", e.kind.map(|k| Out::Text(k.as_str().to_owned()))),
             ("status", e.status.map(|s| Out::Text(s.as_str().to_owned()))),
             (
                 "organizer",

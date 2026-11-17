@@ -20,7 +20,11 @@ people: Array<LinkView>,
 /**
  * `planned`, `done` or `cancelled`, when known.
  */
-status: string | null, notes: string | null, category: string, 
+status: string | null, 
+/**
+ * What kind of event it is: `meal`, `trip`…, when someone said.
+ */
+event_kind: string | null, notes: string | null, category: string, 
 /**
  * Closed to AIs unless the person opens its category.
  */

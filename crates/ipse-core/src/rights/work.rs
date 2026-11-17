@@ -181,19 +181,14 @@ impl Access<'_> {
         let kind = match kind.map(str::trim).filter(|k| !k.is_empty()) {
             None => None,
             Some(k) => Some(
-                [
-                    TaskKind::Extract,
-                    TaskKind::Merge,
-                    TaskKind::Question,
-                    TaskKind::Summary,
-                ]
-                .into_iter()
-                .find(|t| t.as_str() == k)
-                .ok_or_else(|| {
-                    Error::Refused(format!(
-                        "`{k}` is not a kind of task: use extract, merge, question or summary."
-                    ))
-                })?,
+                TaskKind::ALL
+                    .into_iter()
+                    .find(|t| t.as_str() == k)
+                    .ok_or_else(|| {
+                        Error::Refused(format!(
+                            "`{k}` is not a kind of task: use extract, merge, question, summary or classify."
+                        ))
+                    })?,
             ),
         };
         let limit = limit.clamp(1, MAX_TASKS);
@@ -202,6 +197,7 @@ impl Access<'_> {
         let today = summaries::today(&self.gateway.vault);
         tasks.plan_summaries(&self.gateway.index, today)?;
         tasks.plan_questions(&self.gateway.index, today)?;
+        tasks.plan_classify(&self.gateway.index, today)?;
         let mut open: Vec<Task> = tasks
             .list()?
             .into_iter()

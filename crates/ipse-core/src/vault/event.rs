@@ -95,6 +95,97 @@ impl fmt::Display for EventStatus {
     }
 }
 
+/// What kind of event it is, from a fixed vocabulary, so that the interface can show
+/// meals, trips or appointments apart (issue #131). Set by the person, or proposed by
+/// their AI and accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum EventKind {
+    /// A meal: lunch, dinner, a coffee.
+    Meal,
+    /// A celebration: a birthday, a party, a wedding.
+    Celebration,
+    /// An appointment that is not about health: the bank, the hairdresser, a repair,
+    /// a paper to file.
+    Appointment,
+    /// Health: a doctor, a dentist, a therapist, a test.
+    Health,
+    /// Work: a meeting, a work trip day, a conference.
+    Work,
+    /// Learning: a class, an exam, a training.
+    Study,
+    /// Sport, played or watched.
+    Sport,
+    /// Culture: a concert, a film, a play, a museum, a book club.
+    Culture,
+    /// Going out with others, without a meal at its heart: drinks, a walk, a visit.
+    Outing,
+    /// A stay away from home: holidays, a weekend somewhere.
+    Trip,
+    /// A journey: a flight, a train, a long drive.
+    Travel,
+    /// None of the others.
+    Other,
+}
+
+impl EventKind {
+    /// Every kind, in the order the interface lists them.
+    pub const ALL: [Self; 12] = [
+        Self::Meal,
+        Self::Celebration,
+        Self::Outing,
+        Self::Culture,
+        Self::Sport,
+        Self::Trip,
+        Self::Travel,
+        Self::Work,
+        Self::Study,
+        Self::Appointment,
+        Self::Health,
+        Self::Other,
+    ];
+
+    /// Its name in files: `meal`, `celebration`…
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Meal => "meal",
+            Self::Celebration => "celebration",
+            Self::Appointment => "appointment",
+            Self::Health => "health",
+            Self::Work => "work",
+            Self::Study => "study",
+            Self::Sport => "sport",
+            Self::Culture => "culture",
+            Self::Outing => "outing",
+            Self::Trip => "trip",
+            Self::Travel => "travel",
+            Self::Other => "other",
+        }
+    }
+
+    /// Reads a kind by its name in files.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.as_str() == text)
+    }
+
+    /// The names of every kind, comma-separated: for messages.
+    #[must_use]
+    pub fn names() -> String {
+        Self::ALL
+            .iter()
+            .map(|k| k.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+impl fmt::Display for EventKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// The keys of an event.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EventFields {
@@ -115,6 +206,8 @@ pub struct EventFields {
     /// the name (else the email) as the calendar wrote it. The title, place and notes
     /// were written by them (decision 0014).
     pub organizer: Option<LinkOrText>,
+    /// What kind of event it is; absent until someone says.
+    pub kind: Option<EventKind>,
 }
 
 impl EventFields {
@@ -129,6 +222,7 @@ impl EventFields {
             participants: Vec::new(),
             status: None,
             organizer: None,
+            kind: None,
         }
     }
 }

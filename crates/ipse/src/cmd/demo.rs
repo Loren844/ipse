@@ -16,7 +16,7 @@ use ipse_core::rights::{Categories, Clients};
 use ipse_core::search::SearchIndex;
 use ipse_core::slug::to_file_stem;
 use ipse_core::tasks::{TaskKind, TaskStatus, Tasks};
-use ipse_core::vault::{DateTime, Language, MemoryFile, Vault};
+use ipse_core::vault::{DateTime, EventKind, Language, MemoryFile, Vault};
 use ipse_core::{Error, Result};
 use jiff::ToSpan;
 use jiff::civil::{Date, Weekday};
@@ -48,6 +48,8 @@ struct Words {
     leak: (&'static str, &'static str),
     day_summary: fn(&[String]) -> String,
     summary_reason: &'static str,
+    /// Why the AI proposes kinds of events.
+    kinds_reason: &'static str,
     facts: [(&'static str, &'static str); 3],
     refused: &'static str,
     claude_reason: fn(&str) -> String,
@@ -238,6 +240,7 @@ const FR: Words = Words {
         ),
     },
     summary_reason: "Le résumé de la journée, d’après votre agenda.",
+    kinds_reason: "D’après le titre, le lieu et les personnes de chaque événement.",
     facts: [
         (
             "Commence un nouveau travail à la médiathèque en janvier.",
@@ -406,6 +409,7 @@ const EN: Words = Words {
         ),
     },
     summary_reason: "The day's summary, from your calendar.",
+    kinds_reason: "From each event's title, place and people.",
     facts: [
         (
             "Starts a new job at the public library in January.",
@@ -1085,6 +1089,7 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
     }
 
     world(vault, words, people, today, &by(), &proposals)?;
+    kinds(vault, words, today, &by(), &proposals)?;
 
     // Facts it heard in conversation.
     let file = |card: &Card| -> String {
@@ -1115,6 +1120,79 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
             }
             _ => {}
         }
+    }
+    Ok(())
+}
+
+/// The kind of a demo event, from its title.
+fn kind_of(words: &Words, title: &str) -> Option<EventKind> {
+    Some(if title == words.team {
+        EventKind::Work
+    } else if title == words.yoga.0 {
+        EventKind::Sport
+    } else if title == words.family
+        || title.starts_with(words.lunch)
+        || title.starts_with(words.dinner)
+    {
+        EventKind::Meal
+    } else if title == words.dentist.0 {
+        EventKind::Health
+    } else if title == words.weekend || title == words.holidays {
+        EventKind::Trip
+    } else if title == words.leak.0 {
+        EventKind::Appointment
+    } else {
+        return None;
+    })
+}
+
+/// Kinds of events (issue #131): the person gave one to the events of more than three
+/// months ago; the AI proposes kinds for the nearest of the others, which waits for
+/// the person; the rest are left for its next tasks.
+fn kinds(
+    vault: &Vault,
+    words: &Words,
+    today: Date,
+    by: &Author,
+    proposals: &Proposals<'_>,
+) -> Result<()> {
+    let old = today.saturating_sub(90.days());
+    let index = SearchIndex::load(vault.root())?;
+    for event in index.events(|_| true, |e| e.start.date() < old) {
+        let path = vault.root().join(event.path);
+        let mut file = MemoryFile::read(&path)?;
+        let kind = file.event().and_then(|e| kind_of(words, &e.title));
+        if let (Some(kind), Some(e)) = (kind, file.event_mut()) {
+            e.kind = Some(kind);
+            file.write_unsynced()?;
+        }
+    }
+    vault.history()?.record_outside_edits()?;
+
+    let index = SearchIndex::load(vault.root())?;
+    let tasks = Tasks::new(vault);
+    tasks.plan_classify(&index, today)?;
+    let Some(task) = tasks
+        .list()?
+        .into_iter()
+        .find(|t| t.kind == TaskKind::Classify && t.categories == ["agenda"])
+    else {
+        return Ok(());
+    };
+    let mut changes = Vec::new();
+    for item in &task.items {
+        let file = MemoryFile::read(vault.root().join(&item.file))?;
+        if let Some(kind) = file.event().and_then(|e| kind_of(words, &e.title)) {
+            changes.push(Change::SetKey {
+                file: item.file.clone(),
+                key: "kind".into(),
+                from: serde_json::Value::Null,
+                to: serde_json::Value::String(kind.as_str().to_owned()),
+            });
+        }
+    }
+    if !changes.is_empty() {
+        proposals.submit(by.clone(), words.kinds_reason, Some(task.id), changes)?;
     }
     Ok(())
 }

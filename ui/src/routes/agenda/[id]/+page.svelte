@@ -83,6 +83,7 @@
 			<p class="date">
 				{when(event.start)}
 				{#if event.status === 'cancelled'}<span class="badge">{i18n.t.cancelled}</span>{/if}
+				{#if event.event_kind}<span class="kind-tag">{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</span>{/if}
 			</p>
 			<div class="head-row">
 				<h1>{event.title}</h1>

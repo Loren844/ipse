@@ -70,6 +70,8 @@ pub(crate) struct EditView {
     participants: Vec<LinkField>,
     /// `planned`, `done` or `cancelled`.
     status: Option<String>,
+    /// What kind of event it is: `meal`, `trip`…
+    event_kind: Option<String>,
     /// In order; a saved form names each by its position here.
     facts: Vec<String>,
     relations: Vec<RelationField>,
@@ -200,6 +202,7 @@ pub(crate) fn view(gateway: &mut Gateway, id: &str) -> Result<Option<EditView>> 
         place: None,
         participants: Vec::new(),
         status: None,
+        event_kind: None,
         facts: sections.facts.into_iter().map(|f| f.text).collect(),
         relations: sections
             .relations
@@ -233,6 +236,7 @@ pub(crate) fn view(gateway: &mut Gateway, id: &str) -> Result<Option<EditView>> 
             .map(|p| link_field(&owner, p))
             .collect();
         view.status = event.status.map(|s| s.as_str().to_owned());
+        view.event_kind = event.kind.map(|k| k.as_str().to_owned());
     } else {
         return Ok(None);
     }

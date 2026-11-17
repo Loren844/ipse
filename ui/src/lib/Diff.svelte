@@ -38,6 +38,7 @@
 		if (change.what !== 'key') return text;
 		if (change.key === 'phones') return text.split(', ').map(phone).join(', ');
 		if (change.key === 'birthday') return birthday(text);
+		if (change.key === 'kind') return i18n.t.eventKinds[text] ?? text;
 		if ((change.key === 'start' || change.key === 'end') && !isDay(text) && !Number.isNaN(Date.parse(text))) return when(text);
 		return text;
 	}
