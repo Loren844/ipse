@@ -2,13 +2,9 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## 0.1.0-rc.1 - 2026-11-16
+## 0.1.0 - 2026-11-17
 
-A pre-release of 0.1.0, to try the binaries and the installers before the first version. What it holds is described under 0.1.0 below.
-
-## 0.1.0 - Unreleased
-
-Not released yet: 0.1.0 waits for the First version milestone (settings, the whole memory, editing, graph view, event kinds; [decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)). What is already done, from milestones 1 and 2 and the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)):
+The first version of Ipse: a memory you can see whole, change yourself and explore through its links, not only query through an AI ([decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)). It holds milestones 1 and 2, the first part of the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)) and the First version milestone.
 
 ### Your memory
 
@@ -31,7 +27,9 @@ Not released yet: 0.1.0 waits for the First version milestone (settings, the who
 
 ### The interface
 
-- `ipse ui` opens your memory in your browser, on this computer only: home, people, agenda, summaries, review inbox with what each proposal changes, connected AIs and their rights per category, history of changes, of AI reads and of imports. French and English.
+- `ipse ui` opens your memory in your browser, on this computer only: home, the whole memory, agenda, summaries, review inbox with what each proposal changes, connected AIs and their rights per category, history of changes, of AI reads and of imports. French and English.
+- The whole memory, not only people: places, organizations, projects, works, things and topics, each listed and searchable, with what links to each file; a search across everything from every screen; what is going on right now (music, what you watch or read).
+- Settings: a light or dark theme (or the system's), the interface's language, the memory's language and time zone.
 - Edit any file yourself in `ipse ui`: names, phones, emails, birthday, address, an event's times, place and people, facts, relations and notes. Create a file of any kind, including the one a link already points to, and delete one after seeing what links to it. Each save is one change you can undo from the history; a file changed meanwhile is never written over.
 - A graph around any file, yourself by default: what it links to and what links to it, one or two steps away, filtered by kind of file and category, the categories closed to AIs marked. Click a file to put it at the center. The same neighbourhood reads as a list, for the keyboard and screen readers.
 - Kinds of events: meals, celebrations, outings, culture, sport, trips, travel, work, studies, appointments, health. Your AI proposes them, a few batches a day, and you accept them in the review inbox; you can also set one on the event's page. The agenda shows them.
@@ -40,3 +38,7 @@ Not released yet: 0.1.0 waits for the First version milestone (settings, the who
 ### Installing
 
 - Binaries for Windows, macOS (Apple silicon and Intel) and Linux (x64 and ARM), with an installer for each system ([Getting started](docs/guide/getting-started.md)).
+
+## 0.1.0-rc.1 - 2026-11-16
+
+A pre-release of 0.1.0, to try the binaries and the installers before the first version. What it holds is described under 0.1.0 above.
