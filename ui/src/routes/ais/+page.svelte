@@ -39,7 +39,8 @@
 			outcome = { tone: 'done', text: done(result) };
 		} catch (error) {
 			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
-			outcome = { tone: 'warn', text: error instanceof Conflict ? i18n.t.refusedChange : i18n.t.actionFailed };
+			const refused = error instanceof Conflict ? (error.message.includes('left as it is') ? i18n.t.installRefused : i18n.t.refusedChange) : null;
+			outcome = { tone: 'warn', text: refused ?? i18n.t.actionFailed };
 			await screen.load(() => api.ais(), true);
 		}
 		busy = false;
@@ -80,8 +81,8 @@
 		if (next) show(next);
 	}
 
-	async function connect(name: string, local: boolean, openAll: boolean): Promise<ConnectedView | null> {
-		const connected = await run(() => api.connect(name, local, openAll), () => '');
+	async function connect(name: string, local: boolean, openAll: boolean, install?: string): Promise<ConnectedView | null> {
+		const connected = await run(() => api.connect(name, local, openAll, install), () => '');
 		outcome = connected ? null : outcome;
 		if (connected) await screen.load(() => api.ais(), true);
 		return connected;
@@ -132,7 +133,7 @@
 		</div>
 
 		{#if connecting}
-			<Connect {busy} onconnect={connect} onclose={closeConnect} />
+			<Connect {busy} known={view.apps} onconnect={connect} onclose={closeConnect} />
 		{/if}
 
 		{#if view.ais.length}

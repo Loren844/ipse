@@ -1,6 +1,38 @@
 # Connecting AI apps
 
-[Getting started](getting-started.md) connects Claude Desktop and LM Studio. This page covers the other cases, and how to change what each AI sees.
+[Getting started](getting-started.md) connects Claude Desktop and LM Studio in one command. This page covers the other cases, and how to change what each AI sees.
+
+## Apps Ipse sets up itself
+
+`ipse client add <name> --install <app>` writes Ipse into the app's MCP configuration, with the access code, which is then shown nowhere:
+
+| `<app>` | File |
+| --- | --- |
+| `claude-desktop` | macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`; Windows: `%APPDATA%\Claude\claude_desktop_config.json`; Linux: `~/.config/Claude/claude_desktop_config.json` |
+| `claude-code` | `~/.claude.json` (every project) |
+| `lm-studio` | `~/.lmstudio/mcp.json` (Windows: `%USERPROFILE%\.lmstudio\mcp.json`) |
+
+Only Ipse's entry, `ipse`, is added or replaced: the app's other servers and settings stay. The file as it was is kept next to it, with `.before-ipse` added to its name. A file Ipse cannot read as JSON (one with comments, say) is left alone, and the AI is not connected. In `ipse ui`, **Connect an AI** offers the same for the apps found on this computer.
+
+## An app set up by hand
+
+```sh
+ipse client add "My app" --vault ~/Ipse
+```
+
+shows the code once. Most apps take a JSON entry like this one in their `mcpServers`, with **full paths** (`~` does not work there; on Windows, `"C:\\Users\\you\\Ipse"`):
+
+```json
+{
+  "mcpServers": {
+    "ipse": {
+      "command": "/Users/you/.ipse/bin/ipse",
+      "args": ["mcp", "--vault", "/Users/you/Ipse"],
+      "env": { "IPSE_TOKEN": "ipse_paste_your_code_here" }
+    }
+  }
+}
+```
 
 ## An AI app that connects over HTTP
 

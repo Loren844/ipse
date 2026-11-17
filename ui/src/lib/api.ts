@@ -15,6 +15,7 @@ export type { AisView } from './types/AisView.ts';
 export type { AiView } from './types/AiView.ts';
 export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
+export type { AppView } from './types/AppView.ts';
 import type { AisView } from './types/AisView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
 import type { HistoryView } from './types/HistoryView.ts';
@@ -115,7 +116,8 @@ export const api = {
 	refuse: (id: string, comment?: string) => post<DecisionView>(`${proposal(id)}/refuse`, { comment: comment || undefined }),
 	undo: (id: string) => post<DecisionView>(`${proposal(id)}/undo`),
 	ais: () => get<AisView>('/api/ais'),
-	connect: (name: string, local: boolean, openAll: boolean) => post<ConnectedView>('/api/ais', { name, local, open_all: openAll }),
+	connect: (name: string, local: boolean, openAll: boolean, install?: string) =>
+		post<ConnectedView>('/api/ais', { name, local, open_all: openAll, install }),
 	setRights: (id: string, read: string[], propose: string[]) =>
 		post<AisView>(`/api/ais/${encodeURIComponent(id)}/rights`, { read, propose }),
 	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),

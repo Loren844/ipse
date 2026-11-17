@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { IPSE, startIpse, type Running } from './ipse.ts';
 
@@ -92,6 +92,8 @@ test('connect an AI, see its code once, and disconnect it', async ({ page }) => 
 	await page.getByLabel('LM Studio').check();
 	await expect(page.getByLabel('Son nom', { exact: true }).first()).toHaveValue('LM Studio');
 	await expect(page.getByLabel(/Elle tourne entièrement sur cet ordinateur/)).toBeChecked();
+	// LM Studio is not on this computer: offered, not chosen.
+	await expect(page.getByLabel('Ajouter Ipse à LM Studio pour moi')).not.toBeChecked();
 	await page.getByRole('button', { name: 'Connecter', exact: true }).click();
 
 	await expect(page.getByRole('heading', { name: 'LM Studio est connectée' })).toBeFocused();
@@ -99,7 +101,7 @@ test('connect an AI, see its code once, and disconnect it', async ({ page }) => 
 	expect(code).toMatch(/^ipse_[0-9a-f]{64}$/);
 	expect(clients()).not.toContain(code);
 	expect(clients()).toContain('name = "LM Studio"');
-	await expect(page.getByLabel('mcp.json', { exact: true })).toContainText(`"Authorization": "Bearer ${code}"`);
+	await expect(page.getByLabel('mcp.json', { exact: true })).toContainText(`"IPSE_TOKEN": "${code}"`);
 	await page.getByRole('button', { name: 'J’ai copié le code' }).click();
 	await expect(page.getByLabel('IPSE_TOKEN', { exact: true })).toHaveCount(0);
 
@@ -110,4 +112,40 @@ test('connect an AI, see its code once, and disconnect it', async ({ page }) => 
 	await expect(page.getByRole('status')).toContainText('LM Studio est déconnectée');
 	await expect(page.getByTestId('ai')).toHaveCount(1);
 	expect(clients()).not.toContain('LM Studio');
+});
+
+test('Ipse writes itself into an app found on this computer, without showing the code', async ({ page }) => {
+	// LM Studio is installed, with another MCP server already set up.
+	const config = join(ipse.home, '.lmstudio', 'mcp.json');
+	mkdirSync(join(ipse.home, '.lmstudio'), { recursive: true });
+	writeFileSync(config, JSON.stringify({ mcpServers: { notes: { command: 'notes-mcp', args: [] } } }));
+
+	await page.goto(ipse.url);
+	await page.getByRole('navigation').getByRole('link', { name: 'IA connectées' }).click();
+	await page.getByRole('button', { name: 'Connecter une IA' }).click();
+	await page.getByRole('radio', { name: 'LM Studio' }).check();
+	await expect(page.getByLabel('Ajouter Ipse à LM Studio pour moi')).toBeChecked();
+	await page.getByRole('button', { name: 'Connecter', exact: true }).click();
+
+	await expect(page.getByRole('heading', { name: 'LM Studio est connectée' })).toBeFocused();
+	await expect(page.getByTestId('installed')).toContainText('Ipse est ajouté à LM Studio');
+	await expect(page.getByText('Le fichier d’avant est gardé dans')).toBeVisible();
+	await expect(page.getByLabel('IPSE_TOKEN', { exact: true })).toHaveCount(0);
+	await expect(page.locator('body')).not.toContainText('ipse_');
+	const written = JSON.parse(readFileSync(config, 'utf8'));
+	expect(written.mcpServers.notes.command).toBe('notes-mcp');
+	expect(written.mcpServers.ipse.args).toEqual(['mcp', '--vault', expect.any(String)]);
+	expect(written.mcpServers.ipse.env.IPSE_TOKEN).toMatch(/^ipse_[0-9a-f]{64}$/);
+	await page.getByRole('button', { name: 'C’est noté' }).click();
+	await expect(page.getByTestId('ai').filter({ has: page.getByRole('heading', { name: 'LM Studio' }) })).toContainText('Sur cet ordinateur');
+
+	// A file Ipse cannot read is left alone, and said so.
+	writeFileSync(config, '{ broken');
+	await page.getByRole('button', { name: 'Connecter une IA' }).click();
+	await page.getByRole('radio', { name: 'LM Studio' }).check();
+	await page.getByLabel('Son nom', { exact: true }).first().fill('LM Studio 2');
+	await page.getByRole('button', { name: 'Connecter', exact: true }).click();
+	await expect(page.getByRole('status')).toContainText('n’est pas lisible par Ipse');
+	expect(readFileSync(config, 'utf8')).toBe('{ broken');
+	await expect(page.getByTestId('ai').filter({ has: page.getByRole('heading', { name: 'LM Studio 2' }) })).toHaveCount(0);
 });
