@@ -18,6 +18,10 @@ export type { ConnectedView } from './types/ConnectedView.ts';
 export type { AppView } from './types/AppView.ts';
 import type { AisView } from './types/AisView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
+import type { SourcesChange } from './types/SourcesChange.ts';
+import type { SourcesView } from './types/SourcesView.ts';
+export type { SourcesChange, SourcesView };
+export type { SourceView } from './types/SourceView.ts';
 import type { HistoryView } from './types/HistoryView.ts';
 import type { AccessesView } from './types/AccessesView.ts';
 import type { RunsView } from './types/RunsView.ts';
@@ -101,6 +105,18 @@ async function post<T>(path: string, body: unknown = {}): Promise<T> {
 	return (await response.json()) as T;
 }
 
+/** Sends a file to import, as it is; the server writes it to disk as it arrives. */
+async function upload(file: File): Promise<SourcesChange> {
+	const response = await fetch(`/api/sources/import?${new URLSearchParams({ name: file.name })}`, {
+		method: 'POST',
+		headers: { accept: 'application/json', 'content-type': 'application/octet-stream' },
+		body: file
+	});
+	if (response.status === 401 || response.status === 403) throw new SessionEnded();
+	if (!response.ok) throw new Error(`import: ${response.status}`);
+	return (await response.json()) as SourcesChange;
+}
+
 const proposal = (id: string) => `/api/proposals/${encodeURIComponent(id)}`;
 
 export const api = {
@@ -127,6 +143,11 @@ export const api = {
 	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
+	sources: () => get<SourcesView>('/api/sources'),
+	importFile: upload,
+	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),
+	syncSource: (instance: string) => post<SourcesChange>('/api/sources/sync', { instance }),
+	unfollow: (instance: string) => post<SourcesChange>('/api/sources/unfollow', { instance }),
 	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`),
 	summaries: (period: string, offset?: number, before?: string) => get<SummariesView>('/api/summaries', { period, offset, before }),
 	correctSummary: (period: string, start: string, text: string) =>
