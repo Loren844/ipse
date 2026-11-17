@@ -121,6 +121,10 @@ enum Command {
         /// Print the address instead of opening the browser
         #[arg(long)]
         no_open: bool,
+        /// Started by the desktop app: print only the address, and stop when the app
+        /// closes this command's input
+        #[arg(long, hide = true)]
+        app: bool,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -349,7 +353,20 @@ fn main() -> ExitCode {
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },
         Command::Mcp { http, vault } => mcp::run(vault, http.as_deref()),
-        Command::Ui { no_open, vault } => ui::run(vault, !no_open),
+        Command::Ui {
+            no_open,
+            app,
+            vault,
+        } => ui::run(
+            vault,
+            if app {
+                ui::Start::App
+            } else if no_open {
+                ui::Start::Print
+            } else {
+                ui::Start::Browser
+            },
+        ),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {
