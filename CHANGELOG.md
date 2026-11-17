@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Added
 
+- Installers for the desktop app, attached to each release: `.dmg` for Macs with an Apple or Intel chip, `.msi` for Windows, `.deb` and `.AppImage` for Linux, each with the `ipse` command your AI apps start. They are not signed yet: [Install Ipse](docs/guide/install.md) says how to open them the first time ([#155](https://github.com/Loren844/ipse/issues/155)).
 - A **Map** of the places you have been, each sized by how often you went: a place shows your visits there and the people you saw there most. It works offline with points only; OpenStreetMap's base map shows only once you accept it, and the threat model says what it reveals ([#135](https://github.com/Loren844/ipse/issues/135)).
 - A **Timeline** (Frise) of your life: each year with a strip of its months showing how full they were and the people you saw most; a year opens its months with their summaries, trips and celebrations; a month opens what marked it, then its calendar ([#133](https://github.com/Loren844/ipse/issues/133)).
 - The agenda as a calendar: **Week** and **Month** views beside the list, with today marked, earlier and later periods, each event's time and kind, and a day's summary from its day. On a phone the week is a list of days and the month counts each day's events ([#132](https://github.com/Loren844/ipse/issues/132)).

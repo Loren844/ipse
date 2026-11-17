@@ -60,8 +60,14 @@ The app looks for `ipse` next to its own program first (where the installers put
 
 Releases are built by [cargo-dist](https://opensource.axo.dev/cargo-dist/) (`.github/workflows/release.yml`, settings in `dist-workspace.toml`) when a `v*` tag is pushed. **Merging a release pull request is the decision to release**: `.github/workflows/tag.yml` makes the tag.
 
-1. A pull request sets the version in `Cargo.toml` (`[workspace.package]`) and dates its CHANGELOG section: `## 0.2.0 - 2026-12-01`. A pre-release has its own version and section: `0.2.0-rc.1`. The tag must match the version exactly, or `release.yml` refuses it.
+1. A pull request sets the version in `Cargo.toml` (`[workspace.package]`), `app/Cargo.toml` and `app/tauri.conf.json` (CI checks they agree) and dates its CHANGELOG section: `## 0.2.0 - 2026-12-01`. A pre-release has its own version and section: `0.2.0-rc.1`. The tag must match the version exactly, or `release.yml` refuses it.
 2. The owner merges it. On `main`, `tag.yml` sees a version without a tag and a dated section, and pushes `v0.2.0`.
 3. `release.yml` builds the binaries for every system, then publishes a GitHub release with the installers, checksums and the changelog section as notes; a version like `0.2.0-rc.1` makes a pre-release.
+4. `app-release.yml` builds the desktop app's installers on the same tag (`.dmg` for Apple silicon and Intel, `.msi`, `.AppImage` and `.deb`), each with the `ipse` command beside the app, and attaches them to that release once it exists.
 
 Set up once by the owner: a [fine-grained token](https://github.com/settings/personal-access-tokens/new) with access to this repository only and the permission **Contents: read and write**, saved as the repository secret `RELEASE_TOKEN` (Settings → Secrets and variables → Actions). Without it, `tag.yml` only says the version is ready, and the owner pushes the tag by hand: `git tag v0.2.0 && git push origin v0.2.0`.
+
+Signing the app, optional, set up by the owner as repository secrets (never in a file, a log or a conversation):
+
+- **macOS**: an Apple Developer Program membership. `APPLE_CERTIFICATE` (the Developer ID Application certificate as a `.p12`, in base64), `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`; for notarization, `APPLE_ID`, `APPLE_PASSWORD` (an app-specific password) and `APPLE_TEAM_ID`. Without them the app is signed ad hoc and not notarized: macOS asks to open it anyway, once.
+- **Windows**: a code signing certificate. `WINDOWS_CERTIFICATE` (the `.pfx` in base64) and `WINDOWS_CERTIFICATE_PASSWORD`. Without them SmartScreen asks to run the installer anyway.
