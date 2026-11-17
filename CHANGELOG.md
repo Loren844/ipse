@@ -2,6 +2,12 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
+## Unreleased
+
+### Fixed
+
+- The Mémoire screen's search box can be typed in again, also after a search from the side bar ([#147](https://github.com/Loren844/ipse/issues/147)).
+
 ## 0.1.0 - 2026-11-17
 
 The first version of Ipse: a memory you can see whole, change yourself and explore through its links, not only query through an AI ([decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)). It holds milestones 1 and 2, the first part of the launch readiness stage ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)) and the First version milestone.
