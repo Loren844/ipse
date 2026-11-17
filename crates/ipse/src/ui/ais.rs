@@ -5,6 +5,8 @@
 
 use ipse_core::rights::{Categories, Client, Clients, Gateway, last_access};
 use ipse_core::vault::DateTime;
+
+use crate::install::{self, App, Places, System};
 use ipse_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +66,42 @@ pub(crate) struct CategoryView {
 pub(crate) struct AisView {
     ais: Vec<AiView>,
     categories: Vec<CategoryView>,
+    /// The AI apps Ipse can set up itself, and whether each is on this computer.
+    apps: Vec<AppView>,
+}
+
+/// An AI app whose MCP configuration Ipse writes itself (issue #105).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct AppView {
+    /// `claude-desktop`, `claude-code` or `lm-studio`.
+    id: String,
+    /// Its name for people.
+    label: String,
+    /// Its configuration's folder exists on this computer.
+    found: bool,
+    /// It runs models on this computer.
+    local: bool,
+}
+
+/// Where Ipse wrote an app's configuration.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct InstalledView {
+    /// The app: `claude-desktop`…
+    app: String,
+    /// The file written.
+    path: String,
+    /// The copy of the file as it was, if there was one.
+    backup: Option<String>,
 }
 
 /// A newly connected AI, with what to paste in its app. Shown once: the access code is
@@ -76,8 +114,11 @@ pub(crate) struct AisView {
 )]
 pub(crate) struct ConnectedView {
     ai: AiView,
-    /// Its access code.
-    code: String,
+    /// Its access code; `null` once Ipse wrote it into the app's configuration, where
+    /// it stays.
+    code: Option<String>,
+    /// Where Ipse set the app up, when asked to.
+    installed: Option<InstalledView>,
     /// The full path of this `ipse`, for the AI app's configuration.
     program: String,
     /// The full path of the memory folder.
@@ -93,6 +134,9 @@ struct ConnectBody {
     /// choice (`docs/spec/rights.md`, section 2).
     #[serde(default)]
     open_all: bool,
+    /// The app to set up: `claude-desktop`, `claude-code` or `lm-studio`.
+    #[serde(default)]
+    install: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -144,7 +188,27 @@ pub(crate) fn view(gateway: &mut Gateway) -> Result<AisView> {
             }
         })
         .collect();
-    Ok(AisView { ais, categories })
+    Ok(AisView {
+        ais,
+        categories,
+        apps: apps(),
+    })
+}
+
+/// The apps Ipse can set up, each found on this computer or not.
+fn apps() -> Vec<AppView> {
+    let places = Places::current();
+    App::ALL
+        .into_iter()
+        .map(|app| AppView {
+            id: app.id().to_owned(),
+            label: app.label().to_owned(),
+            found: places
+                .as_ref()
+                .is_some_and(|p| app.found(System::current(), p)),
+            local: app.is_local(),
+        })
+        .collect()
 }
 
 /// The person's changes: `POST /api/ais` connects an AI, `/api/ais/<id>/rights` sets
@@ -210,6 +274,7 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
 
 fn connect(gateway: &mut Gateway, body: &ConnectBody) -> Result<ConnectedView> {
     let name = name_of(&body.name, "AI")?;
+    let app = body.install.as_deref().map(App::parse).transpose()?;
     let root = gateway.vault().root().to_owned();
     let categories = Categories::of(gateway.settings());
     let mut clients = Clients::load(&root)?;
@@ -230,9 +295,36 @@ fn connect(gateway: &mut Gateway, body: &ConnectBody) -> Result<ConnectedView> {
     let vault = root
         .canonicalize()
         .map_or_else(|_| plain_path(&root), |p| plain_path(&p));
+    let installed = match app {
+        None => None,
+        Some(app) => {
+            let places = Places::current()
+                .ok_or_else(|| Error::Refused("Ipse cannot find your home folder.".to_owned()))?;
+            let path = app.config_path(System::current(), &places);
+            match install::install(
+                app,
+                &path,
+                std::path::Path::new(&program),
+                std::path::Path::new(&vault),
+                token.expose(),
+            ) {
+                Ok(done) => Some(InstalledView {
+                    app: app.id().to_owned(),
+                    path: plain_path(&done.path),
+                    backup: done.backup.as_deref().map(plain_path),
+                }),
+                Err(e) => {
+                    // Nothing would use its code.
+                    clients.remove(&client.id)?;
+                    return Err(e);
+                }
+            }
+        }
+    };
     Ok(ConnectedView {
         ai: ai_view(&client, None),
-        code: token.expose().to_owned(),
+        code: installed.is_none().then(|| token.expose().to_owned()),
+        installed,
         program,
         vault,
     })

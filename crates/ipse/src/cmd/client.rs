@@ -6,14 +6,20 @@ use ipse_core::rights::{Categories, Clients};
 use ipse_core::vault::{DateTime, Vault};
 use ipse_core::{Error, Result};
 
-/// Connects a new AI and shows its access code, once. `local`: the person says it
-/// runs entirely on this computer.
+use crate::install::{self, App, Places, System};
+
+/// Connects a new AI and shows its access code, once; or, with `install`, writes it
+/// into that app's MCP configuration and never shows it. `local`: the person says it
+/// runs entirely on this computer (an app that runs local models is).
 pub(crate) fn add(
     name: &str,
     local: bool,
     propose: &[String],
+    install: Option<&str>,
     vault: Option<PathBuf>,
 ) -> Result<()> {
+    let app = install.map(App::parse).transpose()?;
+    let local = local || app.is_some_and(App::is_local);
     let vault = open(vault)?;
     let categories = Categories::of(vault.settings());
     let mut clients = Clients::load(vault.root())?;
@@ -54,6 +60,9 @@ pub(crate) fn add(
         println!(
             "Marked as running entirely on this computer. Ipse cannot check it; to open a sensitive category to it, add the category to its `read` list in .ipse/clients.toml."
         );
+    }
+    if let Some(app) = app {
+        return install_into(app, &vault, &mut clients, &client.id, token.expose());
     }
     println!();
     println!("Its access code, shown only this once:");
@@ -147,6 +156,64 @@ pub(crate) fn remove(id: &str, vault: Option<PathBuf>) -> Result<()> {
             "No connected AI is called {id}. See them with: ipse client list"
         )))
     }
+}
+
+/// Writes the AI `id` into `app`'s configuration with its code `token`, which is not
+/// shown. If the file cannot be written, the AI is disconnected again: nothing would
+/// use its code.
+fn install_into(
+    app: App,
+    vault: &Vault,
+    clients: &mut Clients,
+    id: &str,
+    token: &str,
+) -> Result<()> {
+    let places = Places::current().ok_or_else(|| {
+        Error::Refused(
+            "Ipse cannot find your home folder, so it cannot find the app's configuration. Connect it by hand (docs/guide/connecting.md)."
+                .to_owned(),
+        )
+    })?;
+    let path = app.config_path(System::current(), &places);
+    let program = std::env::current_exe()
+        .and_then(|p| p.canonicalize())
+        .unwrap_or_else(|_| PathBuf::from("ipse"));
+    let folder = vault
+        .root()
+        .canonicalize()
+        .unwrap_or_else(|_| vault.root().to_owned());
+    let done = match install::install(app, &path, &program, &folder, token) {
+        Ok(done) => done,
+        Err(e) => {
+            clients.remove(id)?;
+            return Err(e);
+        }
+    };
+    println!();
+    println!(
+        "Ipse is set up in {}, with its access code: {}",
+        app.label(),
+        done.path.display()
+    );
+    if let Some(backup) = &done.backup {
+        println!("The file as it was is kept in {}.", backup.display());
+    }
+    if let Some(old) = done
+        .replaced
+        .as_deref()
+        .and_then(|t| clients.authenticate(t))
+        .filter(|c| c.id != id)
+    {
+        println!(
+            "It replaces the entry of \"{}\" ({}), whose code no longer works in {}. If nothing else uses it: ipse client remove {}",
+            old.name,
+            old.id,
+            app.label(),
+            old.id
+        );
+    }
+    println!("{}", app.next_step());
+    Ok(())
 }
 
 fn open(vault: Option<PathBuf>) -> Result<Vault> {

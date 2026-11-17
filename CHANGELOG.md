@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Added
+
+- Connect an AI app in one command: `ipse client add <name> --install claude-desktop`, `claude-code` or `lm-studio` writes Ipse into that app's configuration, its access code included, without showing it; the app's other servers stay, and the file as it was is kept. In `ipse ui`, **Connect an AI** offers the same for the apps found on the computer. LM Studio now starts Ipse itself: no terminal to leave open.
+
 ### Fixed
 
 - The Mémoire screen's search box can be typed in again, also after a search from the side bar ([#147](https://github.com/Loren844/ipse/issues/147)).

@@ -5,6 +5,7 @@
 
 mod cmd;
 mod connectors;
+mod install;
 mod keychain;
 mod mcp;
 mod ui;
@@ -245,6 +246,10 @@ enum ClientAction {
         /// Categories where it may propose changes, like people,agenda (none by default)
         #[arg(long, value_delimiter = ',')]
         propose: Vec<String>,
+        /// Write Ipse into this app's MCP configuration, the code included, instead of
+        /// showing the code: claude-desktop, claude-code or lm-studio
+        #[arg(long, value_name = "APP")]
+        install: Option<String>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -331,8 +336,9 @@ fn main() -> ExitCode {
                 name,
                 local,
                 propose,
+                install,
                 vault,
-            } => cmd::client::add(&name, local, &propose, vault),
+            } => cmd::client::add(&name, local, &propose, install.as_deref(), vault),
             ClientAction::Set {
                 id,
                 read,

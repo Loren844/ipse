@@ -722,3 +722,162 @@ fn a_contact_changed_on_both_sides_waits_for_the_person() {
             .contains("+33622222222")
     );
 }
+
+/// Runs `ipse` with `home` as the person's home folder (and Windows' `%APPDATA%` in it).
+fn ipse_at_home(home: &std::path::Path, args: &[&str]) -> std::process::Output {
+    Command::new(env!("CARGO_BIN_EXE_ipse"))
+        .args(args)
+        .env("HOME", home)
+        .env("USERPROFILE", home)
+        .env("APPDATA", home.join("AppData").join("Roaming"))
+        .output()
+        .expect("the ipse binary runs")
+}
+
+/// Claude Desktop's configuration file in `home`, on the system the tests run on.
+fn claude_desktop_config(home: &std::path::Path) -> std::path::PathBuf {
+    if cfg!(target_os = "macos") {
+        home.join("Library/Application Support/Claude/claude_desktop_config.json")
+    } else if cfg!(windows) {
+        home.join("AppData/Roaming/Claude/claude_desktop_config.json")
+    } else {
+        home.join(".config/Claude/claude_desktop_config.json")
+    }
+}
+
+#[test]
+#[allow(clippy::too_many_lines)] // one story: install, replace, a local app, a broken file
+fn client_add_install_writes_the_app_configuration_without_showing_the_code() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    assert!(
+        ipse(&["init", vault_arg, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+    // Another server is already set up in Claude Desktop.
+    let config = claude_desktop_config(&home);
+    std::fs::create_dir_all(config.parent().unwrap()).unwrap();
+    std::fs::write(
+        &config,
+        r#"{"mcpServers": {"notes": {"command": "notes-mcp", "args": []}}, "theme": "dark"}"#,
+    )
+    .unwrap();
+
+    let out = ipse_at_home(
+        &home,
+        &[
+            "client",
+            "add",
+            "Claude",
+            "--install",
+            "claude-desktop",
+            "--vault",
+            vault_arg,
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(!said.contains("ipse_"), "the code is never shown: {said}");
+    assert!(said.contains("Ipse is set up in Claude Desktop"), "{said}");
+    assert!(said.contains("Quit Claude Desktop completely"), "{said}");
+    let written: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&config).unwrap()).unwrap();
+    assert_eq!(written["theme"], "dark");
+    assert_eq!(written["mcpServers"]["notes"]["command"], "notes-mcp");
+    let entry = &written["mcpServers"]["ipse"];
+    let token = entry["env"]["IPSE_TOKEN"].as_str().unwrap();
+    assert!(token.starts_with("ipse_"));
+    assert_eq!(entry["args"][0], "mcp");
+    assert!(std::path::Path::new(entry["command"].as_str().unwrap()).is_absolute());
+    assert!(std::path::Path::new(entry["args"][2].as_str().unwrap()).is_absolute());
+    let stored = std::fs::read_to_string(vault.join(".ipse/clients.toml")).unwrap();
+    assert!(!stored.contains(token), "the code is never stored by Ipse");
+
+    // Again: the entry is replaced, and the AI it belonged to named.
+    let out = ipse_at_home(
+        &home,
+        &[
+            "client",
+            "add",
+            "Claude 2",
+            "--install",
+            "claude-desktop",
+            "--vault",
+            vault_arg,
+        ],
+    );
+    let said = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        said.contains("It replaces the entry of \"Claude\""),
+        "{said}"
+    );
+    assert!(!said.contains("ipse_"), "{said}");
+
+    // LM Studio runs models on this computer: the AI is marked local.
+    let out = ipse_at_home(
+        &home,
+        &[
+            "client",
+            "add",
+            "LM Studio",
+            "--install",
+            "lm-studio",
+            "--vault",
+            vault_arg,
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(home.join(".lmstudio/mcp.json").is_file());
+    let listed = String::from_utf8_lossy(&ipse(&["client", "list", "--vault", vault_arg]).stdout)
+        .into_owned();
+    assert!(listed.contains("LM Studio"), "{listed}");
+
+    // A file Ipse cannot read is left alone, and the AI not kept.
+    let code = home.join(".claude.json");
+    std::fs::write(&code, "{ not json").unwrap();
+    let out = ipse_at_home(
+        &home,
+        &[
+            "client",
+            "add",
+            "Code",
+            "--install",
+            "claude-code",
+            "--vault",
+            vault_arg,
+        ],
+    );
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("left as it is"));
+    assert_eq!(std::fs::read_to_string(&code).unwrap(), "{ not json");
+    let listed = String::from_utf8_lossy(&ipse(&["client", "list", "--vault", vault_arg]).stdout)
+        .into_owned();
+    assert!(!listed.contains("Code ("), "{listed}");
+
+    let out = ipse_at_home(
+        &home,
+        &[
+            "client",
+            "add",
+            "X",
+            "--install",
+            "chatgpt",
+            "--vault",
+            vault_arg,
+        ],
+    );
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("claude-desktop, claude-code or lm-studio")
+    );
+}
