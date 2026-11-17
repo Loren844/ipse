@@ -56,8 +56,10 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await expect(more).toBeFocused();
 
 	// The search, from the top bar of any screen.
-	await page.getByRole('searchbox', { name: 'Chercher dans la mémoire' }).fill('escalade');
-	await page.keyboard.press('Enter');
+	// Enter on the search box itself: focus may still be coming back to More.
+	const search = page.getByRole('searchbox', { name: 'Chercher dans la mémoire' });
+	await search.fill('escalade');
+	await search.press('Enter');
 	await expect(page).toHaveURL(`${ipse.origin}/memory?q=escalade`);
 	await expect(page.getByTestId('found').getByRole('link').first()).toContainText('Club d’escalade Vertige');
 });
