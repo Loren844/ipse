@@ -160,6 +160,7 @@ const words = {
 		sources: {
 			contacts: 'vos contacts',
 			calendar: 'votre agenda',
+			'google-timeline': 'votre historique des positions',
 			proposal: 'une proposition acceptée',
 			person: 'vous'
 		} as Record<string, string>,
@@ -345,6 +346,7 @@ const words = {
 		summaries: {
 			'Import contacts': 'Import de contacts',
 			'Import calendar': 'Import d’agenda',
+			'Import location history': 'Import de l’historique des positions',
 			'Accept a proposal': 'Proposition acceptée',
 			'Undo a proposal': 'Proposition annulée',
 			'Undo a change': 'Changement annulé',
@@ -508,6 +510,7 @@ const words = {
 		moreSections: 'Autres sections',
 		closePanel: 'Fermer',
 		youAreIn: (name: string) => `Vous êtes dans : ${name}`,
+		placesTogether: 'Où vous vous voyez',
 		installFor: (app: string) => `Ajouter Ipse à ${app} pour moi`,
 		installHint: (app: string) => `Ipse écrit sa configuration avec le code, sans le montrer, et garde une copie du fichier d’avant.`,
 		notFoundHere: (app: string) => `${app} ne semble pas installé sur cet ordinateur : vous pouvez quand même le faire, ou copier la configuration à la main.`,
@@ -676,6 +679,7 @@ const words = {
 		sources: {
 			contacts: 'your contacts',
 			calendar: 'your calendar',
+			'google-timeline': 'your location history',
 			proposal: 'an accepted proposal',
 			person: 'you'
 		} as Record<string, string>,
@@ -861,6 +865,7 @@ const words = {
 		summaries: {
 			'Import contacts': 'Contacts import',
 			'Import calendar': 'Calendar import',
+			'Import location history': 'Location history import',
 			'Accept a proposal': 'Proposal accepted',
 			'Undo a proposal': 'Proposal undone',
 			'Undo a change': 'Change undone',
@@ -1024,6 +1029,7 @@ const words = {
 		moreSections: 'Other sections',
 		closePanel: 'Close',
 		youAreIn: (name: string) => `You are in: ${name}`,
+		placesTogether: 'Where you meet',
 		installFor: (app: string) => `Add Ipse to ${app} for me`,
 		installHint: (app: string) => `Ipse writes its configuration with the code, without showing it, and keeps a copy of the file as it was.`,
 		notFoundHere: (app: string) => `${app} does not seem to be installed on this computer: you can still do it, or copy the configuration by hand.`,

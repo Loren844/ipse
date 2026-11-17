@@ -6,7 +6,8 @@ use std::path::PathBuf;
 use ipse_core::connector::{Launch, Outcome, RunRecord, record_run, run_session};
 use ipse_core::journal::Journal;
 use ipse_core::materialize::{
-    EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people,
+    EventsSummary, LocationSummary, PeopleSummary, calendar_to_events, contacts_to_people,
+    location_to_vault,
 };
 use ipse_core::tasks::Tasks;
 use ipse_core::vault::{DateTime, Source, Vault};
@@ -17,6 +18,7 @@ use ipse_core::{Error, Result};
 enum Kind {
     Contacts,
     Calendar,
+    Location,
 }
 
 impl Kind {
@@ -25,6 +27,7 @@ impl Kind {
         match extension.as_str() {
             "vcf" | "vcard" => Some(Self::Contacts),
             "ics" | "ical" | "ifb" => Some(Self::Calendar),
+            "json" => Some(Self::Location),
             _ => None,
         }
     }
@@ -34,13 +37,21 @@ impl Kind {
         match self {
             Self::Contacts => "contacts",
             Self::Calendar => "calendar",
+            Self::Location => crate::connectors::timeline::ID,
         }
     }
 
-    fn record_kind(self) -> &'static str {
+    fn record_kinds(self) -> Vec<String> {
         match self {
-            Self::Contacts => "contact.card",
-            Self::Calendar => "calendar.event",
+            Self::Contacts => vec!["contact.card".to_owned()],
+            Self::Calendar => vec!["calendar.event".to_owned()],
+            Self::Location => [
+                crate::connectors::timeline::VISIT,
+                crate::connectors::timeline::POINTS,
+                crate::connectors::timeline::PLACE,
+            ]
+            .map(str::to_owned)
+            .to_vec(),
         }
     }
 }
@@ -63,7 +74,7 @@ pub(crate) fn run(file: &std::path::Path, vault: Option<PathBuf>) -> Result<()> 
 pub(crate) fn import_into(vault: &Vault, file: &std::path::Path) -> Result<Vec<String>> {
     let kind = Kind::of(file).ok_or_else(|| {
         Error::Refused(
-            "Ipse can import contacts files (.vcf) and calendar files (.ics) for now.".to_owned(),
+            "Ipse can import contacts files (.vcf), calendar files (.ics) and Google Maps Timeline exports (.json) for now.".to_owned(),
         )
     })?;
     let file = std::fs::canonicalize(file)
@@ -131,10 +142,15 @@ pub(crate) fn import_into(vault: &Vault, file: &std::path::Path) -> Result<Vec<S
                 summary.deleted,
             )
         }
+        Kind::Location => {
+            let summary = location_to_vault(vault, &journal, instance, &mut change)?;
+            (location_line(summary), (0, 0), 0)
+        }
     };
     let summary = match kind {
         Kind::Contacts => "Import contacts",
         Kind::Calendar => "Import calendar",
+        Kind::Location => "Import location history",
     };
     let touched = change.paths();
     change.commit(summary)?;
@@ -175,7 +191,7 @@ fn launch(kind: Kind, file: PathBuf, time_zone: &str) -> Result<Launch> {
         time_zone,
     );
     launch.files = vec![file];
-    launch.kinds = Some(vec![kind.record_kind().to_owned()]);
+    launch.kinds = Some(kind.record_kinds());
     Ok(launch)
 }
 
@@ -196,6 +212,28 @@ pub(crate) fn relations_line(n: u64) -> String {
     } else {
         format!("{n} relations added to your own file, from your contact card.")
     }
+}
+
+pub(crate) fn location_line(s: LocationSummary) -> String {
+    if s.visits == 0 {
+        return "Every visit was already in your memory.".to_owned();
+    }
+    let n = |n: u64, one: &str, many: &str| {
+        if n == 1 {
+            format!("1 {one}")
+        } else {
+            format!("{n} {many}")
+        }
+    };
+    format!(
+        "{}: {} added, {} already known; {} in your agenda, {} agenda events given their place, {} at home or at work. They are in the `location` category, closed to your AIs unless you open it.",
+        n(s.visits, "visit", "visits"),
+        n(s.places_added, "place", "places"),
+        s.places_found,
+        n(s.events, "visit", "visits"),
+        s.linked,
+        s.home_or_work
+    )
 }
 
 pub(crate) fn events_line(s: EventsSummary) -> String {

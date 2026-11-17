@@ -881,3 +881,78 @@ fn client_add_install_writes_the_app_configuration_without_showing_the_code() {
         String::from_utf8_lossy(&out.stderr).contains("claude-desktop, claude-code or lm-studio")
     );
 }
+
+#[test]
+fn import_a_location_history_from_either_phone() {
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/location");
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&[
+            "init",
+            vault,
+            "--name",
+            "Inès Roux",
+            "--language",
+            "fr",
+            "--time-zone",
+            "Europe/Paris"
+        ])
+        .status
+        .success()
+    );
+    let android = fixtures.join("Timeline.json");
+    let out = ipse(&["import", android.to_str().unwrap(), "--vault", vault]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(
+        said.contains("5 visit(s) and 4 position(s) read."),
+        "{said}"
+    );
+    assert!(said.contains("5 visits: 4 places added"), "{said}");
+    assert!(said.contains("1 at home or at work"), "{said}");
+    assert!(
+        said.contains("`location` category, closed to your AIs"),
+        "{said}"
+    );
+    let home = std::fs::read_to_string(dir.path().join("places/domicile.md")).unwrap();
+    assert!(home.contains("category: location"), "{home}");
+    assert!(home.contains("geo: [48.86, 2.39]"), "{home}");
+    assert!(dir.path().join("states/location/2026.md").is_file());
+
+    let again = ipse(&["import", android.to_str().unwrap(), "--vault", vault]);
+    assert!(
+        String::from_utf8_lossy(&again.stdout).contains("Every visit was already in your memory.")
+    );
+
+    let iphone = fixtures.join("location-history.json");
+    let out = ipse(&["import", iphone.to_str().unwrap(), "--vault", vault]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let said = String::from_utf8_lossy(&out.stdout).into_owned();
+    assert!(said.contains("2 visits: 2 places added"), "{said}");
+    assert!(dir.path().join("places/travail.md").is_file());
+    assert!(
+        dir.path()
+            .join("events/2026/2026-04-02-lieu-pres-de-48-8667-2-3633.md")
+            .is_file()
+    );
+
+    // Another JSON file is not a Timeline.
+    let other = dir.path().join("other.json");
+    std::fs::write(&other, r#"{"hello": "world"}"#).unwrap();
+    let out = ipse(&["import", other.to_str().unwrap(), "--vault", vault]);
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("not a Google Maps Timeline export"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}

@@ -49,5 +49,9 @@ harness = false
 name = "mcp_transport"
 harness = false
 
+[[bench]]
+name = "timeline"
+harness = false
+
 [lints]
 workspace = true

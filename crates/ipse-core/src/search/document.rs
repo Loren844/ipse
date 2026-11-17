@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::fold::words;
 use crate::vault::body::{Section, section_text};
 use crate::vault::{
-    Category, EventFields, EventKind, EventTime, FileType, Id, Language, MemoryFile, WikiLink,
+    Category, EventFields, EventKind, EventTime, FileType, Id, Language, LinkOrText, MemoryFile,
+    WikiLink,
 };
 
 /// A text and its words as matched, computed once when the file is read.
@@ -107,6 +108,8 @@ pub(super) struct EventSpan {
     pub(super) participants: Vec<String>,
     /// Its kind, when someone said: `meal`, `trip`…
     pub(super) kind: Option<EventKind>,
+    /// The file stem of its place, when it is a link.
+    pub(super) place: Option<String>,
 }
 
 impl Document {
@@ -162,6 +165,7 @@ impl Document {
                 },
                 participants: e.participants,
                 kind: e.kind.as_deref().and_then(EventKind::parse),
+                place: e.place,
             }),
         };
         let links = links_of(&s.relations, &s.facts, event.is_some());
@@ -198,6 +202,7 @@ impl Document {
                 end: e.end.as_ref().map(ToString::to_string),
                 participants: e.participants.clone(),
                 kind: e.kind.map(|k| k.as_str().to_owned()),
+                place: e.place.clone(),
             }),
         }
     }
@@ -226,6 +231,8 @@ struct StoredEvent {
     participants: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kind: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    place: Option<String>,
 }
 
 impl Stored {
@@ -294,6 +301,11 @@ impl Stored {
                     .filter_map(|p| p.link().map(|l| l.target.clone()))
                     .collect(),
                 kind: event.kind.map(|k| k.as_str().to_owned()),
+                place: event
+                    .place
+                    .as_ref()
+                    .and_then(LinkOrText::link)
+                    .map(|l| l.target.clone()),
             }),
             ..base
         }

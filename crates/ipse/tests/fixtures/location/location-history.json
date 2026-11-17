@@ -1,0 +1,43 @@
+[
+  {
+    "endTime": "2026-04-02T13:30:00.000+02:00",
+    "startTime": "2026-04-02T12:15:00.000+02:00",
+    "visit": {
+      "hierarchyLevel": "0",
+      "topCandidate": {
+        "probability": "0.83",
+        "semanticType": "Unknown",
+        "placeID": "ChIJinventedBistro",
+        "placeLocation": "geo:48.866700,2.363300"
+      },
+      "probability": "0.90"
+    }
+  },
+  {
+    "endTime": "2026-04-02T14:00:00.000+02:00",
+    "startTime": "2026-04-02T13:30:00.000+02:00",
+    "timelinePath": [
+      { "point": "geo:48.866000,2.364000", "durationMinutesOffsetFromStartTime": "5" },
+      { "point": "geo:48.868000,2.370000", "durationMinutesOffsetFromStartTime": "20" }
+    ]
+  },
+  {
+    "endTime": "2026-04-02T18:00:00.000+02:00",
+    "startTime": "2026-04-02T14:00:00.000+02:00",
+    "visit": {
+      "hierarchyLevel": "0",
+      "topCandidate": {
+        "probability": "0.92",
+        "semanticType": "Work",
+        "placeID": "ChIJinventedOffice",
+        "placeLocation": "geo:48.875000,2.300000"
+      },
+      "probability": "0.95"
+    }
+  },
+  {
+    "activity": { "start": "geo:48.866000,2.364000", "end": "geo:48.875000,2.300000", "distanceMeters": "4800" },
+    "endTime": "2026-04-02T14:00:00.000+02:00",
+    "startTime": "2026-04-02T13:30:00.000+02:00"
+  }
+]
