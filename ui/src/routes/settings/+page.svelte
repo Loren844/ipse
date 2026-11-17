@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api, Conflict, SessionEnded, type SettingsView } from '#lib/api.ts';
-	import { app } from '#lib/app.svelte.ts';
+	import { app, appLinks, inApp } from '#lib/app.svelte.ts';
 	import Copy from '#lib/Copy.svelte';
 	import { i18n, type Language } from '#lib/i18n.svelte.ts';
 	import Notice from '#lib/Notice.svelte';
@@ -67,8 +67,8 @@
 	</header>
 
 	<section aria-labelledby="look">
-		<h2 id="look">{i18n.t.thisBrowser}</h2>
-		<p class="quiet">{i18n.t.thisBrowserHint}</p>
+		<h2 id="look">{inApp ? i18n.t.thisApp : i18n.t.thisBrowser}</h2>
+		<p class="quiet">{inApp ? i18n.t.thisAppHint : i18n.t.thisBrowserHint}</p>
 		<div class="setting">
 			<span class="label" id="theme-label">{i18n.t.theme}</span>
 			<div class="segmented" role="group" aria-labelledby="theme-label">
@@ -124,6 +124,12 @@
 				<span class="label">{i18n.t.memoryFolder}</span>
 				<Copy text={ready.folder} label={i18n.t.memoryFolder} />
 			</div>
+			{#if inApp}
+				<div class="setting">
+					<span class="label" id="other-memory">{i18n.t.otherMemory}</span>
+					<a class="button" href={appLinks.switchMemory} data-sveltekit-reload aria-describedby="other-memory">{i18n.t.switchMemory}</a>
+				</div>
+			{/if}
 			<div class="setting">
 				<span class="label">{i18n.t.version}</span>
 				<span data-testid="version">Ipse {ready.version}</span>

@@ -4,3 +4,5 @@
 .idea/
 .vscode/
 *.swp
+/app/target
+/app/gen

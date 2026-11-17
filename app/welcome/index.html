@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Ipse</title>
+		<link rel="stylesheet" href="welcome.css" />
+		<script src="welcome.js" defer></script>
+	</head>
+	<body>
+		<main class="welcome">
+			<p class="brand">
+				<img class="mark" src="mark.svg" alt="" width="34" height="34" />
+				<span class="wordmark">ipse</span>
+			</p>
+
+			<section id="opening" aria-live="polite">
+				<p class="quiet" data-words="opening">Ouverture de votre mémoire…</p>
+			</section>
+
+			<section id="choose" hidden>
+				<h1 data-words="title">La mémoire de votre vie, sur cet ordinateur.</h1>
+				<p class="lead" data-words="lead">
+					Ipse la garde dans un dossier de fichiers que vous possédez. Vos IA y lisent ce que vous leur ouvrez, et ne changent rien sans votre accord.
+				</p>
+
+				<p class="problem" id="problem" role="alert" hidden></p>
+
+				<div class="last" id="last" hidden>
+					<button type="button" class="button primary" id="reopen" data-words="reopen">Rouvrir ma mémoire</button>
+					<span class="path" id="last-folder"></span>
+				</div>
+
+				<ul class="ways" aria-label="Choix">
+					<li>
+						<button type="button" class="way" data-way="create" aria-expanded="false" aria-controls="create">
+							<span class="way-title" data-words="create">Créer ma mémoire</span>
+							<span class="way-hint" data-words="createHint">Un dossier neuf, à votre nom. Vous y importerez ensuite vos contacts, votre agenda et vos lieux.</span>
+						</button>
+						<form id="create" class="panel" hidden>
+							<div class="field">
+								<label for="name" data-words="name">Votre nom</label>
+								<input id="name" type="text" autocomplete="name" required />
+							</div>
+							<div class="field">
+								<label for="folder" data-words="folder">Dossier</label>
+								<div class="pick">
+									<input id="folder" type="text" required spellcheck="false" />
+									<button type="button" class="button" data-pick="folder" data-words="pick">Choisir…</button>
+								</div>
+								<p class="hint" data-words="folderHint">Un dossier vide ou nouveau. Vous pourrez l’ouvrir aussi dans Obsidian ou tout éditeur de texte.</p>
+							</div>
+							<div class="pair">
+								<div class="field">
+									<label for="language" data-words="language">Langue de la mémoire</label>
+									<select id="language">
+										<option value="fr">Français</option>
+										<option value="en">English</option>
+									</select>
+								</div>
+								<div class="field">
+									<label for="zone" data-words="zone">Fuseau horaire</label>
+									<select id="zone"></select>
+								</div>
+							</div>
+							<p class="error" role="alert" hidden></p>
+							<div class="actions">
+								<button type="submit" class="button primary" data-words="createGo">Créer ma mémoire</button>
+							</div>
+						</form>
+					</li>
+					<li>
+						<button type="button" class="way" data-way="demo" aria-expanded="false" aria-controls="demo">
+							<span class="way-title" data-words="demo">Essayer avec une mémoire inventée</span>
+							<span class="way-hint" data-words="demoHint">Environ 150 personnes imaginaires et deux ans d’agenda, pour voir Ipse sans vos données.</span>
+						</button>
+						<form id="demo" class="panel" hidden>
+							<div class="field">
+								<label for="demo-folder" data-words="folder">Dossier</label>
+								<div class="pick">
+									<input id="demo-folder" type="text" required spellcheck="false" />
+									<button type="button" class="button" data-pick="demo-folder" data-words="pick">Choisir…</button>
+								</div>
+							</div>
+							<p class="error" role="alert" hidden></p>
+							<div class="actions">
+								<button type="submit" class="button primary" data-words="demoGo">Créer la mémoire inventée</button>
+							</div>
+						</form>
+					</li>
+					<li>
+						<button type="button" class="way" data-way="open">
+							<span class="way-title" data-words="open">Ouvrir une mémoire existante</span>
+							<span class="way-hint" data-words="openHint">Un dossier déjà créé par Ipse, sur cet ordinateur ou synchronisé depuis un autre.</span>
+						</button>
+						<p class="error" id="open-error" role="alert" hidden></p>
+					</li>
+				</ul>
+			</section>
+		</main>
+	</body>
+</html>

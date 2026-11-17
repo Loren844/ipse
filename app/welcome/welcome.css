@@ -1,0 +1,296 @@
+/* The app's first screen: the interface's own colours and type (ui/src/app.css). */
+@font-face {
+	font-family: 'Bricolage Grotesque Variable';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 200 800;
+	src: url('fonts/bricolage-grotesque-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+@font-face {
+	font-family: 'Atkinson Hyperlegible Next Variable';
+	font-style: normal;
+	font-display: swap;
+	font-weight: 200 800;
+	src: url('fonts/atkinson-hyperlegible-next-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+:root {
+	--ground: #fbfaf8;
+	--surface: #ffffff;
+	--text: #231d1e;
+	--muted: #6e6466;
+	--line: #eee9e7;
+	--line-strong: #e5dedc;
+	--thread: #9b2c3a;
+	--thread-ink: #7a1f2b;
+	--thread-soft: #f6e9ea;
+	--focus: #9b2c3a;
+	--on-thread: #ffffff;
+	--warn: #7a5300;
+	--warn-soft: #faf0d9;
+	--display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
+	--text-font: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--ground: #171314;
+		--surface: #211b1c;
+		--text: #f0eaea;
+		--muted: #ada2a3;
+		--line: #2e2627;
+		--line-strong: #3a3132;
+		--thread: #cf6874;
+		--thread-ink: #f3c5ca;
+		--thread-soft: #3a2226;
+		--focus: #cf6874;
+		--on-thread: #171314;
+		--warn: #ecc46f;
+		--warn-soft: #382d14;
+		color-scheme: dark;
+	}
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	font-family: var(--text-font);
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--ground);
+	color: var(--text);
+	line-height: 1.55;
+}
+
+:focus-visible {
+	outline: 2.5px solid var(--focus);
+	outline-offset: 2px;
+	border-radius: 6px;
+}
+
+[hidden] {
+	display: none !important;
+}
+
+.welcome {
+	max-width: 44rem;
+	margin: 0 auto;
+	padding: clamp(2rem, 7vh, 5rem) 1.5rem 3rem;
+}
+
+.brand {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.55rem;
+	margin: 0 0 clamp(2rem, 6vh, 3.5rem);
+}
+
+.wordmark {
+	font-family: var(--display);
+	font-weight: 800;
+	font-size: 1.7rem;
+	letter-spacing: -0.03em;
+	line-height: 1;
+}
+
+h1 {
+	font-family: var(--display);
+	font-size: clamp(2.1rem, 5.5vw, 3.25rem);
+	font-weight: 800;
+	letter-spacing: -0.035em;
+	line-height: 1.02;
+	margin: 0 0 1.1rem;
+	max-width: 16ch;
+}
+
+.lead {
+	font-size: 1.15rem;
+	color: var(--muted);
+	max-width: 52ch;
+	margin: 0 0 2.25rem;
+}
+
+.quiet {
+	color: var(--muted);
+}
+
+.last {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	margin: 0 0 2rem;
+}
+
+.path {
+	color: var(--muted);
+	font-size: 0.9rem;
+	overflow-wrap: anywhere;
+}
+
+.ways {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1.5px solid var(--line-strong);
+}
+
+.ways > li {
+	border-bottom: 1.5px solid var(--line-strong);
+}
+
+/* Each way in is one row: its name, then what it does. The thread marks the open one. */
+.way {
+	display: grid;
+	gap: 0.2rem;
+	width: 100%;
+	padding: 1.15rem 0.25rem 1.15rem 1rem;
+	border: 0;
+	border-left: 4px solid transparent;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.way:hover,
+.way[aria-expanded='true'] {
+	border-left-color: var(--thread);
+}
+
+.way-title {
+	font-family: var(--display);
+	font-weight: 700;
+	font-size: 1.35rem;
+	letter-spacing: -0.02em;
+}
+
+.way-hint {
+	color: var(--muted);
+}
+
+.panel {
+	display: grid;
+	gap: 1.1rem;
+	padding: 0.25rem 0.25rem 1.5rem 1.25rem;
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	min-width: 0;
+}
+
+.field label {
+	font-weight: 700;
+}
+
+.pair {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+	gap: 1.1rem;
+}
+
+.pick {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.pick input {
+	flex: 1;
+	min-width: 0;
+}
+
+input[type='text'],
+select {
+	font: inherit;
+	color: var(--text);
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: 10px;
+	padding: 0.55rem 0.8rem;
+}
+
+input[type='text']:focus,
+select:focus {
+	outline: none;
+	border-color: var(--thread);
+}
+
+.hint {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.button {
+	font: inherit;
+	font-weight: 700;
+	padding: 0.55rem 1.15rem;
+	border-radius: 999px;
+	border: 1.5px solid var(--line-strong);
+	background: transparent;
+	color: var(--text);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.button:hover:not(:disabled) {
+	border-color: var(--thread);
+}
+
+.button.primary {
+	background: var(--thread);
+	border-color: var(--thread);
+	color: var(--on-thread);
+}
+
+.button.primary:hover:not(:disabled) {
+	background: var(--thread-ink);
+	border-color: var(--thread-ink);
+}
+
+.button:disabled {
+	opacity: 0.5;
+	cursor: progress;
+}
+
+.actions {
+	display: flex;
+	gap: 0.75rem;
+}
+
+.problem,
+.error {
+	margin: 0 0 1rem;
+	padding: 0.8rem 1rem;
+	border-radius: 12px;
+	background: var(--warn-soft);
+	white-space: pre-line;
+	max-width: none;
+}
+
+.error {
+	margin: 0;
+}
+
+#open-error {
+	margin: 0 0 1.25rem 1.25rem;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+	.way {
+		transition: border-color 120ms ease-out;
+	}
+}

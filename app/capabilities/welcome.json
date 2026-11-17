@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "welcome",
+  "description": "The app's own first screen: its commands and a folder picker. The memory's interface, served by the ipse command on 127.0.0.1, gets none of them.",
+  "windows": ["main"],
+  "permissions": ["core:default", "dialog:allow-open"]
+}

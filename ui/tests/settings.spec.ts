@@ -103,3 +103,25 @@ test('the memory’s language and time zone, saved as the person’s change', as
 	await page.getByRole('link', { name: 'Historique' }).click();
 	await expect(page.getByText('Réglages modifiés')).toBeVisible();
 });
+
+test('in the desktop app, settings open another memory through the app', async ({ page }) => {
+	// What the app runs in its window before the page's own scripts (app/src/main.rs).
+	await page.addInitScript(() => {
+		window.ipseApp = { version: '0.1.0' };
+	});
+	await page.goto(ipse.url);
+	await page.getByRole('link', { name: 'Réglages' }).click();
+	await expect(page.getByRole('heading', { name: 'Affichage' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toHaveCount(0);
+	const other = page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' });
+	await expect(other).toHaveAttribute('href', '/app/switch');
+	// The app answers that address itself; a full navigation, not the interface's router.
+	await expect(other).toHaveAttribute('data-sveltekit-reload', '');
+});
+
+test('in a browser, nothing of the app shows', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.getByRole('link', { name: 'Réglages' }).click();
+	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveCount(0);
+});

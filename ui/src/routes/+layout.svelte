@@ -5,7 +5,7 @@
 	import { page } from '$app/state';
 	import { afterNavigate, goto } from '$app/navigation';
 	import { onMount, tick } from 'svelte';
-	import { app } from '#lib/app.svelte.ts';
+	import { app, inApp } from '#lib/app.svelte.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
 	import Mark from '#lib/Mark.svelte';
@@ -204,10 +204,10 @@
 			<p class="quiet">{i18n.t.loading}</p>
 		{:else if app.state.kind === 'ended'}
 			<h1>{i18n.t.ended}</h1>
-			<p>{i18n.t.endedHint}</p>
+			<p>{inApp ? i18n.t.endedHintApp : i18n.t.endedHint}</p>
 		{:else}
 			<h1>{i18n.t.failed}</h1>
-			<p>{i18n.t.failedHint}</p>
+			<p>{inApp ? i18n.t.failedHintApp : i18n.t.failedHint}</p>
 		{/if}
 	</main>
 {/if}
