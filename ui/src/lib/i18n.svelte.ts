@@ -314,7 +314,7 @@ const words = {
 		claudeSteps:
 			'Dans Claude Desktop, Réglages → Développeur → Modifier la config ouvre claude_desktop_config.json. Collez-y ceci (ou ajoutez « ipse » à vos mcpServers), puis quittez complètement Claude Desktop et rouvrez-le.',
 		httpSteps: 'Laissez tourner Ipse pour elle dans un terminal :',
-		lmStudioSteps: 'Dans LM Studio, onglet Program de la barre de droite, Install → Edit mcp.json, et collez :',
+		lmStudioSteps: 'Dans LM Studio, onglet Program de la barre de droite, Install → Edit mcp.json, et collez ceci (ou ajoutez « ipse » à vos mcpServers) :',
 		otherSteps: 'Dans l’application, ajoutez un serveur MCP « Streamable HTTP » à cette adresse, avec un en-tête Authorization :',
 		done: 'J’ai copié le code',
 		readBy: (names: string) => `Lue par ${names}`,
@@ -511,6 +511,19 @@ const words = {
 		closePanel: 'Fermer',
 		youAreIn: (name: string) => `Vous êtes dans : ${name}`,
 		placesTogether: 'Où vous vous voyez',
+		installFor: (app: string) => `Ajouter Ipse à ${app} pour moi`,
+		installHint: (app: string) => `Ipse écrit sa configuration avec le code, sans le montrer, et garde une copie du fichier d’avant.`,
+		notFoundHere: (app: string) => `${app} ne semble pas installé sur cet ordinateur : vous pouvez quand même le faire, ou copier la configuration à la main.`,
+		installedIn: (app: string, path: string) => `Ipse est ajouté à ${app}, dans ${path}. Son code d’accès y est écrit : il n’est montré nulle part.`,
+		backupKept: (path: string) => `Le fichier d’avant est gardé dans ${path}.`,
+		nextSteps: {
+			'claude-desktop': 'Quittez complètement Claude Desktop et rouvrez-le : Ipse apparaît dans ses connecteurs.',
+			'claude-code': 'Ouvrez une nouvelle session Claude Code : /mcp liste Ipse dans tous vos projets.',
+			'lm-studio': 'LM Studio recharge ses serveurs MCP : Ipse apparaît dans l’onglet Program. Choisissez un modèle qui sait utiliser des outils.'
+		} as Record<string, string>,
+		claudeCodeSteps: 'Dans un terminal, ajoutez Ipse à Claude Code pour tous vos projets :',
+		installRefused: 'Le fichier de configuration de cette application n’est pas lisible par Ipse : il n’a pas été modifié. Corrigez-le dans l’application, ou copiez la configuration à la main.',
+		gotIt: 'C’est noté',
 		failed: 'Ipse ne répond pas.',
 		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.'
 	},
@@ -820,7 +833,7 @@ const words = {
 		claudeSteps:
 			'In Claude Desktop, Settings → Developer → Edit Config opens claude_desktop_config.json. Paste this (or add “ipse” to your mcpServers), then quit Claude Desktop completely and open it again.',
 		httpSteps: 'Leave Ipse running for it in a terminal:',
-		lmStudioSteps: 'In LM Studio, Program tab of the right sidebar, Install → Edit mcp.json, and paste:',
+		lmStudioSteps: 'In LM Studio, Program tab of the right sidebar, Install → Edit mcp.json, and paste this (or add “ipse” to your mcpServers):',
 		otherSteps: 'In the app, add a “Streamable HTTP” MCP server at this address, with an Authorization header:',
 		done: 'I copied the code',
 		readBy: (names: string) => `Read by ${names}`,
@@ -1017,6 +1030,19 @@ const words = {
 		closePanel: 'Close',
 		youAreIn: (name: string) => `You are in: ${name}`,
 		placesTogether: 'Where you meet',
+		installFor: (app: string) => `Add Ipse to ${app} for me`,
+		installHint: (app: string) => `Ipse writes its configuration with the code, without showing it, and keeps a copy of the file as it was.`,
+		notFoundHere: (app: string) => `${app} does not seem to be installed on this computer: you can still do it, or copy the configuration by hand.`,
+		installedIn: (app: string, path: string) => `Ipse is added to ${app}, in ${path}. Its access code is written there and shown nowhere.`,
+		backupKept: (path: string) => `The file as it was is kept in ${path}.`,
+		nextSteps: {
+			'claude-desktop': 'Quit Claude Desktop completely and open it again: Ipse appears among its connectors.',
+			'claude-code': 'Start a new Claude Code session: /mcp lists Ipse in every project.',
+			'lm-studio': 'LM Studio reloads its MCP servers: Ipse appears in the Program tab. Pick a model that supports tools.'
+		} as Record<string, string>,
+		claudeCodeSteps: 'In a terminal, add Ipse to Claude Code for every project:',
+		installRefused: 'Ipse cannot read this app’s configuration file: it was not changed. Fix it in the app, or copy the configuration by hand.',
+		gotIt: 'Got it',
 		failed: 'Ipse is not answering.',
 		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.'
 	}

@@ -1,6 +1,6 @@
 // Starts `ipse ui --no-open` on a new invented memory and gives its one-time address.
 import { spawn, execFileSync, type ChildProcess } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -9,7 +9,7 @@ export const IPSE = process.env.IPSE_BIN ?? resolve(import.meta.dirname, '../../
 
 /** `startup`: milliseconds from starting `ipse ui` to its address being printed;
  * `vault`: the memory folder, to check what the interface wrote. */
-export type Running = { url: string; origin: string; vault: string; startup: number; stop: () => void };
+export type Running = { url: string; origin: string; vault: string; home: string; startup: number; stop: () => void };
 
 const FIXTURES = resolve(import.meta.dirname, '../../crates/ipse/tests/fixtures');
 
@@ -43,7 +43,11 @@ export async function startDemo(language = 'fr'): Promise<Running> {
 
 async function serve(dir: string, vault: string): Promise<Running> {
 	const startedAt = Date.now();
-	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'] });
+	// A home of its own: what Ipse writes into AI apps' configurations stays in the test.
+	const home = join(dir, 'home');
+	mkdirSync(home, { recursive: true });
+	const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming') };
+	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'], env });
 	const url = await new Promise<string>((ok, fail) => {
 		let seen = '';
 		child.stdout!.on('data', (chunk: Buffer) => {
@@ -57,6 +61,7 @@ async function serve(dir: string, vault: string): Promise<Running> {
 		url,
 		origin: new URL(url).origin,
 		vault,
+		home,
 		startup: Date.now() - startedAt,
 		stop: () => {
 			child.kill();

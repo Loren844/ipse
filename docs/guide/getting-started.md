@@ -58,50 +58,24 @@ Your phone's location history can come too: export it from Google Maps Timeline 
 ## 4. Connect Claude Desktop
 
 ```sh
-ipse client add "Claude" --vault ~/Ipse
+ipse client add "Claude" --install claude-desktop --vault ~/Ipse
 ```
 
-Ipse shows what this AI may read and an access code starting with `ipse_`, **shown only once**: copy it. Sensitive categories (location, home, health, private) stay closed. (You can also connect it from `ipse ui`, step 7, which fills in the configuration below for you.)
-
-In Claude Desktop, **Settings → Developer → Edit Config** opens `claude_desktop_config.json`. Add Ipse with **full paths** (`~` does not work here; on Windows, `"C:\\Users\\you\\Ipse"`):
-
-```json
-{
-  "mcpServers": {
-    "ipse": {
-      "command": "/Users/you/.ipse/bin/ipse",
-      "args": ["mcp", "--vault", "/Users/you/Ipse"],
-      "env": { "IPSE_TOKEN": "ipse_paste_your_code_here" }
-    }
-  }
-}
-```
+Ipse connects an AI named Claude, with what it may read (sensitive categories, such as location, home, health and private, stay closed), and writes itself into Claude Desktop's configuration, its access code included. The code is shown nowhere. The file as it was is kept next to it (`claude_desktop_config.json.before-ipse`).
 
 Quit Claude Desktop completely and open it again: Ipse appears among its connectors.
 
+`--install claude-code` does the same for Claude Code, in every project. To connect an app by hand instead, see [Connecting AI apps](connecting.md). You can also connect an AI from `ipse ui` (step 7).
+
 ## 5. Or connect a local AI: LM Studio
 
-A model that runs in LM Studio stays on your computer. Connect it with its own code, and start Ipse for it in a terminal you leave open:
+A model that runs in LM Studio (0.3.17 or later) stays on your computer:
 
 ```sh
-ipse client add "LM Studio" --local --vault ~/Ipse
-ipse mcp --http --vault ~/Ipse
+ipse client add "LM Studio" --install lm-studio --vault ~/Ipse
 ```
 
-In LM Studio, in the **Program** tab of the right sidebar, **Install → Edit mcp.json**, and add:
-
-```json
-{
-  "mcpServers": {
-    "ipse": {
-      "url": "http://127.0.0.1:7420/mcp",
-      "headers": { "Authorization": "Bearer ipse_paste_your_code_here" }
-    }
-  }
-}
-```
-
-Pick a model that supports tools.
+LM Studio reloads its MCP servers: Ipse appears in the **Program** tab of the right sidebar. Pick a model that supports tools. An AI connected this way is marked as running on this computer.
 
 ## 6. Ask
 
