@@ -14,6 +14,7 @@
 mod document;
 mod fold;
 mod graph;
+mod places;
 mod timeline;
 
 use std::borrow::Cow;
@@ -32,6 +33,7 @@ use document::{Document, Field, Stored};
 
 pub use fold::{fold, stem, words};
 pub use graph::{GraphEdge, GraphNode, Neighbourhood};
+pub use places::{Met, Visited};
 pub use timeline::{Mark, MonthLine, Seen, Timeline, YearLine};
 
 /// Results returned when no limit is given.

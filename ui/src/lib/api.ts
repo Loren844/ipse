@@ -17,6 +17,9 @@ export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
 export type { AppView } from './types/AppView.ts';
 import type { AisView } from './types/AisView.ts';
+import type { MapView } from './types/MapView.ts';
+export type { MapView };
+export type { MapPlaceView } from './types/MapPlaceView.ts';
 import type { TimelineView } from './types/TimelineView.ts';
 export type { TimelineView };
 export type { YearView } from './types/YearView.ts';
@@ -147,6 +150,7 @@ export const api = {
 	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
+	map: () => get<MapView>('/api/map'),
 	timeline: () => get<TimelineView>('/api/timeline'),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,

@@ -399,6 +399,29 @@ impl Access<'_> {
         })
     }
 
+    /// The places linked from the events this client may read (issue #135), the most
+    /// visited first, with the readable people seen there most.
+    #[must_use]
+    pub fn places_visited(&self) -> Vec<crate::search::Visited<'_>> {
+        let index = &self.gateway.index;
+        index.places_visited(
+            |c| self.reads(c.as_str()),
+            |stem| {
+                index
+                    .linked(stem, |c| self.reads(c.as_str()))
+                    .is_some_and(|l| l.path.starts_with("people"))
+            },
+        )
+    }
+
+    /// The places this client may read, with their files: for the map.
+    #[must_use]
+    pub fn places(&self) -> Vec<crate::search::Listed<'_>> {
+        self.gateway
+            .index
+            .entities(FileType::Place, |c| self.reads(c.as_str()))
+    }
+
     /// The timeline of what this client may read (issue #133): per year and month,
     /// counts, the people seen most among the readable people, trips and celebrations.
     #[must_use]

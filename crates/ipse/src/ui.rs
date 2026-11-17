@@ -37,6 +37,7 @@ mod api;
 mod edit;
 mod graph;
 mod history;
+mod map;
 mod memory;
 mod questions;
 mod review;
@@ -51,6 +52,9 @@ mod assets {
 
 type Body = BoxBody<Bytes, Infallible>;
 
+/// Where the map's tiles come from, once the person accepted them (issue #135, the
+/// threat model): only images, only from there.
+const MAP_TILES: &str = "https://tile.openstreetmap.org";
 /// Where the Sources screen sends a file to import.
 const UPLOAD: &str = "/api/sources/import";
 
@@ -474,6 +478,7 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         }
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
+        "map" => map::view(gateway).map(|v| Some(to_json(&v))),
         "timeline" => timeline::view(gateway).map(|v| Some(to_json(&v))),
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
@@ -699,7 +704,7 @@ fn empty_body() -> Body {
 /// and that it may not be framed or sniffed.
 fn secured(mut response: Response<Body>) -> Response<Body> {
     let policy = format!(
-        "default-src 'self'; script-src {}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; \
+        "default-src 'self'; script-src {}; style-src 'self' 'unsafe-inline'; img-src 'self' data: {MAP_TILES}; \
          font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; \
          form-action 'self'; frame-ancestors 'none'",
         assets::SCRIPT_SRC

@@ -22,7 +22,7 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveURL(`${ipse.origin}/`);
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
-	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Graphe', 'Agenda', 'Frise', 'Résumés', 'À revoir', 'IA connectées', 'Sources', 'Historique', 'Réglages']);
+	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Graphe', 'Agenda', 'Frise', 'Carte', 'Résumés', 'À revoir', 'IA connectées', 'Sources', 'Historique', 'Réglages']);
 	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
 	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
@@ -47,6 +47,7 @@ test('the sections and the language switch', async ({ page }) => {
 		'Graph',
 		'Agenda',
 		'Timeline',
+		'Map',
 		'Summaries',
 		'To review',
 		'Connected AIs',
