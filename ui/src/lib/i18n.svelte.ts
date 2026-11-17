@@ -71,6 +71,80 @@ const words = {
 		noEventsHere: 'Aucun événement ne renvoie ici.',
 		thisBrowser: 'Dans ce navigateur',
 		thisBrowserHint: 'Ces choix restent sur cet ordinateur, dans ce navigateur.',
+		sourcesNav: 'Sources',
+		sourcesLead: 'Ce qui alimente votre mémoire : les fichiers que vous importez, et les agendas qu’Ipse suit pour vous.',
+		importTitle: 'Importer un fichier',
+		importHint: 'Contacts (.vcf), agenda (.ics) ou historique des positions (Timeline.json). Ipse lit le fichier et n’en garde pas de copie.',
+		dropHere: 'Déposez un fichier ici, ou',
+		chooseFile: 'choisissez-le',
+		importing: (name: string) => `Import de ${name}…`,
+		howToExport: 'Comment obtenir ces fichiers',
+		exportSteps: [
+			{
+				title: 'Contacts',
+				lines: [
+					'Google Contacts : Exporter, puis vCard.',
+					'iPhone et Mac : dans Contacts, sélectionnez tout, puis Fichier → Exporter → Exporter la vCard.'
+				]
+			},
+			{
+				title: 'Agenda',
+				lines: [
+					'Google Agenda : Paramètres → Importer et exporter → Exporter, puis décompressez le fichier reçu.',
+					'Mac : dans Calendrier, Fichier → Exporter → Exporter.'
+				]
+			},
+			{
+				title: 'Historique des positions',
+				lines: [
+					'Android : Paramètres → Position → Services de localisation → Vos trajets → Exporter les données.',
+					'iPhone : Google Maps → votre photo → Vos trajets → ⋯ → Paramètres de localisation → Exporter.'
+				]
+			}
+		],
+		followTitle: 'Suivre un agenda par son lien',
+		followHint: 'Le lien secret, au format iCal, d’un agenda Google, iCloud ou Outlook. Ipse le garde dans le trousseau de votre système, jamais dans vos fichiers, et ne l’affiche plus.',
+		calendarName: 'Nom de l’agenda',
+		calendarLink: 'Lien secret (iCal)',
+		followGo: 'Suivre cet agenda',
+		following: 'Vérification de l’agenda…',
+		yourSources: 'Vos sources',
+		noSources: 'Rien encore. Importez un fichier ou suivez un agenda pour commencer.',
+		sourceKinds: {
+			contacts: 'Contacts',
+			calendar: 'Agenda',
+			'google-timeline': 'Historique des positions'
+		} as Record<string, string>,
+		followedEvery: (minutes: number) =>
+			minutes % 60 === 0
+				? plural(minutes / 60, 'Suivi, toutes les heures', 'Suivi, toutes les # heures')
+				: `Suivi, toutes les ${minutes} minutes`,
+		importedFiles: (n: number) => plural(n, 'Importé une fois', 'Importé # fois'),
+		lastImport: (when: string) => `dernier import ${when}`,
+		lastSync: (when: string) => `dernière synchro ${when}`,
+		neverSynced: 'pas encore synchronisé',
+		failingSince: (n: number) => plural(n, 'La dernière synchro a échoué.', 'Les # dernières synchros ont échoué.'),
+		syncNow: 'Synchroniser',
+		syncing: 'Synchronisation…',
+		unfollow: 'Ne plus suivre',
+		unfollowTitle: (name: string) => `Ne plus suivre « ${name} » ?`,
+		unfollowBody: 'Ipse ne le synchronisera plus et oubliera son lien. Ses événements restent dans votre mémoire.',
+		keepFollowing: 'Continuer à le suivre',
+		sourceOutcomes: {
+			imported: 'Fichier importé.',
+			not_supported:
+				'Ipse ne sait pas encore lire ce type de fichier : il lit les contacts (.vcf), les agendas (.ics) et l’historique des positions (Timeline.json).',
+			bad_file: 'Ce fichier n’a pas pu être lu. Vérifiez que c’est bien l’export de l’application, sans modification.',
+			bad_link: 'Ce lien ne peut pas être suivi : il faut une adresse https:// vers un agenda au format iCal.',
+			failed: 'L’agenda n’a pas pu être lu.',
+			keychain:
+				'Ipse n’a pas pu utiliser le trousseau de votre système pour garder le lien. Sur Linux, un trousseau comme GNOME Keyring doit être installé et déverrouillé.',
+			synced: 'Synchronisé.'
+		} as Record<string, string>,
+		alreadyFollowed: (name: string) => `Cet agenda est déjà suivi, sous le nom « ${name} ».`,
+		followedNow: (name: string) => `« ${name} » est suivi.`,
+		keptNow: (name: string) => `« ${name} » est suivi, mais l’agenda n’a pas pu être joint pour l’instant : Ipse réessaiera.`,
+		unfollowedNow: (name: string) => `« ${name} » n’est plus suivi. Ses événements restent dans votre mémoire.`,
 		thisApp: 'Affichage',
 		thisAppHint: 'Ces choix restent sur cet ordinateur.',
 		theme: 'Thème',
@@ -605,6 +679,74 @@ const words = {
 		noEventsHere: 'No event links here.',
 		thisBrowser: 'In this browser',
 		thisBrowserHint: 'These choices stay on this computer, in this browser.',
+		sourcesNav: 'Sources',
+		sourcesLead: 'What feeds your memory: the files you import, and the calendars Ipse follows for you.',
+		importTitle: 'Import a file',
+		importHint: 'Contacts (.vcf), a calendar (.ics) or your location history (Timeline.json). Ipse reads the file and keeps no copy of it.',
+		dropHere: 'Drop a file here, or',
+		chooseFile: 'choose it',
+		importing: (name: string) => `Importing ${name}…`,
+		howToExport: 'How to get these files',
+		exportSteps: [
+			{
+				title: 'Contacts',
+				lines: ['Google Contacts: Export, then vCard.', 'iPhone and Mac: in Contacts, select all, then File → Export → Export vCard.']
+			},
+			{
+				title: 'Calendar',
+				lines: [
+					'Google Calendar: Settings → Import & export → Export, then unzip the file you get.',
+					'Mac: in Calendar, File → Export → Export.'
+				]
+			},
+			{
+				title: 'Location history',
+				lines: [
+					'Android: Settings → Location → Location services → Timeline → Export Timeline data.',
+					'iPhone: Google Maps → your picture → Your Timeline → ⋯ → Location and privacy settings → Export.'
+				]
+			}
+		],
+		followTitle: 'Follow a calendar by its link',
+		followHint: 'The secret link, in iCal format, of a Google, iCloud or Outlook calendar. Ipse keeps it in your system’s keychain, never in your files, and does not show it again.',
+		calendarName: 'Calendar name',
+		calendarLink: 'Secret link (iCal)',
+		followGo: 'Follow this calendar',
+		following: 'Checking the calendar…',
+		yourSources: 'Your sources',
+		noSources: 'Nothing yet. Import a file or follow a calendar to start.',
+		sourceKinds: {
+			contacts: 'Contacts',
+			calendar: 'Calendar',
+			'google-timeline': 'Location history'
+		} as Record<string, string>,
+		followedEvery: (minutes: number) =>
+			minutes % 60 === 0 ? plural(minutes / 60, 'Followed, every hour', 'Followed, every # hours') : `Followed, every ${minutes} minutes`,
+		importedFiles: (n: number) => plural(n, 'Imported once', 'Imported # times'),
+		lastImport: (when: string) => `last import ${when}`,
+		lastSync: (when: string) => `last sync ${when}`,
+		neverSynced: 'not synced yet',
+		failingSince: (n: number) => plural(n, 'The last sync failed.', 'The last # syncs failed.'),
+		syncNow: 'Sync now',
+		syncing: 'Syncing…',
+		unfollow: 'Stop following',
+		unfollowTitle: (name: string) => `Stop following “${name}”?`,
+		unfollowBody: 'Ipse will no longer sync it and forgets its link. Its events stay in your memory.',
+		keepFollowing: 'Keep following',
+		sourceOutcomes: {
+			imported: 'File imported.',
+			not_supported: 'Ipse cannot read this kind of file yet: it reads contacts (.vcf), calendars (.ics) and location history (Timeline.json).',
+			bad_file: 'This file could not be read. Check that it is the app’s export, unchanged.',
+			bad_link: 'This link cannot be followed: it takes an https:// address of a calendar in iCal format.',
+			failed: 'The calendar could not be read.',
+			keychain:
+				'Ipse could not use your system’s keychain to keep the link. On Linux, a keyring such as GNOME Keyring must be installed and unlocked.',
+			synced: 'Synced.'
+		} as Record<string, string>,
+		alreadyFollowed: (name: string) => `This calendar is already followed, as “${name}”.`,
+		followedNow: (name: string) => `“${name}” is followed.`,
+		keptNow: (name: string) => `“${name}” is followed, but the calendar could not be reached for now: Ipse will try again.`,
+		unfollowedNow: (name: string) => `“${name}” is no longer followed. Its events stay in your memory.`,
 		thisApp: 'Display',
 		thisAppHint: 'These choices stay on this computer.',
 		theme: 'Theme',

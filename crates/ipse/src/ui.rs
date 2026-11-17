@@ -41,6 +41,7 @@ mod memory;
 mod questions;
 mod review;
 mod settings;
+mod sources;
 mod summaries;
 
 mod assets {
@@ -48,6 +49,12 @@ mod assets {
 }
 
 type Body = BoxBody<Bytes, Infallible>;
+
+/// Where the Sources screen sends a file to import.
+const UPLOAD: &str = "/api/sources/import";
+
+/// The largest file imported from the interface: years of location history.
+const MAX_UPLOAD: u64 = 2 * 1024 * 1024 * 1024;
 
 /// The largest request body read.
 const MAX_BODY: usize = 64 * 1024;
@@ -156,8 +163,14 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
                     let state = Arc::clone(&state);
                     async move {
                         let (parts, body) = request.into_parts();
-                        // A body is read whole, up to a size no form of the interface
-                        // comes near.
+                        // A file to import is written to disk as it arrives.
+                        if parts.method == Method::POST && parts.uri.path() == UPLOAD {
+                            return Ok::<_, Infallible>(secured(
+                                upload(&parts, body, &state).await,
+                            ));
+                        }
+                        // Any other body is read whole, up to a size no form of the
+                        // interface comes near.
                         let answer = match Limited::new(body, MAX_BODY).collect().await {
                             Ok(body) => {
                                 answer(&Request::from_parts(parts, body.to_bytes()), &state)
@@ -250,6 +263,64 @@ fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
     }
     asset(path)
+}
+
+/// A file to import from the Sources screen: the same checks as any request, then
+/// the body is written as it arrives to the system's temporary folder, imported, and
+/// removed. The file's name comes in the query (`?name=contacts.vcf`): its extension
+/// says what it holds.
+async fn upload(
+    parts: &hyper::http::request::Parts,
+    mut body: Incoming,
+    state: &State,
+) -> Response<Body> {
+    let headers = &parts.headers;
+    if !host_is_here(headers, state.port) {
+        return refused(StatusCode::MISDIRECTED_REQUEST);
+    }
+    if !from_the_interface(&parts.method, headers, state.port) {
+        return refused(StatusCode::FORBIDDEN);
+    }
+    if !has_session(headers, state) {
+        return json_error(StatusCode::UNAUTHORIZED, "This session has ended.");
+    }
+    let name = parameter(parts.uri.query().unwrap_or_default(), "name").unwrap_or_default();
+    let Ok(random) = random() else {
+        return refused(StatusCode::INTERNAL_SERVER_ERROR);
+    };
+    let path = sources::upload_path(&random[..16], &name);
+    let written = async {
+        let mut file = tokio::fs::File::create(&path).await?;
+        let mut size: u64 = 0;
+        while let Some(frame) = body.frame().await {
+            let frame = frame.map_err(std::io::Error::other)?;
+            if let Ok(data) = frame.into_data() {
+                size += data.len() as u64;
+                if size > MAX_UPLOAD {
+                    return Err(std::io::Error::other("too large"));
+                }
+                tokio::io::AsyncWriteExt::write_all(&mut file, &data).await?;
+            }
+        }
+        tokio::io::AsyncWriteExt::flush(&mut file).await
+    }
+    .await;
+    if written.is_err() {
+        let _ = std::fs::remove_file(&path);
+        return refused(StatusCode::PAYLOAD_TOO_LARGE);
+    }
+    let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
+    match sources::import(&mut gateway, &path, &name) {
+        Ok(change) => json(StatusCode::OK, &change),
+        Err(error) => {
+            // The details name files of the vault: they stay in this terminal.
+            eprintln!("{error}");
+            json_error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Ipse could not read or write the memory folder. The terminal says why.",
+            )
+        }
+    }
 }
 
 /// `Host` is this computer, at this port.
@@ -364,6 +435,8 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
         review::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "settings" {
         settings::change(gateway, body).map(|v| Some(to_json(&v)))
+    } else if let Some(action) = path.strip_prefix("sources/") {
+        sources::change(gateway, action, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "files" || path.starts_with("file/") {
         edit::change(gateway, path, body)
     } else if path.starts_with("questions/") {
@@ -400,6 +473,7 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         }
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
+        "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
         "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
         "graph" => graph::view(
@@ -467,7 +541,8 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path.starts_with("questions/")
             || path == "files"
             || path.starts_with("file/")
-            || path == "settings")
+            || path == "settings"
+            || path.starts_with("sources/"))
     {
         let json = request
             .headers()
