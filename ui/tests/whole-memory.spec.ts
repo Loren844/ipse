@@ -60,6 +60,28 @@ test('search the whole memory from any screen', async ({ page }) => {
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Escalade');
 });
 
+test('the memory screen has its own search box, which a rail search fills', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.goto(`${ipse.origin}/memory`);
+	const box = page.getByRole('main').getByRole('searchbox', { name: 'Chercher dans la mémoire' });
+	const found = page.getByTestId('found');
+	await box.pressSequentially('yoga', { delay: 40 });
+	await expect(box).toHaveValue('yoga');
+	await expect(found.getByRole('link').first()).toContainText('Yoga');
+	await expect(page).toHaveURL(`${ipse.origin}/memory?q=yoga`);
+
+	// A search from the rail lands here; the box can then be changed.
+	await page.getByRole('banner').getByRole('searchbox', { name: 'Chercher dans la mémoire' }).fill('escalade');
+	await page.keyboard.press('Enter');
+	await expect(box).toHaveValue('escalade');
+	await expect(found.getByRole('link').first()).toContainText('Club d’escalade Vertige');
+	await box.fill('');
+	await box.pressSequentially('lotus', { delay: 40 });
+	await expect(box).toHaveValue('lotus');
+	await expect(found.getByRole('link').first()).toContainText('Studio Lotus');
+	await expect(page).toHaveURL(`${ipse.origin}/memory?q=lotus`);
+});
+
 test('a kind with nothing yet says how it arrives', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.goto(`${ipse.origin}/memory/things`);

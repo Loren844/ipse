@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
 	import { api, type MemoryView, type SearchView } from '#lib/api.ts';
@@ -14,6 +14,9 @@
 	const found = new Loader<SearchView>();
 	let query = $state(page.url.searchParams.get('q') ?? '');
 	let timer: ReturnType<typeof setTimeout> | undefined;
+	// The query this page last wrote in the address, to tell it from one the rail's
+	// search box wrote.
+	let written = (page.url.searchParams.get('q') ?? '').trim();
 	const today = dayOf(new Date().toISOString());
 
 	function search() {
@@ -22,6 +25,7 @@
 		const url = new URL(page.url.href);
 		if (q) url.searchParams.set('q', q);
 		else url.searchParams.delete('q');
+		written = q;
 		replaceState(url, {});
 	}
 
@@ -35,13 +39,16 @@
 		search();
 	});
 
-	// The rail's search box changes the address: follow it.
+	// The rail's search box changes the address: follow it. Only the address is
+	// watched, never what the person types here (which the address follows later).
 	$effect(() => {
 		const q = page.url.searchParams.get('q') ?? '';
-		if (q !== query.trim()) {
-			query = q;
-			search();
-		}
+		untrack(() => {
+			if (q !== written) {
+				query = q;
+				search();
+			}
+		});
 	});
 
 	const ready = $derived(memory.state.kind === 'ready' ? memory.state.value : null);
