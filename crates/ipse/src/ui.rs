@@ -65,24 +65,47 @@ struct State {
     gateway: Mutex<Gateway>,
     keys: Mutex<Keys>,
     port: u16,
+    /// Serving the desktop app's window rather than a browser.
+    app: bool,
+}
+
+/// How `ipse ui` hands the interface over.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Start {
+    /// Opens the browser on the interface.
+    Browser,
+    /// Prints the one-time address for the person to open.
+    Print,
+    /// Started by the desktop app: prints the one-time address alone on one line, for
+    /// the app to open in its window, and stops when the app closes this command's
+    /// input (the app quit or crashed), so that the server never outlives it.
+    App,
 }
 
 /// Serves the interface of the memory in `vault` (the current folder by default) and
-/// opens the browser on it, unless `open` is false: then it prints the address.
+/// hands it over as `start` says.
 ///
 /// # Errors
 ///
 /// Errors of [`Gateway::open`]; [`Error::Io`] when no port can be listened on.
-pub(crate) fn run(vault: Option<PathBuf>, open: bool) -> Result<()> {
+pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
     let gateway = Gateway::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
+    let preferred = if start == Start::App {
+        app_port(gateway.vault().root())
+    } else {
+        0
+    };
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?;
     runtime.block_on(async move {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
-        let listener = tokio::net::TcpListener::bind(address)
-            .await
+        let listener =
+            match tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, preferred)).await {
+                Ok(listener) => Ok(listener),
+                Err(_) => tokio::net::TcpListener::bind(address).await,
+            }
             .map_err(|source| Error::Io {
                 action: "listen on",
                 path: PathBuf::from(address.to_string()),
@@ -100,21 +123,28 @@ pub(crate) fn run(vault: Option<PathBuf>, open: bool) -> Result<()> {
                 sessions: Vec::new(),
             }),
             port,
+            app: start == Start::App,
         });
         let login = format!("http://127.0.0.1:{port}/login?code={code}");
-        let said = if open && open_browser(&login) {
-            format!("Ipse is open in your browser, at http://127.0.0.1:{port}/.")
-        } else {
-            format!("Open this address in your browser (it works once): {login}")
-        };
         // Written without panicking: the terminal may be gone while the server runs on.
         let mut out = std::io::stdout();
-        let _ = writeln!(out, "{said}");
-        let _ = writeln!(
-            out,
-            "Keep this window open while you use Ipse; Ctrl+C closes it."
-        );
-        let _ = out.flush();
+        if start == Start::App {
+            let _ = writeln!(out, "{login}");
+            let _ = out.flush();
+            stop_with_the_app();
+        } else {
+            let said = if start == Start::Browser && open_browser(&login) {
+                format!("Ipse is open in your browser, at http://127.0.0.1:{port}/.")
+            } else {
+                format!("Open this address in your browser (it works once): {login}")
+            };
+            let _ = writeln!(out, "{said}");
+            let _ = writeln!(
+                out,
+                "Keep this window open while you use Ipse; Ctrl+C closes it."
+            );
+            let _ = out.flush();
+        }
 
         loop {
             let Ok((stream, _)) = listener.accept().await else {
@@ -143,6 +173,26 @@ pub(crate) fn run(vault: Option<PathBuf>, open: bool) -> Result<()> {
             });
         }
     })
+}
+
+/// The port the desktop app's server tries first for the memory in `root`: always the
+/// same one for a memory, so that what the window keeps for a site (the theme, the
+/// interface's language) is still there at the next start. Another is used when it is
+/// taken.
+fn app_port(root: &std::path::Path) -> u16 {
+    let hash = blake3::hash(root.as_os_str().as_encoded_bytes());
+    let [a, b, ..] = *hash.as_bytes();
+    // The dynamic range, 49152 to 65535.
+    49152 + u16::from_le_bytes([a, b]) % 16384
+}
+
+/// Ends the process once its input reaches its end: the desktop app holds that input
+/// open while it runs, and the system closes it when the app quits or crashes.
+fn stop_with_the_app() {
+    std::thread::spawn(|| {
+        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+        std::process::exit(0);
+    });
 }
 
 /// 32 random bytes, in hex.
@@ -190,7 +240,7 @@ fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
         return if path.starts_with("/api/") {
             json_error(StatusCode::UNAUTHORIZED, "This session has ended.")
         } else {
-            closed_page()
+            closed_page(state.app)
         };
     }
     if let Some(api) = path.strip_prefix("/api/") {
@@ -247,17 +297,34 @@ fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
         .code
         .is_some_and(|expected| !code.is_empty() && blake3::hash(code.as_bytes()) == expected);
     if !valid {
-        return closed_page();
+        return closed_page(state.app);
     }
     let Ok(session) = random() else {
         return refused(StatusCode::INTERNAL_SERVER_ERROR);
     };
     keys.code = None;
     keys.sessions.push(blake3::hash(session.as_bytes()));
-    let mut response = Response::new(empty_body());
-    *response.status_mut() = StatusCode::SEE_OTHER;
+    let mut response = if state.app {
+        // The app's window comes here from the app's own page, another site for the
+        // webview, which would then hold back a `SameSite=Strict` cookie on a redirect.
+        // The page goes on to the interface itself, from this site.
+        const PAGE: &str = "<!doctype html><html><head><meta charset=\"utf-8\">\
+<meta http-equiv=\"refresh\" content=\"0;url=/\"><title>Ipse</title></head><body></body></html>";
+        let mut response = Response::new(Full::new(Bytes::from_static(PAGE.as_bytes())).boxed());
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/html; charset=utf-8"),
+        );
+        response
+    } else {
+        let mut response = Response::new(empty_body());
+        *response.status_mut() = StatusCode::SEE_OTHER;
+        response
+            .headers_mut()
+            .insert(header::LOCATION, HeaderValue::from_static("/"));
+        response
+    };
     let headers = response.headers_mut();
-    headers.insert(header::LOCATION, HeaderValue::from_static("/"));
     if let Ok(cookie) = HeaderValue::from_str(&format!(
         "{}={session}; HttpOnly; SameSite=Strict; Path=/",
         cookie_name(state.port)
@@ -502,12 +569,17 @@ fn asset(path: &str) -> Response<Body> {
 }
 
 /// The page shown without a session: how to open Ipse, in both languages.
-fn closed_page() -> Response<Body> {
+fn closed_page(app: bool) -> Response<Body> {
     const PAGE: &str = "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">\
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Ipse</title></head>\
 <body><main><h1>Ipse</h1><p>Pour ouvrir votre mémoire, lancez <code>ipse ui</code> sur cet ordinateur.</p>\
 <p lang=\"en\">To open your memory, run <code>ipse ui</code> on this computer.</p></main></body></html>";
-    let mut response = Response::new(Full::new(Bytes::from_static(PAGE.as_bytes())).boxed());
+    const IN_THE_APP: &str = "<!doctype html><html lang=\"fr\"><head><meta charset=\"utf-8\">\
+<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Ipse</title></head>\
+<body><main><h1>Ipse</h1><p>Cette session est terminée : quittez Ipse et rouvrez-le.</p>\
+<p lang=\"en\">This session has ended: quit Ipse and open it again.</p></main></body></html>";
+    let page = if app { IN_THE_APP } else { PAGE };
+    let mut response = Response::new(Full::new(Bytes::from_static(page.as_bytes())).boxed());
     *response.status_mut() = StatusCode::FORBIDDEN;
     response.headers_mut().insert(
         header::CONTENT_TYPE,

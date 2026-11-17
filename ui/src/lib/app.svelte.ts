@@ -32,3 +32,12 @@ class App {
 }
 
 export const app = new App();
+
+/** Whether the interface runs in the desktop app's window rather than in a browser. */
+export const inApp = typeof window !== 'undefined' && window.ipseApp !== undefined;
+
+/** Addresses the desktop app answers itself, in its window. */
+export const appLinks = {
+	/** Back to the app's first screen, to open or create another memory. */
+	switchMemory: '/app/switch'
+};
