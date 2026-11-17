@@ -12,6 +12,7 @@ Everyone follows the [code of conduct](CODE_OF_CONDUCT.md). Read [`AGENTS.md`](A
 | `crates/ipse-core` | The core library: vault, journal, index, rights. |
 | `crates/ipse-protocol` | Messages of the connector protocol, shared by the core and connectors. |
 | `ui` | The interface (Svelte), served by `ipse ui`; its build is embedded in the binary. |
+| `app` | The desktop app (Tauri), its own Cargo workspace: a window that runs the `ipse` command it ships with. |
 | `docs/guide` | How to use Ipse, starting with [Getting started](docs/guide/getting-started.md). |
 | `docs/spec` | The specification: vault, journal, connectors, rights. |
 | `docs/decisions` | Architecture decisions, one dated file each. |
@@ -37,6 +38,23 @@ npm run check    # types
 npm run build    # rebuild ui/build, then commit it
 npx playwright test
 ```
+
+### The desktop app
+
+The app in `app/` is its own Cargo workspace, so that Tauri and the system libraries it needs stay out of the core's builds. It runs the `ipse` command for everything (`ipse ui --app` for the window, `ipse init` from its first screen): build that first.
+
+- **Linux** needs WebKitGTK and a few libraries: `sudo apt install libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev`.
+- **macOS** needs the Xcode command line tools; **Windows** needs WebView2, already there on Windows 10 and 11.
+
+```sh
+cargo build -p ipse      # the command the app runs, from the repository's root
+cd app
+cargo run                # opens the app; a development build finds ../target/debug/ipse
+cargo clippy --all-targets -- -D warnings
+cargo test
+```
+
+The app looks for `ipse` next to its own program first (where the installers put it), then in `IPSE_BIN`. Its first screen is plain HTML in `app/welcome/`; the memory's interface is `ui/`, as in the browser.
 
 ## Releasing
 

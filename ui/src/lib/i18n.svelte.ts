@@ -71,6 +71,8 @@ const words = {
 		noEventsHere: 'Aucun événement ne renvoie ici.',
 		thisBrowser: 'Dans ce navigateur',
 		thisBrowserHint: 'Ces choix restent sur cet ordinateur, dans ce navigateur.',
+		thisApp: 'Affichage',
+		thisAppHint: 'Ces choix restent sur cet ordinateur.',
 		theme: 'Thème',
 		themes: { system: 'Comme le système', light: 'Clair', dark: 'Sombre' } as Record<'system' | 'light' | 'dark', string>,
 		interfaceLanguage: 'Langue de l’interface',
@@ -443,6 +445,7 @@ const words = {
 		loading: 'Ouverture de votre mémoire…',
 		ended: 'Cette session est terminée.',
 		endedHint: 'Pour rouvrir Ipse, lancez « ipse ui » sur cet ordinateur.',
+		endedHintApp: 'Fermez Ipse et rouvrez-le.',
 		editFile: 'Modifier',
 		editTitle: (name: string) => `Modifier « ${name} »`,
 		addKind: {
@@ -546,7 +549,10 @@ const words = {
 		installRefused: 'Le fichier de configuration de cette application n’est pas lisible par Ipse : il n’a pas été modifié. Corrigez-le dans l’application, ou copiez la configuration à la main.',
 		gotIt: 'C’est noté',
 		failed: 'Ipse ne répond pas.',
-		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.'
+		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.',
+		failedHintApp: 'Ipse ne répond plus : quittez-le et rouvrez-le.',
+		otherMemory: 'Une autre mémoire',
+		switchMemory: 'Ouvrir ou créer une autre mémoire'
 	},
 	en: {
 		appName: 'Ipse',
@@ -611,6 +617,8 @@ const words = {
 		noEventsHere: 'No event links here.',
 		thisBrowser: 'In this browser',
 		thisBrowserHint: 'These choices stay on this computer, in this browser.',
+		thisApp: 'Display',
+		thisAppHint: 'These choices stay on this computer.',
 		theme: 'Theme',
 		themes: { system: 'Same as the system', light: 'Light', dark: 'Dark' } as Record<'system' | 'light' | 'dark', string>,
 		interfaceLanguage: 'Language of the interface',
@@ -983,6 +991,7 @@ const words = {
 		loading: 'Opening your memory…',
 		ended: 'This session has ended.',
 		endedHint: 'To open Ipse again, run “ipse ui” on this computer.',
+		endedHintApp: 'Quit Ipse and open it again.',
 		editFile: 'Edit',
 		editTitle: (name: string) => `Edit “${name}”`,
 		addKind: {
@@ -1086,7 +1095,10 @@ const words = {
 		installRefused: 'Ipse cannot read this app’s configuration file: it was not changed. Fix it in the app, or copy the configuration by hand.',
 		gotIt: 'Got it',
 		failed: 'Ipse is not answering.',
-		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.'
+		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.',
+		failedHintApp: 'Ipse is not answering: quit it and open it again.',
+		otherMemory: 'Another memory',
+		switchMemory: 'Open or create another memory'
 	}
 };
 

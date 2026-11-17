@@ -38,6 +38,10 @@ tempfile = { workspace = true }
 tokio = { workspace = true, features = ["macros", "process"] }
 
 [[bench]]
+name = "app_start"
+harness = false
+
+[[bench]]
 name = "calendar"
 harness = false
 

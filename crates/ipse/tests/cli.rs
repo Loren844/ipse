@@ -956,3 +956,69 @@ fn import_a_location_history_from_either_phone() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+/// `ipse ui --app`: one line, the one-time address; stops when its input closes.
+fn ui_for_the_app(vault: &str) -> (std::process::Child, String) {
+    use std::io::BufRead as _;
+    let mut child = Command::new(env!("CARGO_BIN_EXE_ipse"))
+        .args(["ui", "--app", "--vault", vault])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let mut line = String::new();
+    std::io::BufReader::new(child.stdout.take().unwrap())
+        .read_line(&mut line)
+        .unwrap();
+    (child, line.trim().to_owned())
+}
+
+/// Waits up to 10 s for `child` to stop by itself.
+fn stops_by_itself(child: &mut std::process::Child) -> bool {
+    for _ in 0..100 {
+        if child.try_wait().unwrap().is_some() {
+            return true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    let _ = child.kill();
+    false
+}
+
+#[test]
+fn ui_for_the_app_prints_its_address_and_stops_with_the_app() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().to_str().unwrap();
+    assert!(
+        ipse(&[
+            "init",
+            vault,
+            "--name",
+            "Inès Roux",
+            "--language",
+            "fr",
+            "--time-zone",
+            "Europe/Paris"
+        ])
+        .status
+        .success()
+    );
+    let (mut child, address) = ui_for_the_app(vault);
+    assert!(
+        address.starts_with("http://127.0.0.1:") && address.contains("/login?code="),
+        "{address}"
+    );
+    // The app quits: its end of the pipe closes, and the server stops.
+    drop(child.stdin.take());
+    assert!(
+        stops_by_itself(&mut child),
+        "ipse ui --app outlived the app"
+    );
+
+    // The same memory gets the same port again, so that the window keeps its choices.
+    let (mut again, second) = ui_for_the_app(vault);
+    let port = |a: &str| a.split('/').nth(2).map(str::to_owned);
+    assert_eq!(port(&address), port(&second));
+    drop(again.stdin.take());
+    assert!(stops_by_itself(&mut again));
+}
