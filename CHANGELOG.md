@@ -2,7 +2,9 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.2.0 - 2026-11-17
+
+Ipse as a desktop app: a window of its own, installed from a file, without a terminal or a browser. It brings the first part of milestone 3 (the app, its installers, the agenda as a calendar, the timeline and the map) and the end of the launch readiness stage (location history, an AI connected in one command). The memory's format does not change: a 0.1.0 memory opens as it is.
 
 ### Added
 
