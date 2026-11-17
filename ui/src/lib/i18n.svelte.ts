@@ -160,6 +160,7 @@ const words = {
 		sources: {
 			contacts: 'vos contacts',
 			calendar: 'votre agenda',
+			'google-timeline': 'votre historique des positions',
 			proposal: 'une proposition acceptée',
 			person: 'vous'
 		} as Record<string, string>,
@@ -345,6 +346,7 @@ const words = {
 		summaries: {
 			'Import contacts': 'Import de contacts',
 			'Import calendar': 'Import d’agenda',
+			'Import location history': 'Import de l’historique des positions',
 			'Accept a proposal': 'Proposition acceptée',
 			'Undo a proposal': 'Proposition annulée',
 			'Undo a change': 'Changement annulé',
@@ -508,6 +510,7 @@ const words = {
 		moreSections: 'Autres sections',
 		closePanel: 'Fermer',
 		youAreIn: (name: string) => `Vous êtes dans : ${name}`,
+		placesTogether: 'Où vous vous voyez',
 		failed: 'Ipse ne répond pas.',
 		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.'
 	},
@@ -663,6 +666,7 @@ const words = {
 		sources: {
 			contacts: 'your contacts',
 			calendar: 'your calendar',
+			'google-timeline': 'your location history',
 			proposal: 'an accepted proposal',
 			person: 'you'
 		} as Record<string, string>,
@@ -848,6 +852,7 @@ const words = {
 		summaries: {
 			'Import contacts': 'Contacts import',
 			'Import calendar': 'Calendar import',
+			'Import location history': 'Location history import',
 			'Accept a proposal': 'Proposal accepted',
 			'Undo a proposal': 'Proposal undone',
 			'Undo a change': 'Change undone',
@@ -1011,6 +1016,7 @@ const words = {
 		moreSections: 'Other sections',
 		closePanel: 'Close',
 		youAreIn: (name: string) => `You are in: ${name}`,
+		placesTogether: 'Where you meet',
 		failed: 'Ipse is not answering.',
 		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.'
 	}

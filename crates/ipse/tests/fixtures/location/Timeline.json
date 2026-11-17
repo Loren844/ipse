@@ -1,0 +1,111 @@
+{
+  "semanticSegments": [
+    {
+      "startTime": "2026-03-06T19:55:00.000+01:00",
+      "endTime": "2026-03-06T23:10:00.000+01:00",
+      "startTimeTimezoneUtcOffsetMinutes": 60,
+      "endTimeTimezoneUtcOffsetMinutes": 60,
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.91,
+        "topCandidate": {
+          "placeId": "ChIJinventedJulie",
+          "semanticType": "UNKNOWN",
+          "probability": 0.87,
+          "placeLocation": { "latLng": "48.8641°, 2.3790°" }
+        }
+      }
+    },
+    {
+      "startTime": "2026-03-06T23:10:00.000+01:00",
+      "endTime": "2026-03-06T23:40:00.000+01:00",
+      "timelinePath": [
+        { "point": "48.8635°, 2.3810°", "time": "2026-03-06T23:15:00.000+01:00" },
+        { "point": "48.8620°, 2.3850°", "time": "2026-03-06T23:25:00.000+01:00" }
+      ]
+    },
+    {
+      "startTime": "2026-03-06T23:40:00.000+01:00",
+      "endTime": "2026-03-07T09:30:00.000+01:00",
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.98,
+        "topCandidate": {
+          "placeId": "ChIJinventedHome",
+          "semanticType": "INFERRED_HOME",
+          "probability": 0.95,
+          "placeLocation": { "latLng": "48.8600°, 2.3900°" }
+        }
+      }
+    },
+    {
+      "startTime": "2026-03-07T11:00:00.000+01:00",
+      "endTime": "2026-03-07T12:30:00.000+01:00",
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.8,
+        "topCandidate": {
+          "placeId": "ChIJinventedMarket",
+          "semanticType": "UNKNOWN",
+          "probability": 0.7,
+          "placeLocation": { "latLng": "48.8530°, 2.3700°" }
+        }
+      }
+    },
+    {
+      "startTime": "2026-03-07T15:00:00.000+01:00",
+      "endTime": "2026-03-07T16:30:00.000+01:00",
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.85,
+        "topCandidate": {
+          "placeId": "ChIJinventedPark",
+          "semanticType": "UNKNOWN",
+          "probability": 0.8,
+          "placeLocation": { "latLng": "48.8462°, 2.3372°" }
+        }
+      }
+    },
+    {
+      "startTime": "2026-03-14T11:05:00.000+01:00",
+      "endTime": "2026-03-14T12:10:00.000+01:00",
+      "visit": {
+        "hierarchyLevel": 0,
+        "probability": 0.82,
+        "topCandidate": {
+          "placeId": "ChIJinventedMarket",
+          "semanticType": "UNKNOWN",
+          "probability": 0.75,
+          "placeLocation": { "latLng": "48.8530°, 2.3700°" }
+        }
+      }
+    }
+  ],
+  "rawSignals": [
+    {
+      "position": {
+        "LatLng": "48.8641°, 2.3790°",
+        "accuracyMeters": 11,
+        "altitudeMeters": 42.0,
+        "source": "WIFI",
+        "timestamp": "2026-03-06T20:30:00.000+01:00"
+      }
+    },
+    {
+      "wifiScan": { "deliveryTime": "2026-03-06T20:31:00.000+01:00", "devicesRecords": [] }
+    },
+    {
+      "position": {
+        "LatLng": "48.8600°, 2.3900°",
+        "accuracyMeters": 8,
+        "source": "GPS",
+        "timestamp": "2026-03-07T08:00:00.000+01:00"
+      }
+    }
+  ],
+  "userLocationProfile": {
+    "frequentPlaces": [
+      { "placeId": "ChIJinventedHome", "placeLocation": "48.8600°, 2.3900°", "label": "HOME" }
+    ]
+  }
+}

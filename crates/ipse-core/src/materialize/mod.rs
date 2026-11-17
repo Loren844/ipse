@@ -11,6 +11,7 @@
 
 mod contacts;
 mod events;
+mod location;
 mod relations;
 
 use std::collections::{BTreeMap, HashMap};
@@ -19,6 +20,7 @@ use std::path::{Path, PathBuf};
 
 pub use contacts::{PeopleSummary, contacts_to_people};
 pub use events::{EventsSummary, calendar_to_events};
+pub use location::{LocationSummary, NEAR, location_to_vault, meters};
 pub use relations::ADDED_FILE;
 use serde_json::Value;
 

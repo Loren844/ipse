@@ -222,6 +222,7 @@ year: 2026
 - One row per subject. A subject is a wikilink when an entity exists (an artist under `people/` or `organizations/`, a series under `works/`), plain text otherwise.
 - `First seen` and `Last seen` are dates in the vault's time zone (or datetimes for topics whose window is under a day, such as `home`).
 - `Count` is how many raw observations support the row.
+- In the `location` topic, a subject is a place (`places/`), `First seen` and `Last seen` are days, and `Count` is how many stays; the log is rewritten from every visit of the year (`docs/connectors/location.md`).
 - Cells are trimmed. A row with another number of columns, or a value of the wrong form, is reported with its line and never guessed. A `|` inside plain text is written `\|`.
 - Rows are ordered by `Last seen`, most recent first. Ipse rewrites the table from the raw journal; a person may delete a row, and Ipse then ignores those observations for that row.
 

@@ -69,6 +69,8 @@ pub struct EventRef<'i> {
     pub end: Option<&'i EventTime>,
     /// File stems of the participants that are links.
     pub participants: &'i [String],
+    /// File stem of its place, when it is a link.
+    pub place: Option<&'i str>,
 }
 
 /// One search result.
@@ -805,6 +807,7 @@ impl SearchIndex {
                     start: &span.start,
                     end: span.end.as_ref(),
                     participants: &span.participants,
+                    place: span.place.as_deref(),
                 })
             })
             .filter(|e| keep(e))

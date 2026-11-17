@@ -489,9 +489,12 @@ impl<'g> Access<'g> {
             };
             start < to && (end > from || (end == start && start >= from))
         };
+        // With someone, or at a place.
         let with_them = |e: &EventRef<'_>| {
-            with.as_deref()
-                .is_none_or(|stem| e.participants.iter().any(|p| p.eq_ignore_ascii_case(stem)))
+            with.as_deref().is_none_or(|stem| {
+                e.participants.iter().any(|p| p.eq_ignore_ascii_case(stem))
+                    || e.place.is_some_and(|p| p.eq_ignore_ascii_case(stem))
+            })
         };
         let mut events = Vec::with_capacity(limit);
         let mut more = false;

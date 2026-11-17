@@ -24,6 +24,19 @@
 	const today = dayOf(new Date().toISOString());
 	const entity = $derived(file.state.kind === 'ready' && file.state.value.type === 'entity' ? (file.state.value.value as EntityView) : null);
 	const person = $derived(entity?.kind === 'person');
+	/** Where the person and they met: the places of their events, the most frequent first. */
+	const places = $derived.by(() => {
+		if (!entity || !person) return [];
+		const seen = new Map<string, { link: NonNullable<EntityView['events'][number]['place']>; count: number }>();
+		for (const event of entity.events) {
+			const place = event.place;
+			if (!place?.id) continue;
+			const known = seen.get(place.id);
+			if (known) known.count += 1;
+			else seen.set(place.id, { link: place, count: 1 });
+		}
+		return [...seen.values()].sort((a, b) => b.count - a.count || a.link.name.localeCompare(b.link.name));
+	});
 
 	let form: EditView | null = $state(null);
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
@@ -175,6 +188,15 @@
 						<dd>{link.word ?? ''}</dd>
 					{/each}
 				</dl>
+			</section>
+		{/if}
+
+		{#if places.length}
+			<section aria-labelledby="places">
+				<h2 id="places">{i18n.t.placesTogether}</h2>
+				<p class="mentions" data-testid="places">
+					{#each places as place (place.link.id)}<Mention link={place.link} />{/each}
+				</p>
 			</section>
 		{/if}
 

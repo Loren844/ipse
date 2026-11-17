@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Added
+
+- Import your phone's location history (Google Maps Timeline, from Android, iPhone or Takeout): `ipse import Timeline.json`. The places you go become places of your memory, the events of your agenda get their place, other outings become events, and a person's page shows where you meet. All of it is in the `location` category, closed to your AIs until you open it ([#106](https://github.com/Loren844/ipse/issues/106)).
+
 ### Fixed
 
 - The Mémoire screen's search box can be typed in again, also after a search from the side bar ([#147](https://github.com/Loren844/ipse/issues/147)).
