@@ -1,0 +1,61 @@
+# The desktop app (decisions 0001, 0007, 0015). Its own workspace: Tauri and the
+# system libraries it needs (WebKitGTK on Linux) stay out of the core's builds, tests
+# and released command-line binaries.
+[package]
+name = "ipse-app"
+description = "Ipse, the desktop app: your memory in its own window."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+repository = "https://github.com/Loren844/ipse"
+authors = ["Ipse contributors"]
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "ipse-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+# The system's language, for the app's menu and first screen.
+sys-locale = "0.3"
+tauri = { version = "2", features = [] }
+# A folder picker for the first screen.
+tauri-plugin-dialog = "2"
+# Links to other sites open in the person's browser, never in the app's window.
+tauri-plugin-opener = "2"
+# Opening Ipse again brings its window forward instead of a second app.
+tauri-plugin-single-instance = "2"
+# The window's size and position, kept from one start to the next.
+tauri-plugin-window-state = "2"
+
+[dev-dependencies]
+tempfile = "3.27"
+
+# The same lints as the core (Cargo.toml at the repository's root).
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unused_must_use = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+perf = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "warn"
+dbg_macro = "deny"
+todo = "deny"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true

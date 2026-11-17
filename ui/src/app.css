@@ -1888,6 +1888,10 @@ pre.diagnostics {
 	font-weight: 700;
 }
 
+.setting > .button {
+	align-self: flex-start;
+}
+
 .settings .segmented button {
 	font-size: 0.95rem;
 	padding: 0.4rem 1.05rem;

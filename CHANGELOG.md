@@ -7,6 +7,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 ### Added
 
 - A **Sources** screen: import a contacts file, a calendar or your location history by dropping it on the page, follow a calendar by its secret link (kept in your system's keychain), sync it now or stop following it, and see what each source brought and when ([#152](https://github.com/Loren844/ipse/issues/152)).
+- The desktop app: Ipse in its own window, with no terminal and no browser. Its first screen creates your memory, makes the invented one to try Ipse, or opens a folder; it then opens the same memory at each start, and **Settings** goes back to choose another. Installers come next ([#151](https://github.com/Loren844/ipse/issues/151)).
 - Import your phone's location history (Google Maps Timeline, from Android, iPhone or Takeout): `ipse import Timeline.json`. The places you go become places of your memory, the events of your agenda get their place, other outings become events, and a person's page shows where you meet. All of it is in the `location` category, closed to your AIs until you open it ([#106](https://github.com/Loren844/ipse/issues/106)).
 - Connect an AI app in one command: `ipse client add <name> --install claude-desktop`, `claude-code` or `lm-studio` writes Ipse into that app's configuration, its access code included, without showing it; the app's other servers stay, and the file as it was is kept. In `ipse ui`, **Connect an AI** offers the same for the apps found on the computer. LM Studio now starts Ipse itself: no terminal to leave open.
 
