@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Added
 
+- The agenda as a calendar: **Week** and **Month** views beside the list, with today marked, earlier and later periods, each event's time and kind, and a day's summary from its day. On a phone the week is a list of days and the month counts each day's events ([#132](https://github.com/Loren844/ipse/issues/132)).
 - Import your phone's location history (Google Maps Timeline, from Android, iPhone or Takeout): `ipse import Timeline.json`. The places you go become places of your memory, the events of your agenda get their place, other outings become events, and a person's page shows where you meet. All of it is in the `location` category, closed to your AIs until you open it ([#106](https://github.com/Loren844/ipse/issues/106)).
 - Connect an AI app in one command: `ipse client add <name> --install claude-desktop`, `claude-code` or `lm-studio` writes Ipse into that app's configuration, its access code included, without showing it; the app's other servers stay, and the file as it was is kept. In `ipse ui`, **Connect an AI** offers the same for the apps found on the computer. LM Studio now starts Ipse itself: no terminal to leave open.
 
