@@ -3075,6 +3075,8 @@ dialog.more .owner {
 		font-size: 0.72rem;
 		font-weight: 700;
 	}
+}
+
 /* Sources: what feeds the memory. Adding a file or a link side by side, then the list. */
 .sources .add {
 	display: grid;
@@ -3170,4 +3172,219 @@ dialog.more .owner {
 
 .source-text p {
 	margin: 0;
+}
+
+/* The timeline (issue #133): years, each with a strip of its twelve months whose bars
+   say how full they were; a month opens what marked it. */
+.timeline-screen {
+	max-width: 56rem;
+}
+
+nav.crumbs {
+	flex-direction: row;
+	align-items: baseline;
+	gap: 0.5rem;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+nav.crumbs a {
+	display: inline;
+	padding: 0;
+	color: var(--thread-ink);
+	font-weight: 700;
+	text-decoration: underline;
+}
+
+nav.crumbs:empty {
+	display: none;
+}
+
+.years,
+.months,
+.marks {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.years {
+	display: flex;
+	flex-direction: column;
+	gap: 2.75rem;
+}
+
+.year-row h2 {
+	font-size: clamp(2.2rem, 5vw, 3rem);
+	font-weight: 800;
+	letter-spacing: -0.035em;
+	line-height: 1;
+	margin: 0 0 0.35rem;
+}
+
+.year-row h2 a,
+.month-card h2 a {
+	color: var(--text);
+	text-decoration: none;
+}
+
+.year-row h2 a:hover,
+.month-card h2 a:hover {
+	color: var(--thread);
+}
+
+.year-row > .quiet,
+.month-card > .quiet {
+	margin: 0;
+}
+
+.strip {
+	list-style: none;
+	margin: 1rem 0 0.75rem;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(12, minmax(0, 1fr));
+	gap: 0.3rem;
+	align-items: end;
+}
+
+.strip li,
+.strip a {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.3rem;
+	text-decoration: none;
+}
+
+.strip .bar {
+	display: block;
+	height: calc(4.5rem * var(--fill, 0));
+	min-height: 2px;
+	border-radius: 4px 4px 1px 1px;
+	background: var(--thread-faint);
+	margin-top: auto;
+}
+
+.strip .bar.empty {
+	height: 2px;
+	background: var(--line-strong);
+}
+
+.strip a {
+	height: 5.9rem;
+	justify-content: flex-end;
+}
+
+.strip li:has(> .bar.empty) {
+	height: 5.9rem;
+	justify-content: flex-end;
+}
+
+.strip a:hover .bar,
+.strip a:focus-visible .bar {
+	background: var(--thread);
+}
+
+.strip-label {
+	color: var(--muted);
+	font-size: 0.72rem;
+	font-weight: 700;
+	text-align: center;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+}
+
+.seen {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.35rem 0.4rem;
+	margin: 0.4rem 0 0;
+}
+
+.seen .quiet {
+	margin-right: 0.25rem;
+}
+
+.seen-count {
+	color: var(--muted);
+	font-size: 0.8rem;
+	font-variant-numeric: tabular-nums;
+	margin-right: 0.35rem;
+}
+
+.period-detail {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.period-count {
+	margin: 0;
+	color: var(--muted);
+	font-weight: 700;
+}
+
+.period-summary {
+	margin: 0;
+	font-size: 1.1rem;
+	max-width: 60ch;
+}
+
+.months {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+	gap: 1.75rem 2rem;
+	margin-top: 0.5rem;
+}
+
+.month-card {
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+	padding-top: 0.75rem;
+	border-top: 2px solid var(--line-strong);
+}
+
+.month-card h2 {
+	margin: 0;
+	font-size: 1.35rem;
+}
+
+.month-summary {
+	margin: 0;
+	font-size: 0.92rem;
+	display: -webkit-box;
+	-webkit-line-clamp: 4;
+	line-clamp: 4;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.month-marks {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.2rem 0.75rem;
+	margin: 0;
+	font-weight: 700;
+	font-size: 0.92rem;
+}
+
+.marks {
+	display: flex;
+	flex-direction: column;
+	gap: 0.55rem;
+}
+
+.marks li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.3rem 0.6rem;
+}
+
+.marks a {
+	font-weight: 700;
 }

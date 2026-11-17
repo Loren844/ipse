@@ -79,3 +79,7 @@ harness = false
 [[bench]]
 name = "duplicates"
 harness = false
+
+[[bench]]
+name = "timeline"
+harness = false

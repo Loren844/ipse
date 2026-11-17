@@ -17,6 +17,10 @@ export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
 export type { AppView } from './types/AppView.ts';
 import type { AisView } from './types/AisView.ts';
+import type { TimelineView } from './types/TimelineView.ts';
+export type { TimelineView };
+export type { YearView } from './types/YearView.ts';
+export type { MonthView } from './types/MonthView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
 import type { SourcesChange } from './types/SourcesChange.ts';
 import type { SourcesView } from './types/SourcesView.ts';
@@ -143,6 +147,7 @@ export const api = {
 	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
+	timeline: () => get<TimelineView>('/api/timeline'),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),
