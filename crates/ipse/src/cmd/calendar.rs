@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use ipse_core::connector::{
     INSTANCES_FILE, Instance, Instances, Outcome, SecretStore, SyncState, duration, secret_key,
 };
-use ipse_core::sync::{SyncOptions, sync_instance};
+use ipse_core::sync::{SyncOptions, Synced, sync_instance};
 use ipse_core::time::{SignedDuration, Timestamp};
 use ipse_core::vault::{Source, Vault};
 use ipse_core::{Error, Result};
@@ -13,45 +13,58 @@ use ipse_protocol::{ErrorCode, Secret};
 
 use super::sync::{connector_command, outcome_lines};
 use crate::connectors::calendar::{self, LINK_SECRET, fetch};
-use crate::keychain::Keychain;
+use crate::keychain::secrets;
 
 /// How often a calendar syncs unless the person says otherwise.
-const DEFAULT_EVERY: SignedDuration = SignedDuration::from_mins(15);
+pub(crate) const DEFAULT_EVERY: SignedDuration = SignedDuration::from_mins(15);
 
 /// Calendar servers are asked at most this often.
 const MIN_EVERY: SignedDuration = SignedDuration::from_mins(5);
 
-/// `ipse calendar subscribe`: checks the link, syncs the calendar once, and keeps the
-/// subscription when that worked, or when the calendar only could not be reached.
-pub(crate) fn subscribe(
+/// A calendar now followed, with what its first sync did.
+pub(crate) struct Followed {
+    pub(crate) instance: Instance,
+    pub(crate) synced: Synced,
+}
+
+/// Why a calendar is not followed.
+pub(crate) enum NotFollowed {
+    /// The link cannot be followed; why, in English.
+    BadLink(String),
+    /// The same link is already followed, under this name.
+    Already(String),
+    /// The calendar answered, but not with a calendar Ipse could read; what the sync
+    /// did.
+    Failed(Box<Synced>),
+    /// The memory, the history or the keychain failed.
+    Other(Error),
+}
+
+impl From<Error> for NotFollowed {
+    fn from(error: Error) -> Self {
+        Self::Other(error)
+    }
+}
+
+/// Follows the calendar at `link`: checks the link, keeps it in `secrets`, syncs once,
+/// and keeps the subscription when that worked or when the calendar only could not be
+/// reached (Ipse tries again later).
+pub(crate) fn follow(
+    vault: &Vault,
     link: &str,
     name: Option<&str>,
-    every: Option<&str>,
-    vault: Option<PathBuf>,
-) -> Result<()> {
-    let link = fetch::parse(link).map_err(|e| Error::Refused(e.message(false)))?;
-    let every = match every {
-        None => DEFAULT_EVERY,
-        Some(text) => duration(text).filter(|d| *d >= MIN_EVERY).ok_or_else(|| {
-            Error::Refused(
-                "--every takes a duration of at least 5 minutes, like 15m or 1h.".to_owned(),
-            )
-        })?,
-    };
-    let vault = open(vault)?;
+    every: SignedDuration,
+    secrets: &dyn SecretStore,
+) -> std::result::Result<Followed, NotFollowed> {
+    let link = fetch::parse(link).map_err(|e| NotFollowed::BadLink(e.message(false)))?;
     let root = vault.root();
-    let secrets = Keychain;
     let mut instances = Instances::load(root)?;
-
     for existing in calendars(&instances) {
         let same = secrets
             .get(&secret_key(root, &existing.id, LINK_SECRET))?
             .is_some_and(|s| s.expose() == link.as_str());
         if same {
-            return Err(Error::Refused(format!(
-                "You are already subscribed to this calendar, as {:?} ({}).",
-                existing.name, existing.id
-            )));
+            return Err(NotFollowed::Already(existing.name.clone()));
         }
     }
 
@@ -64,11 +77,11 @@ pub(crate) fn subscribe(
         full: true,
         now: Timestamp::now(),
     };
-    let synced = match sync_instance(&vault, &instance, &secrets, &options) {
+    let synced = match sync_instance(vault, &instance, secrets, &options) {
         Ok(synced) => synced,
         Err(e) => {
-            forget(root, &instance, &secrets)?;
-            return Err(e);
+            forget(root, &instance, secrets)?;
+            return Err(NotFollowed::Other(e));
         }
     };
     let kept = match &synced.outcome {
@@ -79,9 +92,8 @@ pub(crate) fn subscribe(
         Outcome::Needs { .. } | Outcome::Stopped(_) => false,
     };
     if !kept {
-        forget(root, &instance, &secrets)?;
-        let message = outcome_lines(&synced).join(" ");
-        return Err(Error::Refused(message));
+        forget(root, &instance, secrets)?;
+        return Err(NotFollowed::Failed(Box::new(synced)));
     }
 
     instances.add(instance.clone())?;
@@ -89,7 +101,38 @@ pub(crate) fn subscribe(
     let mut change = history.change(Source::Person);
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Subscribe to a calendar")?;
+    Ok(Followed { instance, synced })
+}
 
+/// `ipse calendar subscribe`: [`follow`], said in the terminal.
+pub(crate) fn subscribe(
+    link: &str,
+    name: Option<&str>,
+    every: Option<&str>,
+    vault: Option<PathBuf>,
+) -> Result<()> {
+    let every = match every {
+        None => DEFAULT_EVERY,
+        Some(text) => duration(text).filter(|d| *d >= MIN_EVERY).ok_or_else(|| {
+            Error::Refused(
+                "--every takes a duration of at least 5 minutes, like 15m or 1h.".to_owned(),
+            )
+        })?,
+    };
+    let vault = open(vault)?;
+    let Followed { instance, synced } = match follow(&vault, link, name, every, &*secrets()) {
+        Ok(followed) => followed,
+        Err(NotFollowed::BadLink(message)) => return Err(Error::Refused(message)),
+        Err(NotFollowed::Already(name)) => {
+            return Err(Error::Refused(format!(
+                "You are already subscribed to this calendar, as {name:?}."
+            )));
+        }
+        Err(NotFollowed::Failed(synced)) => {
+            return Err(Error::Refused(outcome_lines(&synced).join(" ")));
+        }
+        Err(NotFollowed::Other(error)) => return Err(error),
+    };
     for line in outcome_lines(&synced) {
         println!("{line}");
     }
@@ -142,9 +185,13 @@ pub(crate) fn list(vault: Option<PathBuf>) -> Result<()> {
     Ok(())
 }
 
-/// `ipse calendar unsubscribe`: stops syncing a calendar. Its events stay.
-pub(crate) fn unsubscribe(id: &str, vault: Option<PathBuf>) -> Result<()> {
-    let vault = open(vault)?;
+/// Stops following the calendar `id`: its link leaves the keychain, its events stay.
+///
+/// # Errors
+///
+/// [`Error::Refused`] when no calendar is followed under `id`; errors of the
+/// keychain, the subscriptions file or the history.
+pub(crate) fn unfollow(vault: &Vault, id: &str, secrets: &dyn SecretStore) -> Result<Instance> {
     let root = vault.root();
     let mut instances = Instances::load(root)?;
     let instance = instances
@@ -157,11 +204,18 @@ pub(crate) fn unsubscribe(id: &str, vault: Option<PathBuf>) -> Result<()> {
             ))
         })?;
     instances.remove(id)?;
-    forget(root, &instance, &Keychain)?;
+    forget(root, &instance, secrets)?;
     let history = vault.history()?;
     let mut change = history.change(Source::Person);
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Unsubscribe from a calendar")?;
+    Ok(instance)
+}
+
+/// `ipse calendar unsubscribe`: stops syncing a calendar. Its events stay.
+pub(crate) fn unsubscribe(id: &str, vault: Option<PathBuf>) -> Result<()> {
+    let vault = open(vault)?;
+    let instance = unfollow(&vault, id, &*secrets())?;
     println!(
         "Unsubscribed from {:?}. Its events stay in your memory.",
         instance.name

@@ -11,7 +11,7 @@ use ipse_core::{Error, Result};
 use super::import::{
     OWNER_LINE, conflicts_line, deleted_line, events_line, relations_line, summary_line, tasks_line,
 };
-use crate::keychain::Keychain;
+use crate::keychain::secrets;
 
 /// Syncs every subscription, or with `due` only those whose interval passed: the form
 /// for a job the system runs every few minutes.
@@ -34,11 +34,12 @@ pub(crate) fn run(due: bool, full: bool, vault: Option<PathBuf>) -> Result<()> {
         full,
         now,
     };
+    let secrets = secrets();
     for instance in instances.list() {
         if due && !state.due(instance, now) {
             continue;
         }
-        let synced = sync_instance(&vault, instance, &Keychain, &options)?;
+        let synced = sync_instance(&vault, instance, &*secrets, &options)?;
         let lines = outcome_lines(&synced);
         // A job run on a schedule says something only when there is something to say.
         let quiet = due && synced.succeeded() && nothing_changed(&synced);

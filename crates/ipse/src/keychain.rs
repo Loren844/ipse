@@ -42,6 +42,59 @@ impl SecretStore for Keychain {
     }
 }
 
+/// Where this program keeps secrets: the system keychain. A development build run by
+/// the interface's tests (`IPSE_TEST_SECRETS`, a file path) keeps them in that file
+/// instead, as a test machine has no keychain to unlock; a released build ignores it.
+pub(crate) fn secrets() -> Box<dyn SecretStore> {
+    #[cfg(debug_assertions)]
+    if let Some(path) = std::env::var_os("IPSE_TEST_SECRETS") {
+        return Box::new(TestSecrets(std::path::PathBuf::from(path)));
+    }
+    Box::new(Keychain)
+}
+
+/// Secrets in a JSON file, for the interface's tests only (see [`secrets`]).
+#[cfg(debug_assertions)]
+struct TestSecrets(std::path::PathBuf);
+
+#[cfg(debug_assertions)]
+impl TestSecrets {
+    fn read(&self) -> std::collections::BTreeMap<String, String> {
+        std::fs::read(&self.0)
+            .ok()
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+            .unwrap_or_default()
+    }
+
+    fn write(&self, all: &std::collections::BTreeMap<String, String>) -> Result<()> {
+        let bytes = serde_json::to_vec(all).map_err(|e| Error::Refused(e.to_string()))?;
+        std::fs::write(&self.0, bytes).map_err(|source| Error::Io {
+            action: "write",
+            path: self.0.clone(),
+            source,
+        })
+    }
+}
+
+#[cfg(debug_assertions)]
+impl SecretStore for TestSecrets {
+    fn get(&self, key: &str) -> Result<Option<Secret>> {
+        Ok(self.read().remove(key).map(Secret::new))
+    }
+
+    fn set(&self, key: &str, secret: &Secret) -> Result<()> {
+        let mut all = self.read();
+        all.insert(key.to_owned(), secret.expose().to_owned());
+        self.write(&all)
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        let mut all = self.read();
+        all.remove(key);
+        self.write(&all)
+    }
+}
+
 /// What to do when the keychain cannot be used. The keychain's own error is left out:
 /// it may quote what was stored.
 fn unreachable(_: keyring::Error) -> Error {

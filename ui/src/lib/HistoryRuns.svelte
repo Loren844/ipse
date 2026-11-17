@@ -3,7 +3,7 @@
 	// diagnostic lines on demand.
 	import { api, type RunView, type RunsView } from './api.ts';
 	import { Loader } from './remote.svelte.ts';
-	import { ago, capitalize, sources } from './format.ts';
+	import { ago, capitalize, runCounts as counts, sources } from './format.ts';
 	import { i18n } from './i18n.svelte.ts';
 	import Notice from './Notice.svelte';
 
@@ -12,21 +12,6 @@
 	const view = $derived(remote.state.kind === 'ready' ? remote.state.value : null);
 	const failed = $derived(remote.state.kind === 'failed');
 	let open: Record<string, string[] | null> = $state({});
-
-	function counts(run: RunView): string {
-		const t = i18n.t;
-		const parts = [
-			run.added && t.countAdded(run.added),
-			run.updated && t.updated(run.updated),
-			run.unchanged && t.unchanged(run.unchanged),
-			run.cancelled && t.cancelledEvents(run.cancelled),
-			run.removed && t.removedItems(run.removed),
-			run.skipped && t.skipped(run.skipped),
-			run.rejected && t.rejected(run.rejected),
-			run.tasks && t.tasksMade(run.tasks)
-		].filter(Boolean) as string[];
-		return parts.length ? capitalize(parts.join(', ')) + '.' : t.nothingNew;
-	}
 
 	async function toggle(instance: string) {
 		if (open[instance] !== undefined) {
