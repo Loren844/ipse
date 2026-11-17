@@ -3075,6 +3075,8 @@ dialog.more .owner {
 		font-size: 0.72rem;
 		font-weight: 700;
 	}
+}
+
 /* Sources: what feeds the memory. Adding a file or a link side by side, then the list. */
 .sources .add {
 	display: grid;
