@@ -82,6 +82,7 @@ pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: Words) -> tauri::Resu
 }
 
 /// Answers a menu item of the app's own.
+#[allow(clippy::needless_pass_by_value)] // the signature Tauri's menu handler takes
 pub(crate) fn chosen(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         OTHER_MEMORY => navigation::act(app, Go::Switch),
