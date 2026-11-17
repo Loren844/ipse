@@ -35,6 +35,7 @@ Not released yet: 0.1.0 waits for the First version milestone (settings, the who
 - Edit any file yourself in `ipse ui`: names, phones, emails, birthday, address, an event's times, place and people, facts, relations and notes. Create a file of any kind, including the one a link already points to, and delete one after seeing what links to it. Each save is one change you can undo from the history; a file changed meanwhile is never written over.
 - A graph around any file, yourself by default: what it links to and what links to it, one or two steps away, filtered by kind of file and category, the categories closed to AIs marked. Click a file to put it at the center. The same neighbourhood reads as a list, for the keyboard and screen readers.
 - Kinds of events: meals, celebrations, outings, culture, sport, trips, travel, work, studies, appointments, health. Your AI proposes them, a few batches a day, and you accept them in the review inbox; you can also set one on the event's page. The agenda shows them.
+- On a phone, the main sections (home, memory, agenda, review) sit in a bar at the bottom, the others behind More, and the search stays in the top bar on every screen.
 
 ### Installing
 

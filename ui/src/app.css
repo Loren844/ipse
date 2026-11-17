@@ -1669,67 +1669,51 @@ pre.diagnostics {
 
 /* Phones and narrow windows: the navigation becomes a band at the top. */
 @media (max-width: 760px) {
+	/* On a phone (issue #140): a top bar with the search, the page, and a bar of the main
+	   sections at the bottom, within thumb reach; the others behind More. */
 	.frame {
 		grid-template-columns: 1fr;
 		grid-template-rows: auto 1fr;
 	}
 
 	.rail {
-		position: static;
+		position: sticky;
+		top: 0;
+		z-index: 10;
 		height: auto;
-		display: grid;
-		grid-template-columns: 1fr auto;
-		grid-template-areas:
-			'brand foot'
-			'nav nav';
-		align-items: center;
-		gap: 0.75rem 1rem;
-		padding: 0.9rem 1rem 0.6rem;
-		border-right: 0;
-		border-bottom: 1px solid var(--line);
-	}
-
-	.brand {
-		grid-area: brand;
-	}
-
-	.foot {
-		grid-area: foot;
-		margin: 0;
+		display: flex;
 		flex-direction: row;
 		align-items: center;
+		gap: 0.75rem;
+		padding: calc(0.6rem + env(safe-area-inset-top)) calc(1rem + env(safe-area-inset-right)) 0.6rem
+			calc(1rem + env(safe-area-inset-left));
+		border-right: 0;
+		border-bottom: 1px solid var(--line);
+		background: var(--ground);
 	}
 
-	.of {
+	.rail .rail-search {
+		flex: 1;
+		margin: 0;
+	}
+
+	.rail .rail-search input {
+		/* 16 px at least: iOS zooms into smaller fields. */
+		font-size: 1rem;
+		padding: 0.45rem 0;
+	}
+
+	.rail .wordmark {
 		display: none;
 	}
 
-	.face {
-		width: 1.8rem;
-		height: 1.8rem;
-		font-size: 0.7rem;
+	.rail nav,
+	.rail .foot {
+		display: none;
 	}
 
-	.owner {
-		padding: 0;
-	}
-
-	nav {
-		grid-area: nav;
-	}
-
-	nav {
-		flex-direction: row;
-		gap: 0.25rem;
-		overflow-x: auto;
-	}
-
-	nav ul {
-		flex-direction: row;
-	}
-
-	nav a {
-		white-space: nowrap;
+	main {
+		padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
 	}
 
 	.diff {
@@ -2111,11 +2095,6 @@ pre.diagnostics {
 	margin-top: 2.25rem;
 }
 
-@media (max-width: 760px) {
-	.rail-search {
-		display: none;
-	}
-}
 
 @media (max-width: 40rem) {
 	.now > div {
@@ -2631,4 +2610,166 @@ a.button {
 	font-size: 0.78rem;
 	font-weight: 700;
 	line-height: 1.5;
+}
+
+/* The phone's bottom bar and its More panel (issue #140): hidden on wider screens,
+   where the rail holds every section. */
+.tabbar {
+	display: none;
+	position: fixed;
+	inset: auto 0 0;
+	z-index: 20;
+	padding: 0.35rem calc(0.4rem + env(safe-area-inset-right)) calc(0.35rem + env(safe-area-inset-bottom))
+		calc(0.4rem + env(safe-area-inset-left));
+	background: var(--surface);
+	border-top: 1px solid var(--line-strong);
+}
+
+.tabbar ul {
+	display: grid;
+	grid-template-columns: repeat(5, 1fr);
+	gap: 0.15rem;
+	flex-direction: row;
+}
+
+.tabbar a,
+.tabbar button {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.15rem;
+	min-height: 3.1rem;
+	width: 100%;
+	padding: 0.3rem 0.2rem;
+	border: 0;
+	border-radius: 12px;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 0.72rem;
+	font-weight: 600;
+	line-height: 1.1;
+	text-align: center;
+	text-decoration: none;
+	cursor: pointer;
+}
+
+.tabbar a:hover {
+	background: transparent;
+}
+
+.tabbar svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.tabbar a[aria-current='page'],
+.tabbar button.current {
+	background: var(--thread-soft);
+	color: var(--thread-ink);
+	font-weight: 700;
+}
+
+.tabbar .count {
+	position: absolute;
+	top: 0.15rem;
+	left: calc(50% + 0.35rem);
+	margin: 0;
+	min-width: 1.15rem;
+	padding: 0 0.3rem;
+	background: var(--surface);
+	font-size: 0.66rem;
+	line-height: 0.95rem;
+}
+
+dialog.more {
+	margin: auto 0 0;
+	width: 100%;
+	max-width: none;
+	max-height: 85vh;
+	padding: 0.75rem calc(1rem + env(safe-area-inset-right)) calc(1rem + env(safe-area-inset-bottom))
+		calc(1rem + env(safe-area-inset-left));
+	border: 0;
+	border-top: 1px solid var(--line-strong);
+	border-radius: 20px 20px 0 0;
+	background: var(--surface);
+	color: var(--text);
+}
+
+dialog.more::backdrop {
+	background: rgb(0 0 0 / 0.35);
+}
+
+dialog.more .sheet-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.5rem;
+}
+
+dialog.more h2 {
+	font-size: 1rem;
+	margin: 0;
+}
+
+dialog.more ul {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+dialog.more ul a {
+	display: flex;
+	align-items: center;
+	gap: 0.8rem;
+	min-height: 3rem;
+	padding: 0.5rem 0.75rem;
+	border-radius: 12px;
+	color: var(--text);
+	text-decoration: none;
+	font-weight: 500;
+}
+
+dialog.more ul a svg {
+	flex: none;
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+dialog.more ul a[aria-current='page'] {
+	background: var(--thread-soft);
+	font-weight: 700;
+}
+
+dialog.more ul a[aria-current='page'] svg {
+	stroke: var(--thread);
+}
+
+dialog.more .owner {
+	margin-top: 0.75rem;
+	padding: 0.75rem 0.75rem 0;
+	border-top: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+	.tabbar {
+		display: block;
+	}
+}
+
+@media (min-width: 761px) {
+	dialog.more {
+		display: none;
+	}
 }
