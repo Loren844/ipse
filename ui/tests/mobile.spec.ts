@@ -29,7 +29,7 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 
 	// The others, behind More: focus goes in, a choice closes it.
 	const more = bar.getByRole('button', { name: 'Plus' });
-	for (const name of ['Graphe', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique', 'Réglages']) {
+	for (const name of ['Graphe', 'Frise', 'Résumés', 'IA connectées', 'Sources', 'Historique', 'Réglages']) {
 		await more.click();
 		const panel = page.getByRole('dialog', { name: 'Autres sections' });
 		await expect(panel).toBeVisible();
