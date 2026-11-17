@@ -1,0 +1,161 @@
+# Builds the desktop app's installers (issue #155) and attaches them to the release
+# that release.yml publishes for the same tag. Each installer carries the `ipse`
+# command beside the app, where the app and the AI apps' configurations find it.
+#
+# Signing happens only when its secrets exist (CONTRIBUTING.md, "Releasing"):
+# - macOS: APPLE_CERTIFICATE (a .p12, base64), APPLE_CERTIFICATE_PASSWORD,
+#   APPLE_SIGNING_IDENTITY, and for notarization APPLE_ID, APPLE_PASSWORD (an
+#   app-specific password) and APPLE_TEAM_ID. Without them the app is signed ad hoc,
+#   and macOS asks the person to open it anyway (docs/guide/install.md).
+# - Windows: WINDOWS_CERTIFICATE (a .pfx, base64) and WINDOWS_CERTIFICATE_PASSWORD.
+#   Without them the installer is unsigned, and SmartScreen asks to run it anyway.
+name: App release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+  pull_request:
+    paths:
+      - .github/workflows/app-release.yml
+      - app/tauri.bundle.conf.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: Installer (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            bundles: app,dmg
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundles: app,dmg
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bundles: msi
+          # The oldest supported Ubuntu: the AppImage then runs on most systems.
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            bundles: deb,appimage
+    steps:
+      - uses: actions/checkout@v5
+      - name: System libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - run: rustup target add ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+          workspaces: |
+            .
+            app
+      - name: The ipse command, beside the app
+        shell: bash
+        run: |
+          cargo build --profile dist -p ipse --target ${{ matrix.target }}
+          ext=""
+          if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
+          mkdir -p app/binaries
+          cp "target/${{ matrix.target }}/dist/ipse$ext" "app/binaries/ipse-${{ matrix.target }}$ext"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: macOS signing, when its secrets exist
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Only the variables that are set reach Tauri: an empty one would count.
+          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            if [ -n "${!name}" ]; then echo "$name<<END" >> "$GITHUB_ENV"; echo "${!name}" >> "$GITHUB_ENV"; echo "END" >> "$GITHUB_ENV"; fi
+          done
+          if [ -z "$APPLE_CERTIFICATE" ]; then echo "::notice::No Apple certificate: the app is signed ad hoc, not notarized."; fi
+      - name: Windows signing, when its secrets exist
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATE) {
+            Write-Output "::notice::No Windows certificate: the installer is unsigned."
+            '{}' | Out-File -Encoding utf8 app/sign.json
+            exit 0
+          }
+          $pfx = Join-Path $env:RUNNER_TEMP 'certificate.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+          $certificate = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } |
+            ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 app/sign.json
+      - name: Build the installers
+        working-directory: app
+        shell: bash
+        run: |
+          extra=""
+          if [ -f sign.json ]; then extra="--config sign.json"; fi
+          npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config tauri.bundle.conf.json $extra
+      - name: Name them by version and system
+        shell: bash
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"$/\1/p' app/Cargo.toml | head -n 1)
+          case "${{ matrix.target }}" in
+            aarch64-apple-darwin) arch=macos-apple-silicon ;;
+            x86_64-apple-darwin) arch=macos-intel ;;
+            x86_64-pc-windows-msvc) arch=windows-x64 ;;
+            x86_64-unknown-linux-gnu) arch=linux-x64 ;;
+          esac
+          mkdir -p out
+          bundle="app/target/${{ matrix.target }}/release/bundle"
+          for file in "$bundle"/dmg/*.dmg "$bundle"/msi/*.msi "$bundle"/appimage/*.AppImage "$bundle"/deb/*.deb; do
+            [ -f "$file" ] || continue
+            cp "$file" "out/Ipse-$version-$arch.${file##*.}"
+          done
+          ls -l out
+      - uses: actions/upload-artifact@v7
+        with:
+          name: installers-${{ matrix.target }}
+          path: out/*
+
+  publish:
+    name: Attach to the release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: installers-*
+          merge-multiple: true
+          path: out
+      - name: Wait for release.yml's release, then attach the installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          for i in $(seq 1 60); do
+            if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then break; fi
+            echo "Waiting for the release of $TAG ($i)…"
+            sleep 30
+          done
+          gh release upload "$TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber

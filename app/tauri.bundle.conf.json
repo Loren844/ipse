@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "externalBin": ["binaries/ipse"],
+    "publisher": "Ipse contributors",
+    "copyright": "Ipse contributors, Apache-2.0",
+    "category": "Productivity",
+    "shortDescription": "Your memory, on your machine, for any AI.",
+    "longDescription": "Ipse keeps the memory of your life as files you own, and lets your AIs read only what you allow and change nothing without your OK.",
+    "homepage": "https://github.com/Loren844/ipse",
+    "license": "Apache-2.0",
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0"
+    },
+    "linux": {
+      "deb": {
+        "section": "utils"
+      }
+    }
+  }
+}

@@ -6,6 +6,8 @@ You need a terminal, and [Claude Desktop](https://claude.ai/download) or [LM Stu
 
 ## 1. Install Ipse
 
+**The desktop app** is the simplest: download it for your system and open it, as [Install Ipse](install.md) shows. It does everything below without a terminal. This guide uses the `ipse` command, for those who prefer it.
+
 On macOS or Linux, in a terminal:
 
 ```sh
