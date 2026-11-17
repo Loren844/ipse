@@ -7,6 +7,7 @@ Ipse holds a lot about your life. This page says plainly who can see what, what 
 - **Your memory** is a folder of Markdown files on your disk. Ipse has no server and no account; nothing is copied anywhere by Ipse.
 - **No telemetry.** Ipse sends no statistics, crash reports or usage data, to anyone.
 - **The network** is used only for what you set up: fetching a calendar you subscribed to (over HTTPS), and, later, other sources you connect. The secret link of a calendar is kept in your system's keychain, never in your memory's files.
+- **The map** draws your places as points on a plain background, with nothing leaving your computer. If you choose to show its base map, the tiles come from OpenStreetMap (`tile.openstreetmap.org`): their servers then see which areas you look at, but not your places, your visits or anything else of your memory. The choice is kept in your browser and can be undone on the map.
 - **`ipse ui`** and **`ipse mcp --http`** listen on this computer only (`127.0.0.1`). The interface asks for a one-time code, then a session; the MCP server asks for each AI's own code.
 - **Protection at rest** is your system's disk encryption (FileVault on macOS, BitLocker on Windows, LUKS on Linux): turn it on. Ipse keeps your files readable in any editor, so it does not encrypt them itself (decision 0009).
 
