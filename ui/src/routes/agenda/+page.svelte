@@ -1,9 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import { api, type EventView } from '#lib/api.ts';
-	import { dayOf, longDay, timeOf } from '#lib/format.ts';
+	import { addDays, monthStart, monthWeeks, weekOf } from '#lib/calendar.ts';
+	import CalendarMonth from '#lib/CalendarMonth.svelte';
+	import CalendarWeek from '#lib/CalendarWeek.svelte';
+	import { capitalize, dayOf, isDay, longDay, timeOf } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
+
+	type View = 'list' | 'week' | 'month';
+	const VIEWS: View[] = ['list', 'week', 'month'];
 
 	let events: EventView[] = $state([]);
 	let summaries: Record<string, string> = $state({});
@@ -13,22 +21,72 @@
 	let failed = $state(false);
 	const today = dayOf(new Date().toISOString());
 
-	const shift = (day: string, days: number) => {
-		const date = new Date(`${day}T12:00:00Z`);
-		date.setUTCDate(date.getUTCDate() + days);
-		return date.toISOString().slice(0, 10);
-	};
+	// The week and month views: the period in the address, so that a reload or a link
+	// keeps it.
+	const view: View = $derived((VIEWS as string[]).includes(page.url.searchParams.get('view') ?? '') ? (page.url.searchParams.get('view') as View) : 'list');
+	const day = $derived(isDay(page.url.searchParams.get('day') ?? '') ? (page.url.searchParams.get('day') as string) : today);
+	let period: { events: EventView[]; summaries: Record<string, string>; key: string } | null = $state(null);
+	let periodFailed = $state(false);
+
+	const range = $derived.by(() => {
+		if (view === 'week') {
+			const days = weekOf(day);
+			return { from: days[0], to: days[6] };
+		}
+		const weeks = monthWeeks(day);
+		return { from: weeks[0][0], to: weeks[weeks.length - 1][6] };
+	});
+	const locale = $derived(i18n.language === 'fr' ? 'fr-FR' : 'en-GB');
+	const title = $derived.by(() => {
+		if (view === 'month') {
+			return capitalize(new Intl.DateTimeFormat(locale, { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${monthStart(day)}T12:00:00Z`)));
+		}
+		return i18n.t.weekFrom(longDay(weekOf(day)[0], today));
+	});
+
+	$effect(() => {
+		if (view === 'list') return;
+		const key = `${range.from}/${range.to}`;
+		if (period?.key === key) return;
+		api
+			.events(range.from, range.to)
+			.then((answer) => {
+				const found: Record<string, string> = {};
+				for (const summary of answer.summaries) found[summary.day] = summary.text;
+				period = { events: answer.events, summaries: found, key };
+				periodFailed = false;
+			})
+			.catch(() => (periodFailed = true));
+	});
+
+	/** This screen with another view or day. */
+	function show(next: { view?: View; day?: string }) {
+		const url = new URL(page.url.href);
+		const v = next.view ?? view;
+		if (v === 'list') {
+			url.searchParams.delete('view');
+			url.searchParams.delete('day');
+		} else {
+			url.searchParams.set('view', v);
+			url.searchParams.set('day', next.day ?? day);
+		}
+		goto(`${url.pathname}${url.search}`, { reset: false, replace: true });
+	}
+
+	const step = (direction: 1 | -1) => show({ day: view === 'week' ? addDays(day, 7 * direction) : monthStart(day, direction) });
+
+	const shift = (d: string, days: number) => addDays(d, days);
 
 	async function load(start?: string, end?: string, where: 'replace' | 'before' | 'after' = 'replace') {
 		try {
-			const view = await api.events(start, end);
-			const fresh = view.events.filter((e) => !events.some((x) => x.id === e.id));
-			for (const summary of view.summaries) summaries[summary.day] = summary.text;
+			const answer = await api.events(start, end);
+			const fresh = answer.events.filter((e) => !events.some((x) => x.id === e.id));
+			for (const summary of answer.summaries) summaries[summary.day] = summary.text;
 			if (where === 'before') events = [...fresh, ...events];
 			else if (where === 'after') events = [...events, ...fresh];
-			else events = view.events;
-			if (where !== 'after') from = view.from;
-			if (where !== 'before') to = view.to;
+			else events = answer.events;
+			if (where !== 'after') from = answer.from;
+			if (where !== 'before') to = answer.to;
 			ready = true;
 		} catch {
 			failed = true;
@@ -41,21 +99,49 @@
 	const days = $derived.by(() => {
 		const groups: { day: string; events: EventView[] }[] = [];
 		for (const event of events) {
-			const day = dayOf(event.start);
+			const d = dayOf(event.start);
 			const last = groups[groups.length - 1];
-			if (last?.day === day) last.events.push(event);
-			else groups.push({ day, events: [event] });
+			if (last?.day === d) last.events.push(event);
+			else groups.push({ day: d, events: [event] });
 		}
 		return groups;
 	});
 </script>
 
-<div class="screen">
+<div class="screen" class:wide={view !== 'list'}>
 	<header class="page-head head-row">
 		<h1>{i18n.t.agenda}</h1>
 		<a class="button small" href="/memory/new?kind=event">+ {i18n.t.addKind.event}</a>
 	</header>
-	{#if ready}
+	<div class="agenda-bar">
+		<div class="segmented" role="group" aria-label={i18n.t.agendaViews}>
+			{#each VIEWS as v (v)}
+				<button type="button" aria-pressed={view === v} onclick={() => show({ view: v })}>{i18n.t.agendaView[v]}</button>
+			{/each}
+		</div>
+		{#if view !== 'list'}
+			<div class="period-nav">
+				<button type="button" class="button small" aria-label={view === 'week' ? i18n.t.previousWeek : i18n.t.previousMonth} onclick={() => step(-1)}
+					>‹</button
+				>
+				<button type="button" class="button small" onclick={() => show({ day: today })}>{i18n.t.today}</button>
+				<button type="button" class="button small" aria-label={view === 'week' ? i18n.t.nextWeek : i18n.t.nextMonth} onclick={() => step(1)}>›</button>
+			</div>
+		{/if}
+	</div>
+
+	{#if view !== 'list'}
+		<h2 class="period" aria-live="polite">{title}</h2>
+		{#if period}
+			{#if view === 'week'}
+				<CalendarWeek {day} events={period.events} summaries={period.summaries} {today} />
+			{:else}
+				<CalendarMonth {day} events={period.events} summaries={period.summaries} {today} {title} />
+			{/if}
+		{:else if periodFailed}
+			<p class="quiet">{i18n.t.failed}</p>
+		{/if}
+	{:else if ready}
 		<button type="button" class="more" onclick={() => load(shift(from, -90), shift(from, -1), 'before')}>{i18n.t.earlier}</button>
 		{#if days.length}
 			<ol class="thread agenda">

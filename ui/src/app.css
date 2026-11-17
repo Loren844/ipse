@@ -2112,6 +2112,7 @@ pre.diagnostics {
    the primary action; removing is a small cross beside what it removes. */
 .head-row {
 	display: flex;
+	flex-direction: row;
 	align-items: center;
 	justify-content: space-between;
 	gap: 0.75rem 1rem;
@@ -2783,6 +2784,9 @@ dialog.more .owner {
 /* The map (issue #135): places as circles on a plain ground, or on OpenStreetMap's
    tiles once the person accepts them; the chosen place beside it. */
 .map-screen {
+/* The agenda's week and month views (issue #132). The thread's colour marks today; an
+   event's kind stays a word (#131). */
+.screen.wide {
 	max-width: 72rem;
 	gap: 1.25rem;
 }
@@ -2904,6 +2908,207 @@ dialog.more .owner {
 
 .visits,
 .map-list {
+.agenda-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.75rem 1rem;
+}
+
+.agenda-bar .segmented button {
+	font-size: 0.9rem;
+	padding: 0.3rem 0.95rem;
+}
+
+.period-nav {
+	display: flex;
+	gap: 0.4rem;
+}
+
+.period-nav .button.small {
+	min-width: 2.4rem;
+}
+
+.screen h2.period {
+	margin: 0.5rem 0 0;
+}
+
+.month {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+}
+
+.month th {
+	padding: 0 0.4rem 0.4rem;
+	color: var(--muted);
+	font-size: 0.82rem;
+	font-weight: 700;
+	text-align: left;
+}
+
+.month abbr {
+	text-decoration: none;
+}
+
+.month td {
+	height: 7.25rem;
+	padding: 0.35rem 0.4rem;
+	border: 1px solid var(--line);
+	vertical-align: top;
+}
+
+.month td.other {
+	background: color-mix(in srgb, var(--line) 35%, transparent);
+}
+
+.month td.other .day-number {
+	color: var(--muted);
+}
+
+.cell-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	margin-bottom: 0.2rem;
+}
+
+.day-number {
+	display: inline-grid;
+	place-items: center;
+	min-width: 1.7rem;
+	height: 1.7rem;
+	border-radius: 999px;
+	color: var(--text);
+	font-weight: 700;
+	font-size: 0.9rem;
+	text-decoration: none;
+}
+
+.day-number:hover {
+	background: var(--thread-soft);
+}
+
+.month td.today .day-number {
+	background: var(--thread);
+	color: var(--on-thread);
+}
+
+.cell-summary {
+	display: inline-flex;
+	color: var(--muted);
+}
+
+.cell-summary svg,
+.cell-summary path {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.8;
+}
+
+.cell-events {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 0.15rem;
+}
+
+.cell-events a {
+	display: block;
+	overflow: hidden;
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	color: var(--text);
+	font-size: 0.82rem;
+	line-height: 1.35;
+	text-decoration: none;
+}
+
+.cell-events a:hover {
+	color: var(--thread-ink);
+	text-decoration: underline;
+}
+
+.cell-events .when,
+.week-events .when {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+	margin-right: 0.3rem;
+}
+
+.cell-events .cancelled a,
+.week-events .cancelled a {
+	text-decoration: line-through;
+	color: var(--muted);
+}
+
+.cell-more {
+	display: inline-block;
+	margin-top: 0.15rem;
+	color: var(--muted);
+	font-size: 0.78rem;
+	font-weight: 700;
+}
+
+.cell-count {
+	display: none;
+}
+
+.week {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	border-top: 1px solid var(--line);
+}
+
+.week-day {
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-height: 14rem;
+	padding: 0.6rem 0.5rem 1rem;
+	border-right: 1px solid var(--line);
+}
+
+.week-day:first-child {
+	border-left: 1px solid var(--line);
+}
+
+.week-day h3 {
+	display: flex;
+	align-items: baseline;
+	gap: 0.35rem;
+	margin: 0;
+	font-size: 0.85rem;
+	color: var(--muted);
+}
+
+.week-day .date-number {
+	font-family: var(--display);
+	font-size: 1.5rem;
+	font-weight: 800;
+	color: var(--text);
+	letter-spacing: -0.02em;
+}
+
+.week-day.today {
+	box-shadow: inset 0 3px 0 var(--thread);
+}
+
+.week-day.today .date-number {
+	color: var(--thread);
+}
+
+.day-summary-link {
+	font-size: 0.8rem;
+	color: var(--muted);
+}
+
+.week-events {
 	list-style: none;
 	margin: 0;
 	padding: 0;
@@ -2935,6 +3140,86 @@ dialog.more .owner {
 @media (max-width: 60rem) {
 	.map-layout {
 		grid-template-columns: 1fr;
+	gap: 0.7rem;
+}
+
+.week-events li {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.15rem;
+	font-size: 0.9rem;
+	line-height: 1.35;
+	overflow-wrap: anywhere;
+}
+
+.week-events a {
+	color: var(--text);
+	font-weight: 700;
+	text-decoration: none;
+}
+
+.week-events a:hover {
+	color: var(--thread-ink);
+	text-decoration: underline;
+}
+
+.week-day .nothing {
+	margin: 0;
+	color: var(--muted);
+	font-size: 0.85rem;
+}
+
+/* A phone: the week as a list of days; the month shows how many events a day has. */
+@media (max-width: 48rem) {
+	.week {
+		grid-template-columns: 1fr;
+		border-top: 0;
+	}
+
+	.week-day,
+	.week-day:first-child {
+		min-height: 0;
+		border: 0;
+		border-bottom: 1px solid var(--line);
+		padding: 0.8rem 0;
+	}
+
+	.week-day.today {
+		box-shadow: inset 3px 0 0 var(--thread);
+		padding-left: 0.75rem;
+	}
+
+	.month td {
+		height: 3.4rem;
+		padding: 0.2rem;
+		text-align: center;
+	}
+
+	.month th {
+		text-align: center;
+		padding: 0 0 0.3rem;
+	}
+
+	.cell-head {
+		justify-content: center;
+	}
+
+	.cell-summary,
+	.cell-events,
+	.cell-more {
+		display: none;
+	}
+
+	.cell-count {
+		display: inline-block;
+		min-width: 1.2rem;
+		padding: 0 0.3rem;
+		border-radius: 999px;
+		background: var(--thread-soft);
+		color: var(--thread-ink);
+		font-size: 0.72rem;
+		font-weight: 700;
 	}
 /* Sources: what feeds the memory. Adding a file or a link side by side, then the list. */
 .sources .add {
