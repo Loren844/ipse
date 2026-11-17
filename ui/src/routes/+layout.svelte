@@ -33,6 +33,7 @@
 		[
 			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },
 			{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
+			{ href: '/sources', label: i18n.t.sourcesNav, icon: icons.sources },
 			{ href: '/history', label: i18n.t.history, icon: icons.history },
 			{ href: '/settings', label: i18n.t.settings, icon: icons.settings }
 		]

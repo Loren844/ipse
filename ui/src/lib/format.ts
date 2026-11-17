@@ -3,6 +3,7 @@ import { folderOf } from './kinds.ts';
 // vault's time zone.
 import { app } from './app.svelte.ts';
 import { i18n } from './i18n.svelte.ts';
+import type { RunView } from './types/RunView.ts';
 
 const locale = () => (i18n.language === 'fr' ? 'fr-FR' : 'en-GB');
 const zone = () => (app.state.kind === 'ready' ? app.state.info.time_zone : undefined);
@@ -124,4 +125,20 @@ export function periodName(text: string): string {
 		return capitalize(month);
 	}
 	return text;
+}
+
+/** What an import or a sync brought: "12 fiches ajoutées, 3 mises à jour." */
+export function runCounts(run: RunView): string {
+	const t = i18n.t;
+	const parts = [
+		run.added && t.countAdded(run.added),
+		run.updated && t.updated(run.updated),
+		run.unchanged && t.unchanged(run.unchanged),
+		run.cancelled && t.cancelledEvents(run.cancelled),
+		run.removed && t.removedItems(run.removed),
+		run.skipped && t.skipped(run.skipped),
+		run.rejected && t.rejected(run.rejected),
+		run.tasks && t.tasksMade(run.tasks)
+	].filter(Boolean) as string[];
+	return parts.length ? capitalize(parts.join(', ')) + '.' : t.nothingNew;
 }

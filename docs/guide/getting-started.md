@@ -53,6 +53,8 @@ ipse import calendar.ics --vault ~/Ipse
 
 Each contact becomes a file in `people/`, each event a file in `events/`. Importing again later updates them. To follow your calendar as it changes, see [Keep your calendar in sync](calendar.md).
 
+The interface does the same without a terminal: in `ipse ui`, **Sources** takes a file dropped on it, says how to export each one from the usual apps, and lists what feeds your memory.
+
 Your phone's location history can come too: export it from Google Maps Timeline on the phone ([how](../connectors/location.md#getting-the-file)), then `ipse import Timeline.json --vault ~/Ipse`. The places you go become files in `places/`, and the events of your agenda get their place. All of it stays in the `location` category, which your AIs cannot see until you open it.
 
 ## 4. Connect Claude Desktop

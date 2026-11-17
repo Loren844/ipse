@@ -382,7 +382,7 @@ fn count(n: u64) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }
 
-fn run_view(run: RunRecord) -> RunView {
+pub(crate) fn run_view(run: RunRecord) -> RunView {
     RunView {
         at: run.at,
         instance: run.instance,
