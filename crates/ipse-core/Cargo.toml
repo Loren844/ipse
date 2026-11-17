@@ -83,3 +83,7 @@ harness = false
 [[bench]]
 name = "places"
 harness = false
+
+[[bench]]
+name = "timeline"
+harness = false

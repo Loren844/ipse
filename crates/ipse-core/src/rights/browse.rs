@@ -422,6 +422,21 @@ impl Access<'_> {
             .entities(FileType::Place, |c| self.reads(c.as_str()))
     }
 
+    /// The timeline of what this client may read (issue #133): per year and month,
+    /// counts, the people seen most among the readable people, trips and celebrations.
+    #[must_use]
+    pub fn timeline(&self) -> crate::search::Timeline<'_> {
+        let index = &self.gateway.index;
+        index.timeline(
+            |c| self.reads(c.as_str()),
+            |stem| {
+                index
+                    .person_path(stem, |c| self.reads(c.as_str()))
+                    .is_some()
+            },
+        )
+    }
+
     /// A link or a plain text, resolved: the linked file's name and id when this client
     /// may read it, otherwise the text as written.
     #[must_use]

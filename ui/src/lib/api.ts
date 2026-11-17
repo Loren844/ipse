@@ -20,6 +20,10 @@ import type { AisView } from './types/AisView.ts';
 import type { MapView } from './types/MapView.ts';
 export type { MapView };
 export type { MapPlaceView } from './types/MapPlaceView.ts';
+import type { TimelineView } from './types/TimelineView.ts';
+export type { TimelineView };
+export type { YearView } from './types/YearView.ts';
+export type { MonthView } from './types/MonthView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
 import type { SourcesChange } from './types/SourcesChange.ts';
 import type { SourcesView } from './types/SourcesView.ts';
@@ -147,6 +151,7 @@ export const api = {
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
 	map: () => get<MapView>('/api/map'),
+	timeline: () => get<TimelineView>('/api/timeline'),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),

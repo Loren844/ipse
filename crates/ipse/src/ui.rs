@@ -44,6 +44,7 @@ mod review;
 mod settings;
 mod sources;
 mod summaries;
+mod timeline;
 
 mod assets {
     include!(concat!(env!("OUT_DIR"), "/ui_assets.rs"));
@@ -478,6 +479,7 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
         "map" => map::view(gateway).map(|v| Some(to_json(&v))),
+        "timeline" => timeline::view(gateway).map(|v| Some(to_json(&v))),
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
         "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
