@@ -17,6 +17,10 @@ export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
 export type { AppView } from './types/AppView.ts';
 import type { AisView } from './types/AisView.ts';
+import type { TimelineView } from './types/TimelineView.ts';
+export type { TimelineView };
+export type { YearView } from './types/YearView.ts';
+export type { MonthView } from './types/MonthView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
 import type { HistoryView } from './types/HistoryView.ts';
 import type { AccessesView } from './types/AccessesView.ts';
@@ -127,6 +131,7 @@ export const api = {
 	undoChange: (id: string) => post<UndoneView>(`/api/history/${encodeURIComponent(id)}/undo`),
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
+	timeline: () => get<TimelineView>('/api/timeline'),
 	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`),
 	summaries: (period: string, offset?: number, before?: string) => get<SummariesView>('/api/summaries', { period, offset, before }),
 	correctSummary: (period: string, start: string, text: string) =>
