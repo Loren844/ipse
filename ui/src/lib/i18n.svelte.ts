@@ -504,6 +504,10 @@ const words = {
 			other: 'Autre'
 		} as Record<string, string>,
 		eventKindNone: 'Non précisé',
+		more: 'Plus',
+		moreSections: 'Autres sections',
+		closePanel: 'Fermer',
+		youAreIn: (name: string) => `Vous êtes dans : ${name}`,
 		failed: 'Ipse ne répond pas.',
 		failedHint: 'Vérifiez que « ipse ui » tourne toujours dans votre terminal, puis rechargez la page.'
 	},
@@ -1003,6 +1007,10 @@ const words = {
 			other: 'Other'
 		} as Record<string, string>,
 		eventKindNone: 'Not said',
+		more: 'More',
+		moreSections: 'Other sections',
+		closePanel: 'Close',
+		youAreIn: (name: string) => `You are in: ${name}`,
 		failed: 'Ipse is not answering.',
 		failedHint: 'Check that “ipse ui” is still running in your terminal, then reload the page.'
 	}
