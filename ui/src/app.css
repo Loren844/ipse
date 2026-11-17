@@ -1288,7 +1288,8 @@ h1.proposal-title {
 	font-weight: 700;
 }
 
-.form-field input[type='text'] {
+.form-field input[type='text'],
+.form-field input[type='url'] {
 	font: inherit;
 	color: var(--text);
 	background: var(--surface);
@@ -1297,7 +1298,8 @@ h1.proposal-title {
 	padding: 0.55rem 0.8rem;
 }
 
-.form-field input[type='text']:focus {
+.form-field input[type='text']:focus,
+.form-field input[type='url']:focus {
 	outline: none;
 	border-color: var(--thread);
 }
@@ -2776,4 +2778,101 @@ dialog.more .owner {
 	dialog.more {
 		display: none;
 	}
+}
+
+/* Sources: what feeds the memory. Adding a file or a link side by side, then the list. */
+.sources .add {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
+	gap: 1rem 2.5rem;
+	margin-top: 1.5rem;
+}
+
+.sources section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.9rem;
+	margin-top: 1.25rem;
+}
+
+.sources h2 {
+	margin: 0;
+}
+
+.sources .quiet {
+	margin: 0;
+}
+
+.drop {
+	display: grid;
+	place-items: center;
+	min-height: 8.5rem;
+	padding: 1.25rem;
+	border: 2px dashed var(--line-strong);
+	border-radius: var(--radius);
+	text-align: center;
+}
+
+.drop p {
+	margin: 0;
+}
+
+.drop.over,
+.drop:focus-within {
+	border-color: var(--thread);
+	background: var(--thread-soft);
+}
+
+.drop label.link-button {
+	cursor: pointer;
+}
+
+.exports summary {
+	cursor: pointer;
+	font-weight: 700;
+}
+
+.exports h3 {
+	font-size: 1rem;
+	margin: 1rem 0 0.3rem;
+}
+
+.exports ul {
+	margin: 0;
+	padding-left: 1.2rem;
+	color: var(--muted);
+}
+
+.source-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	border-top: 1px solid var(--line);
+}
+
+.source {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: flex-start;
+	gap: 0.75rem 1.5rem;
+	padding: 1rem 0;
+	border-bottom: 1px solid var(--line);
+}
+
+.source-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
+	flex: 1 1 20rem;
+}
+
+.source h3 {
+	margin: 0;
+	font-size: 1.1rem;
+	color: var(--text);
+}
+
+.source-text p {
+	margin: 0;
 }

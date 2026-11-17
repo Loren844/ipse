@@ -16,6 +16,8 @@ ipse calendar subscribe "<the link>" --name Perso --vault ~/Ipse
 
 Each event becomes a file in `events/`, its guests linked to your contacts. `ipse sync --vault ~/Ipse` syncs your calendars again; `ipse calendar list` shows them, `ipse calendar unsubscribe calendar-2` stops one (its events stay).
 
+In `ipse ui`, **Sources → Follow a calendar by its link** does the same: paste the link, give it a name. The link goes to your system's keychain and is not shown again; the screen syncs a calendar now and stops following one.
+
 To keep them in sync on their own until the app does it, have your computer run `ipse sync --due` every 5 minutes: it syncs each calendar when its interval (15 minutes by default, `--every` to change it) has passed, and says nothing when nothing changed.
 
 - **macOS:** save this as `~/Library/LaunchAgents/org.ipse.sync.plist`, with your user name, then run `launchctl load ~/Library/LaunchAgents/org.ipse.sync.plist`. The first time, macOS asks whether `ipse` may use your keychain: choose **Always Allow**.
