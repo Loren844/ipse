@@ -161,10 +161,13 @@ fn the_one_time_code_opens_one_session() {
         &with(&[("Sec-Fetch-Site", "same-origin".into())]),
     );
     assert_eq!(status, 200, "{head}");
-    let info: serde_json::Value = serde_json::from_str(&body).unwrap();
+    let mut info: serde_json::Value = serde_json::from_str(&body).unwrap();
+    // The owner's file, for the menu under their name: an id made at init.
+    let me = info["me"].take();
+    assert!(me.as_str().is_some_and(|id| id.len() == 26), "{me}");
     assert_eq!(
         info,
-        serde_json::json!({"name": "Inès Roux", "language": "fr", "time_zone": "Europe/Paris", "waiting": 0})
+        serde_json::json!({"name": "Inès Roux", "me": null, "language": "fr", "time_zone": "Europe/Paris", "waiting": 0})
     );
 
     // The code works once.
