@@ -125,3 +125,29 @@ test('in a browser, nothing of the app shows', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveCount(0);
 });
+
+test('in the desktop app, the interface is not selected or dragged, what one copies is', async ({ page }) => {
+	await page.addInitScript(() => {
+		window.ipseApp = { version: '0.2.0' };
+	});
+	await page.goto(ipse.url);
+	await expect(page.locator('html')).toHaveAttribute('data-app', '');
+	const select = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).userSelect);
+	expect(await select('nav a')).toBe('none');
+	expect(await select('h1')).toBe('none');
+	await page.getByRole('link', { name: 'Réglages' }).click();
+	expect(await select('.copy pre')).toBe('text');
+	// Dragging a link out of the window does not start.
+	const dragged = await page.locator('nav a').first().evaluate((el) => {
+		const event = new DragEvent('dragstart', { bubbles: true, cancelable: true });
+		el.dispatchEvent(event);
+		return event.defaultPrevented;
+	});
+	expect(dragged).toBe(true);
+});
+
+test('in a browser, text is selected as on any page', async ({ page }) => {
+	await page.goto(ipse.url);
+	await expect(page.locator('html')).not.toHaveAttribute('data-app');
+	expect(await page.locator('h1').first().evaluate((el) => getComputedStyle(el).userSelect)).not.toBe('none');
+});
