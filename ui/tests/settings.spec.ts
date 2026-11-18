@@ -9,12 +9,18 @@ test.beforeEach(async () => {
 });
 test.afterEach(() => ipse.stop());
 
+/** Réglages, from the menu under the owner's name (#176). */
+async function openSettings(page: Page) {
+	await page.getByRole('button', { name: /^Mémoire de/ }).click();
+	await page.getByRole('menuitem', { name: 'Réglages' }).click();
+}
+
 const ground = (page: Page) => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
 
 test('choose the theme: system, light or dark, kept in this browser', async ({ page }) => {
 	await page.emulateMedia({ colorScheme: 'light' });
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Réglages');
 	const themes = page.getByRole('group', { name: 'Thème' });
 	await expect(themes.getByRole('button', { name: 'Comme le système' })).toHaveAttribute('aria-pressed', 'true');
@@ -52,7 +58,7 @@ function contrast(a: string, b: string): number {
 
 test('both themes are readable', async ({ page }) => {
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	for (const name of ['Clair', 'Sombre']) {
 		await page.getByRole('group', { name: 'Thème' }).getByRole('button', { name }).click();
 		const colours = await page.evaluate(() => {
@@ -86,7 +92,7 @@ test('both themes are readable', async ({ page }) => {
 
 test('the memory’s language and time zone, saved as the person’s change', async ({ page }) => {
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	await expect(page.getByTestId('version')).toHaveText(/^Ipse \d+\.\d+\.\d+/);
 	await expect(page.getByText(ipse.vault)).toBeVisible();
 	const save = page.getByRole('button', { name: 'Enregistrer' });
@@ -110,7 +116,7 @@ test('in the desktop app, settings open another memory through the app', async (
 		window.ipseApp = { version: '0.1.0' };
 	});
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	await expect(page.getByRole('heading', { name: 'Affichage' })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toHaveCount(0);
 	const other = page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' });
@@ -121,7 +127,7 @@ test('in the desktop app, settings open another memory through the app', async (
 
 test('in a browser, nothing of the app shows', async ({ page }) => {
 	await page.goto(ipse.url);
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveCount(0);
 });
@@ -135,7 +141,7 @@ test('in the desktop app, the interface is not selected or dragged, what one cop
 	const select = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).userSelect);
 	expect(await select('nav a')).toBe('none');
 	expect(await select('h1')).toBe('none');
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	await openSettings(page);
 	expect(await select('.copy pre')).toBe('text');
 	// Dragging a link out of the window does not start.
 	const dragged = await page.locator('nav a').first().evaluate((el) => {
@@ -150,4 +156,39 @@ test('in a browser, text is selected as on any page', async ({ page }) => {
 	await page.goto(ipse.url);
 	await expect(page.locator('html')).not.toHaveAttribute('data-app');
 	expect(await page.locator('h1').first().evaluate((el) => getComputedStyle(el).userSelect)).not.toBe('none');
+});
+
+test('the menu under the owner\'s name: their file, the settings, from the keyboard too', async ({ page }) => {
+	await page.goto(ipse.url);
+	const button = page.getByRole('button', { name: /^Mémoire de Inès Roux/ });
+	await expect(button).toHaveAttribute('aria-haspopup', 'menu');
+	await button.focus();
+	await page.keyboard.press('ArrowDown');
+	const menu = page.getByRole('menu');
+	await expect(menu.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages']);
+	await expect(menu.getByRole('menuitem', { name: 'Votre fiche' })).toBeFocused();
+	await page.keyboard.press('ArrowDown');
+	await expect(menu.getByRole('menuitem', { name: 'Réglages' })).toBeFocused();
+	await page.keyboard.press('Escape');
+	await expect(menu).toBeHidden();
+	await expect(button).toBeFocused();
+	// A click elsewhere closes it; the first item opens the owner's file.
+	await button.click();
+	await page.mouse.click(700, 400);
+	await expect(menu).toBeHidden();
+	await button.click();
+	await menu.getByRole('menuitem', { name: 'Votre fiche' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Inès Roux');
+	// Réglages left the rail.
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Réglages' })).toHaveCount(0);
+});
+
+test('in the app, the menu also opens another memory', async ({ page }) => {
+	await page.addInitScript(() => {
+		window.ipseApp = { version: '0.2.0' };
+	});
+	await page.goto(ipse.url);
+	await page.getByRole('button', { name: /^Mémoire de/ }).click();
+	await expect(page.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages', 'Ouvrir ou créer une autre mémoire']);
+	await expect(page.getByRole('menuitem', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveAttribute('href', '/app/switch');
 });

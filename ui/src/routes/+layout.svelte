@@ -8,6 +8,7 @@
 	import { app, inApp } from '#lib/app.svelte.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
+	import OwnerMenu from '#lib/OwnerMenu.svelte';
 	import Mark from '#lib/Mark.svelte';
 	import { initials } from '#lib/format.ts';
 
@@ -44,17 +45,26 @@
 			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },
 			{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
 			{ href: '/sources', label: i18n.t.sourcesNav, icon: icons.sources },
-			{ href: '/history', label: i18n.t.history, icon: icons.history },
-			{ href: '/settings', label: i18n.t.settings, icon: icons.settings }
+			{ href: '/history', label: i18n.t.history, icon: icons.history }
 		]
 	]);
+
+	/** Réglages lives in the menu under the owner's name (#176), and behind More on a phone. */
+	const settings = $derived({ href: '/settings', label: i18n.t.settings, icon: icons.settings });
 
 	// On a phone, the four sections used most stay in the bottom bar; the others wait
 	// behind More (issue #140).
 	const MAIN = ['/', '/memory', '/agenda', '/review'];
 	const sections = $derived(groups.flat());
 	const main = $derived(MAIN.map((href) => sections.find((s) => s.href === href)).filter((s) => s !== undefined));
-	const others = $derived(sections.filter((s) => !MAIN.includes(s.href)));
+	// On a phone, More starts with the owner's file and the settings (#176).
+	const others = $derived([
+		...(app.state.kind === 'ready' && app.state.info.me
+			? [{ href: `/people/${app.state.info.me}`, label: i18n.t.yourFile, icon: icons.people }]
+			: []),
+		settings,
+		...sections.filter((s) => !MAIN.includes(s.href))
+	]);
 	const inOthers = $derived(others.find((s) => isCurrent(s.href)) ?? null);
 
 	let sheet: HTMLDialogElement | undefined = $state();
@@ -143,13 +153,7 @@
 				{/each}
 			</nav>
 			<div class="foot">
-				<p class="owner">
-					<span class="face" aria-hidden="true">{initials(info.name)}</span>
-					<span class="who">
-						<span class="of">{i18n.t.memoryOf}</span>
-						<span class="name" data-testid="memory-name">{info.name}</span>
-					</span>
-				</p>
+				<OwnerMenu name={info.name} me={info.me} />
 			</div>
 		</header>
 		<main id="content" tabindex="-1">
@@ -179,7 +183,7 @@
 						bind:this={moreButton}
 						onclick={openMore}
 					>
-						<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={icons.more} /></svg>
+						<span class="face" aria-hidden="true">{initials(info.name)}</span>
 						<span>{i18n.t.more}</span>
 					</button>
 					{#if inOthers}<span id="more-current" class="visually-hidden">{i18n.t.youAreIn(inOthers.label)}</span>{/if}

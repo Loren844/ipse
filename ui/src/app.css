@@ -3583,3 +3583,79 @@ html[data-app] :is(
 html[data-app] :is(a, img, svg) {
 	-webkit-user-drag: none;
 }
+
+/* The menu under the owner's name (#176): their file, the settings, another memory. */
+.owner-menu {
+	position: relative;
+}
+
+button.owner {
+	width: 100%;
+	font: inherit;
+	color: inherit;
+	text-align: left;
+	background: transparent;
+	border: 0;
+	border-radius: var(--radius);
+	padding: 0.4rem;
+	cursor: pointer;
+}
+
+button.owner:hover,
+button.owner[aria-expanded='true'] {
+	background: var(--line);
+}
+
+button.owner .who {
+	flex: 1;
+}
+
+.owner .chevron {
+	flex: none;
+	fill: none;
+	stroke: var(--muted);
+	stroke-width: 2;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	transition: transform 150ms ease-out;
+}
+
+button.owner[aria-expanded='true'] .chevron {
+	transform: rotate(180deg);
+}
+
+.owner-items {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: calc(100% + 0.35rem);
+	z-index: 5;
+	margin: 0;
+	padding: 0.3rem;
+	list-style: none;
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: 12px;
+	box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+}
+
+.owner-items a {
+	display: block;
+	padding: 0.5rem 0.65rem;
+	border-radius: 8px;
+	color: var(--text);
+	font-weight: 500;
+	text-decoration: none;
+}
+
+.owner-items a:hover,
+.owner-items a:focus-visible {
+	background: var(--thread-soft);
+	outline: none;
+}
+
+.tabbar button .face {
+	width: 22px;
+	height: 22px;
+	font-size: 0.6rem;
+}

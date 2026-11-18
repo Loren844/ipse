@@ -22,7 +22,7 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveURL(`${ipse.origin}/`);
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
-	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Graphe', 'Agenda', 'Frise', 'Carte', 'Résumés', 'À revoir', 'IA connectées', 'Sources', 'Historique', 'Réglages']);
+	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Graphe', 'Agenda', 'Frise', 'Carte', 'Résumés', 'À revoir', 'IA connectées', 'Sources', 'Historique']);
 	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
 	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
@@ -37,7 +37,9 @@ test('the sections and the language switch', async ({ page }) => {
 	await expect(page).toHaveURL(`${ipse.origin}/history`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Historique');
 
-	await page.getByRole('link', { name: 'Réglages' }).click();
+	// Réglages: in the menu under the owner's name (#176).
+	await page.getByRole('button', { name: /^Mémoire de/ }).click();
+	await page.getByRole('menuitem', { name: 'Réglages' }).click();
 	await page.getByRole('group', { name: 'Langue de l’interface' }).getByRole('button', { name: 'English' }).click();
 	await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Settings');
@@ -52,8 +54,7 @@ test('the sections and the language switch', async ({ page }) => {
 		'To review',
 		'Connected AIs',
 		'Sources',
-		'History',
-		'Settings'
+		'History'
 	]);
 
 	// The choice stays in this browser; a reload keeps the page and the language.

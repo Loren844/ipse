@@ -9,6 +9,10 @@ export type AppInfo = {
  */
 name: string, 
 /**
+ * The owner's own file, to open from the menu under their name.
+ */
+me: string | null, 
+/**
  * The vault's language, `fr` or `en`: the interface speaks it until the person
  * picks another.
  */

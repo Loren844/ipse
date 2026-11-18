@@ -27,9 +27,14 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await bar.getByRole('link', { name: /À revoir/ }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('À revoir');
 
-	// The others, behind More: focus goes in, a choice closes it.
+	// The others, behind More (the owner's initials): their file and the settings first,
+	// focus goes in, a choice closes it.
 	const more = bar.getByRole('button', { name: 'Plus' });
-	for (const name of ['Graphe', 'Frise', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique', 'Réglages']) {
+	await expect(more.locator('.face')).toHaveText('CL');
+	await more.click();
+	await expect(page.getByRole('dialog', { name: 'Autres sections' }).getByRole('link').first()).toHaveText('Votre fiche');
+	await page.keyboard.press('Escape');
+	for (const name of ['Réglages', 'Graphe', 'Frise', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
 		await more.click();
 		const panel = page.getByRole('dialog', { name: 'Autres sections' });
 		await expect(panel).toBeVisible();
@@ -43,7 +48,7 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	// Escape and a tap outside close it; focus comes back to More.
 	await more.click();
 	const panel = page.getByRole('dialog', { name: 'Autres sections' });
-	await expect(panel.getByRole('link', { name: 'Réglages' })).toBeFocused();
+	await expect(panel.getByRole('link', { name: 'Historique' })).toBeFocused();
 	await page.keyboard.press('Escape');
 	await expect(panel).toBeHidden();
 	await expect(more).toBeFocused();
