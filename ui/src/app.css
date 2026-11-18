@@ -3546,3 +3546,36 @@ nav.crumbs:empty {
 		grid-template-columns: 1fr;
 	}
 }
+
+/* In the desktop app (#167): the interface itself is not selectable, as in any app;
+   what the person may want to copy stays so. Links and images are not dragged out. */
+html[data-app] body {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+html[data-app] :is(
+		.notes,
+		.facts li,
+		.props dd,
+		.relations dd,
+		.summary-text,
+		.day-summary,
+		.period-summary,
+		.month-summary,
+		.diff .sides,
+		.question .clues,
+		pre,
+		code,
+		input,
+		textarea,
+		select,
+		[contenteditable]
+	) {
+	-webkit-user-select: text;
+	user-select: text;
+}
+
+html[data-app] :is(a, img, svg) {
+	-webkit-user-drag: none;
+}

@@ -15,6 +15,15 @@
 
 	onMount(() => {
 		app.load();
+		if (!inApp) return;
+		// In the desktop app (#167): the interface is not a page to select or drag
+		// from. Files dropped on the window still arrive (Sources).
+		document.documentElement.dataset.app = '';
+		const stopDrag = (e: DragEvent) => {
+			if (e.target instanceof Element && e.target.closest('a, img, svg')) e.preventDefault();
+		};
+		document.addEventListener('dragstart', stopDrag);
+		return () => document.removeEventListener('dragstart', stopDrag);
 	});
 
 	$effect(() => {
