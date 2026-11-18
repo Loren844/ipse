@@ -63,3 +63,15 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await expect(page).toHaveURL(`${ipse.origin}/memory?q=escalade`);
 	await expect(page.getByTestId('found').getByRole('link').first()).toContainText('Club d’escalade Vertige');
 });
+
+test('widening the window with More open leaves the page usable', async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto(ipse.url);
+	await page.getByRole('navigation', { name: 'Sections' }).last().getByRole('button', { name: 'Plus' }).click();
+	const panel = page.getByRole('dialog', { name: 'Autres sections' });
+	await expect(panel).toBeVisible();
+	await page.setViewportSize({ width: 1280, height: 800 });
+	await expect(panel).toBeHidden();
+	await page.getByRole('link', { name: 'Agenda' }).first().click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agenda');
+});
