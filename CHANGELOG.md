@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Fixed
+
+- Widening the window while the phone's **Plus** panel is open no longer leaves the page blocked behind it ([#177](https://github.com/Loren844/ipse/issues/177)).
+
 ### Changed
 
 - In the desktop app, the interface's own words (menu, buttons, headings) are no longer selected like a web page's, and links and the logo can no longer be dragged out of the window; notes, facts, summaries and fields can still be copied ([#167](https://github.com/Loren844/ipse/issues/167)).

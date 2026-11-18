@@ -74,6 +74,20 @@
 
 	afterNavigate(() => closeMore());
 
+	/** The rail's layout, wider than a phone (the breakpoint of app.css). */
+	const DESKTOP = '(min-width: 761px)';
+
+	// Widening the window to the desktop layout hides the bottom bar: its panel goes
+	// with it, or the page would stay blocked behind it (#177).
+	$effect(() => {
+		const wide = window.matchMedia(DESKTOP);
+		const change = () => {
+			if (wide.matches) closeMore();
+		};
+		wide.addEventListener('change', change);
+		return () => wide.removeEventListener('change', change);
+	});
+
 	let railQuery = $state('');
 
 	/** Searches the whole memory, from any screen. */
@@ -178,7 +192,9 @@
 			bind:this={sheet}
 			onclose={() => {
 				sheetOpen = false;
-				moreButton?.focus();
+				// On a phone, back to More; on the desktop layout, More is hidden: the rail.
+				if (window.matchMedia(DESKTOP).matches) document.querySelector<HTMLElement>('.rail nav a')?.focus();
+				else moreButton?.focus();
 			}}
 			onclick={(e) => {
 				// A tap on the backdrop, outside the panel, closes it.
