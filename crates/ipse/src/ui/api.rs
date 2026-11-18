@@ -33,6 +33,8 @@ const PERSON_EVENTS: usize = 50;
 pub(crate) struct AppInfo {
     /// The owner's name: whose memory this is.
     pub(crate) name: String,
+    /// The owner's own file, to open from the menu under their name.
+    pub(crate) me: Option<String>,
     /// The vault's language, `fr` or `en`: the interface speaks it until the person
     /// picks another.
     pub(crate) language: String,
@@ -271,9 +273,12 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
     super::questions::plan(gateway)?;
     let waiting = waiting(gateway)?;
     let owner = gateway.fresh_owner()?;
-    let name = owner.about_me().and_then(|me| me.name).unwrap_or_default();
+    let about = owner.about_me();
+    let me = about.as_ref().map(|me| me.id.clone());
+    let name = about.and_then(|me| me.name).unwrap_or_default();
     Ok(AppInfo {
         name,
+        me,
         language,
         time_zone,
         waiting,

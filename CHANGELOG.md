@@ -4,14 +4,15 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Changed
+
+- **Mémoire de …**, at the bottom of the side bar, opens a menu: your file, the settings and, in the app, another memory; the settings left the side bar. On a phone, **Plus** shows your initials and starts with your file and the settings ([#176](https://github.com/Loren844/ipse/issues/176)).
+- In the desktop app, the interface's own words (menu, buttons, headings) are no longer selected like a web page's, and links and the logo can no longer be dragged out of the window; notes, facts, summaries and fields can still be copied ([#167](https://github.com/Loren844/ipse/issues/167)).
+
 ### Fixed
 
 - In **En ce moment**, a book or a series linked to its file lines up with the rest; the light theme's darkest red (links, names) is softened to the same family as the rest ([#171](https://github.com/Loren844/ipse/issues/171)).
 - Widening the window while the phone's **Plus** panel is open no longer leaves the page blocked behind it ([#177](https://github.com/Loren844/ipse/issues/177)).
-
-### Changed
-
-- In the desktop app, the interface's own words (menu, buttons, headings) are no longer selected like a web page's, and links and the logo can no longer be dragged out of the window; notes, facts, summaries and fields can still be copied ([#167](https://github.com/Loren844/ipse/issues/167)).
 
 ## 0.2.0 - 2026-11-17
 
