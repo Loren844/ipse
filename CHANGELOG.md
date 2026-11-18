@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Fixed
 
+- In **En ce moment**, a book or a series linked to its file lines up with the rest; the light theme's darkest red (links, names) is softened to the same family as the rest ([#171](https://github.com/Loren844/ipse/issues/171)).
 - Widening the window while the phone's **Plus** panel is open no longer leaves the page blocked behind it ([#177](https://github.com/Loren844/ipse/issues/177)).
 
 ### Changed
