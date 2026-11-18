@@ -7,7 +7,7 @@
 	--line: #eee9e7;
 	--line-strong: #e5dedc;
 	--thread: #9b2c3a;
-	--thread-ink: #7a1f2b;
+	--thread-ink: #94313f;
 	--thread-soft: #f6e9ea;
 	--thread-faint: #e8c9cd;
 	--focus: #9b2c3a;
@@ -529,6 +529,10 @@ a {
 
 .mention:hover {
 	outline: 1.5px solid var(--thread);
+}
+
+.mention:not(:has(> .face)) {
+	padding-left: 0.6rem;
 }
 
 .mention.plain {
