@@ -162,18 +162,22 @@
 	{#if view !== 'list'}
 		<h2 class="period" aria-live="polite">{title}</h2>
 		{#if period}
-			{#if view === 'week'}
-				<CalendarWeek {day} events={ofKind(period.events)} summaries={period.summaries} {today} />
-			{:else}
-				<CalendarMonth {day} events={ofKind(period.events)} summaries={period.summaries} {today} {title} />
-			{/if}
+			{#key `${view} ${day} ${kind}`}
+				<div class="appear">
+					{#if view === 'week'}
+						<CalendarWeek {day} events={ofKind(period.events)} summaries={period.summaries} {today} />
+					{:else}
+						<CalendarMonth {day} events={ofKind(period.events)} summaries={period.summaries} {today} {title} />
+					{/if}
+				</div>
+			{/key}
 		{:else if periodFailed}
 			<p class="quiet">{i18n.t.failed}</p>
 		{/if}
 	{:else if ready}
 		<button type="button" class="more" onclick={() => load(shift(from, -90), shift(from, -1), 'before')}>{i18n.t.earlier}</button>
 		{#if days.length}
-			<ol class="thread agenda">
+			<ol class="thread agenda appear">
 				{#each days as group (group.day)}
 					<li class="day-label" class:today={group.day === today}>
 						<h2>{group.day === today ? i18n.t.today : longDay(group.day, today)}</h2>

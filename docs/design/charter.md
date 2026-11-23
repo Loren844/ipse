@@ -93,7 +93,14 @@ Rules:
 
 ## 7. Motion
 
-Owned by issue #169. Tokens ready for it: `--motion-quick` (150 ms) and `--motion-ease`. Something moves only when it appears, leaves or changes place; nothing moves on its own; everything stops with `prefers-reduced-motion`.
+Something moves only when it appears, leaves or changes place; nothing moves on its own; everything stops with `prefers-reduced-motion`; no motion holds an action back (issue #169).
+
+- **`--motion-quick`** (150 ms): small things. A menu drops in, a dialog or a panel opens and closes, a notice appears.
+- **`--motion-calm`** (220 ms): larger ones. A new screen settles in, a week, month or year of the agenda and the timeline fades in, a line leaves a list and the lines below close the gap, the graph glides to a file.
+- **`--motion-ease`** for all of it: fast, then settling.
+- A screen or a period rises 6 px as it fades in; nothing bounces, spins or loops.
+- CSS does what appears (`app.css`, "Motion"); what Svelte removes leaves through `ui/src/lib/motion.ts`, which also stops when the system asks for less motion.
+- Browser tests run with reduced motion; `ui/tests/motion.spec.ts` checks the motion itself.
 
 ## 8. Voice
 

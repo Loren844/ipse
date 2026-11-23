@@ -10,7 +10,9 @@ export default defineConfig({
 	timeout: 30_000,
 	retries: 0,
 	reporter: [['list']],
-	use: { browserName: 'chromium', locale: 'fr-FR' },
+	// Without motion, as a person who asks their system for less of it: a test never
+	// waits on a transition. motion.spec.ts checks the motion itself.
+	use: { browserName: 'chromium', locale: 'fr-FR', contextOptions: { reducedMotion: 'reduce' } },
 	projects: [
 		{ name: 'interface', testIgnore: SCALE },
 		{ name: 'scale', testMatch: SCALE, dependencies: ['interface'] }

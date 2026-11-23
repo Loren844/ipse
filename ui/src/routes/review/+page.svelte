@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { leave, move } from '#lib/motion.ts';
 	import { tick } from 'svelte';
 	import {
 		api,
@@ -147,7 +148,7 @@
 				{/if}
 				<ul class="inbox" style:margin-top="1rem">
 					{#each ready.waiting as line (line.id)}
-						<li class="proposal" data-testid="proposal">
+						<li class="proposal" data-testid="proposal" out:leave animate:move>
 							{#if line.status === 'waiting'}
 								<input type="checkbox" bind:group={selected} value={line.id} aria-label={i18n.t.select(line.reason)} />
 							{:else}
@@ -188,7 +189,7 @@
 				<h2 id="decided">{i18n.t.decidedRecently}</h2>
 				<ul class="inbox">
 					{#each ready.decided as line (line.id)}
-						<li class="proposal decided" data-testid="decided">
+						<li class="proposal decided" data-testid="decided" animate:move>
 							<div class="body">
 								<a class="reason" href="/review/{line.id}">{line.reason}</a>
 								<p class="meta">

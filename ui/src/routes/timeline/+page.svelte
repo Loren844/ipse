@@ -100,7 +100,7 @@
 	{:else if view && !view.years.length}
 		<p class="quiet">{i18n.t.timelineEmpty}</p>
 	{:else if chosenMonth}
-		<section class="period-detail" aria-label={monthTitle(chosenMonth.month)}>
+		{#key chosenMonth.month}<section class="period-detail appear" aria-label={monthTitle(chosenMonth.month)}>
 			<p class="period-count">{i18n.t.eventsCount(chosenMonth.events)}</p>
 			{#if chosenMonth.summary}<p class="period-summary">{chosenMonth.summary}</p>{/if}
 			{#if chosenMonth.marks.length}
@@ -117,9 +117,9 @@
 			{/if}
 			{@render people(chosenMonth.people)}
 			<p><a class="button" href="/agenda?view=month&day={chosenMonth.month}-01">{i18n.t.monthInAgenda}</a></p>
-		</section>
+		</section>{/key}
 	{:else if chosenYear}
-		<section class="period-detail" aria-label={String(chosenYear.year)}>
+		{#key chosenYear.year}<section class="period-detail appear" aria-label={String(chosenYear.year)}>
 			<p class="period-count">{i18n.t.eventsCount(chosenYear.events)}</p>
 			{#if chosenYear.summary}<p class="period-summary">{chosenYear.summary}</p>{/if}
 			{@render people(chosenYear.people)}
@@ -143,9 +143,9 @@
 					</li>
 				{/each}
 			</ol>
-		</section>
+		</section>{/key}
 	{:else if view}
-		<ol class="years">
+		<ol class="years appear">
 			{#each view.years as y (y.year)}
 				<li class="year-row">
 					<h2>

@@ -36,8 +36,10 @@
 	/* Depth: only what floats above the page casts a shadow. */
 	--shadow-pop: 0 8px 24px rgb(35 29 30 / 0.12);
 	--shadow-dialog: 0 20px 50px rgb(35 29 30 / 0.22);
-	/* Motion: for #169; nothing moves on its own, all of it off with reduced motion. */
+	/* Motion (#169): quick for small things, calm for a screen or a list; nothing moves on
+	   its own, all of it off with reduced motion (section "Motion" below). */
 	--motion-quick: 150ms;
+	--motion-calm: 220ms;
 	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
 	--rail: 15.5rem;
 	color-scheme: light;
@@ -1824,8 +1826,83 @@ pre.diagnostics {
 	}
 }
 
+/* Motion (issue #169, docs/design/charter.md, section 7): something moves only when it
+   appears, leaves or changes place, for 150 to 250 ms, and never holds an action back.
+   What Svelte removes leaves through ui/src/lib/motion.ts. */
+@keyframes appear {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+}
+
+/* A new screen settles in. */
+#content > * {
+	animation: appear var(--motion-calm) var(--motion-ease);
+}
+
+/* A new week, month or year of the agenda and the timeline. */
+.appear {
+	animation: fade-in var(--motion-calm) var(--motion-ease);
+}
+
+/* Dialogs and panels open and close. */
+dialog {
+	transition:
+		opacity var(--motion-quick) var(--motion-ease),
+		transform var(--motion-quick) var(--motion-ease),
+		overlay var(--motion-quick) allow-discrete,
+		display var(--motion-quick) allow-discrete;
+	opacity: 0;
+	transform: translateY(6px);
+}
+
+dialog[open] {
+	opacity: 1;
+	transform: none;
+}
+
+@starting-style {
+	dialog[open] {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+
+dialog::backdrop {
+	transition:
+		opacity var(--motion-quick) var(--motion-ease),
+		overlay var(--motion-quick) allow-discrete,
+		display var(--motion-quick) allow-discrete;
+	opacity: 0;
+}
+
+dialog[open]::backdrop {
+	opacity: 1;
+}
+
+@starting-style {
+	dialog[open]::backdrop {
+		opacity: 0;
+	}
+}
+
+/* A notice, the outcome of an action. */
+.notice {
+	animation: appear var(--motion-quick) var(--motion-ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
-	* {
+	*,
+	*::before,
+	*::after,
+	::backdrop {
 		transition: none !important;
 		animation: none !important;
 	}
