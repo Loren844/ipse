@@ -20,6 +20,10 @@ on:
       - .github/workflows/app-release.yml
       - app/tauri.bundle.conf.json
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Only rewrite the notes of this release (like v0.2.0), without building"
+        required: false
 
 permissions:
   contents: write
@@ -30,6 +34,7 @@ env:
 jobs:
   build:
     name: Installer (${{ matrix.target }})
+    if: ${{ !inputs.tag }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -159,3 +164,22 @@ jobs:
             sleep 30
           done
           gh release upload "$TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
+      - uses: actions/checkout@v5
+        with:
+          path: source
+      - name: The app first in the notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: source/.github/scripts/notes.sh "$TAG"
+
+  notes:
+    name: Rewrite a release's notes
+    if: ${{ inputs.tag }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: The app first in the notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: .github/scripts/notes.sh "${{ inputs.tag }}"
