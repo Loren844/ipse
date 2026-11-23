@@ -21,9 +21,11 @@ test.describe('with motion', () => {
 	test('screens, periods, menus and proposals move, briefly', async ({ page }) => {
 		await page.goto(ipse.url);
 		await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
-		expect(await animation(page, '#content > *')).toBe('appear 0.22s');
+		// Read once the new screen is in place: the old one, leaving, has no style left.
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agenda');
+		await expect.poll(() => animation(page, '#content > *')).toBe('appear 0.22s');
 		await page.getByRole('button', { name: 'Semaine' }).click();
-		expect(await animation(page, '.appear')).toBe('fade-in 0.22s');
+		await expect.poll(() => animation(page, '.appear')).toBe('fade-in 0.22s');
 
 		// A menu drops in, and the next click is not held back.
 		await page.getByRole('button', { name: /^Mémoire de/ }).click();
@@ -41,14 +43,16 @@ test.describe('with motion', () => {
 		await page.getByRole('button', { name: /^Accepter/ }).first().click();
 		await expect(proposals).toHaveCount(before - 1);
 		expect(Date.now() - asked).toBeLessThan(2_000);
-		expect(await animation(page, '.notice')).toBe('appear 0.15s');
+		await expect.poll(() => animation(page, '.notice')).toBe('appear 0.15s');
 	});
 });
 
 test('nothing moves when the system asks for less motion', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agenda');
 	await page.getByRole('button', { name: 'Semaine' }).click();
-	expect(await animation(page, '#content > *')).toMatch(/^none/);
-	expect(await animation(page, '.appear')).toMatch(/^none/);
+	await expect(page.locator('.appear')).toHaveCount(1);
+	await expect.poll(() => animation(page, '#content > *')).toMatch(/^none/);
+	await expect.poll(() => animation(page, '.appear')).toMatch(/^none/);
 });
