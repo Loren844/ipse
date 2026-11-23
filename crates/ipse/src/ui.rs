@@ -38,6 +38,7 @@ mod background;
 mod edit;
 mod graph;
 mod history;
+mod kinds;
 mod map;
 mod memory;
 mod questions;
@@ -531,6 +532,8 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
                 edit::view(gateway, id).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(id) = path.strip_prefix("file/") {
                 api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(kind) = path.strip_prefix("kinds/") {
+                kinds::view(gateway, kind).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(id) = path.strip_prefix("proposals/") {
                 review::one(gateway, id).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(instance) = path

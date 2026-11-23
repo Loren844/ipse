@@ -4,8 +4,11 @@
 
 use serde::Serialize;
 
+use jiff::civil::Date;
+
 use super::{Access, Entry};
-use crate::vault::{FileType, Id, LinkOrText, MemoryFile, WikiLink};
+use crate::search::{Often, next_birthday};
+use crate::vault::{EventKind, FileType, Id, LinkOrText, MemoryFile, WikiLink};
 
 /// Most entities one page of a list holds.
 pub const MAX_LISTED: usize = 200;
@@ -97,6 +100,32 @@ pub struct Details {
     /// For an event: its place, resolved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub place: Option<LinkOut>,
+}
+
+/// One kind of event at a glance (issue #134).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct KindOut {
+    /// How many events of the kind this client may read.
+    pub events: u32,
+    /// The next ones, from today, by start.
+    pub next: Vec<Details>,
+    /// The last ones before today, the most recent first.
+    pub last: Vec<Details>,
+    /// The people in most of them, with how many each.
+    pub people: Vec<(LinkOut, u32)>,
+    /// The places most of them happen at, with how many each.
+    pub places: Vec<(LinkOut, u32)>,
+}
+
+/// A birthday to come.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct BirthdayOut {
+    /// Whose.
+    pub person: LinkOut,
+    /// The day it falls on.
+    pub day: Date,
+    /// The age they turn, when their file gives the year.
+    pub age: Option<i16>,
 }
 
 /// Most files a graph shows.
@@ -435,6 +464,85 @@ impl Access<'_> {
                     .is_some()
             },
         )
+    }
+
+    /// The events of `kind` this client may read, around `today`: at most `shown`
+    /// next and last ones, and the people and places most with them (issue #134).
+    #[must_use]
+    pub fn kind(&self, kind: EventKind, today: Date, shown: usize) -> KindOut {
+        let index = &self.gateway.index;
+        let summary = index.kind_summary(
+            kind,
+            today,
+            shown,
+            |c| self.reads(c.as_str()),
+            |stem| {
+                index
+                    .person_path(stem, |c| self.reads(c.as_str()))
+                    .is_some()
+            },
+        );
+        let details = |found: Vec<(&Id, &crate::vault::EventTime)>| -> Vec<Details> {
+            found
+                .into_iter()
+                .filter_map(|(id, _)| self.details(id.as_str()))
+                .collect()
+        };
+        let resolve = |often: Vec<Often>| -> Vec<(LinkOut, u32)> {
+            often
+                .into_iter()
+                .map(|o| {
+                    let link = LinkOrText::Link(WikiLink {
+                        target: o.stem,
+                        display: None,
+                    });
+                    (self.link(&link), o.events)
+                })
+                .collect()
+        };
+        KindOut {
+            events: summary.events,
+            next: details(summary.next),
+            last: details(summary.last),
+            people: resolve(summary.people),
+            places: resolve(summary.places),
+        }
+    }
+
+    /// The birthdays of the people this client may read that fall from `today` to
+    /// `days` later, the soonest first; the owner's own is left out.
+    #[must_use]
+    pub fn birthdays(&self, today: Date, days: i32) -> Vec<BirthdayOut> {
+        let owner = self.gateway.vault.owner_file();
+        let owner = owner
+            .strip_prefix(self.gateway.vault.root())
+            .unwrap_or(owner);
+        let until = today.saturating_add(jiff::Span::new().days(days));
+        let mut found: Vec<BirthdayOut> = self
+            .gateway
+            .index
+            .birthdays(|c| self.reads(c.as_str()))
+            .into_iter()
+            .filter(|b| self.gateway.index.path_of(b.id, |_| true) != Some(owner))
+            .filter_map(|b| {
+                let day = next_birthday(b.birthday, today);
+                (day <= until).then(|| BirthdayOut {
+                    person: LinkOut {
+                        name: b.name.to_owned(),
+                        id: Some(b.id.to_string()),
+                        file_type: Some("person".to_owned()),
+                    },
+                    day,
+                    age: b.birthday.year().map(|y| day.year() - y),
+                })
+            })
+            .collect();
+        found.sort_by(|a, b| {
+            a.day
+                .cmp(&b.day)
+                .then_with(|| a.person.name.cmp(&b.person.name))
+        });
+        found
     }
 
     /// A link or a plain text, resolved: the linked file's name and id when this client

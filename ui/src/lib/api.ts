@@ -26,9 +26,10 @@ export type { TimelineView };
 export type { YearView } from './types/YearView.ts';
 export type { MonthView } from './types/MonthView.ts';
 import type { ConnectedView } from './types/ConnectedView.ts';
+import type { EventKindView } from './types/EventKindView.ts';
 import type { SourcesChange } from './types/SourcesChange.ts';
 import type { SourcesView } from './types/SourcesView.ts';
-export type { SourcesChange, SourcesView };
+export type { EventKindView, SourcesChange, SourcesView };
 export type { SourceView } from './types/SourceView.ts';
 import type { HistoryView } from './types/HistoryView.ts';
 import type { AccessesView } from './types/AccessesView.ts';
@@ -157,6 +158,7 @@ export const api = {
 	runs: () => get<RunsView>('/api/runs'),
 	map: () => get<MapView>('/api/map'),
 	timeline: () => get<TimelineView>('/api/timeline'),
+	kind: (kind: string) => get<EventKindView>(`/api/kinds/${encodeURIComponent(kind)}`),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),

@@ -2874,6 +2874,61 @@ dialog.more .owner {
 	gap: 0.4rem;
 }
 
+/* One kind of event at a time (issue #134), and the page of a kind. */
+.kind-bar {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.5rem 1rem;
+	margin-top: 0.9rem;
+}
+
+.kind-filter {
+	margin-bottom: 0.5rem;
+}
+
+a.kind-tag {
+	text-decoration: none;
+}
+
+a.kind-tag:hover {
+	border-color: var(--thread);
+	color: var(--thread-ink);
+}
+
+.kind-page section {
+	margin-top: 2rem;
+}
+
+.kind-often {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+	gap: 0 2rem;
+}
+
+.often,
+.birthdays {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+}
+
+.often li,
+.birthdays li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem 0.6rem;
+}
+
+.birthdays .when {
+	min-width: 9rem;
+	font-weight: 700;
+}
+
 .period-nav .button.small {
 	min-width: 2.4rem;
 }
