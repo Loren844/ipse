@@ -1,9 +1,10 @@
 //! Where the window may go. It shows two things only: the app's own first screen and
 //! the memory's interface on `127.0.0.1`. A link to anything else opens in the
-//! person's browser, so the window never loads another site. Two addresses are
+//! person's browser, so the window never loads another site. A few addresses are
 //! answered by the app itself, on either origin: `/app/switch` (back to the first
-//! screen), `/app/quit` and `/app/settings?notifications=on&start=off` (the app's
-//! own settings, from the interface's Settings).
+//! screen), `/app/quit`, `/app/settings?notifications=on&start=off&updates=on` (the
+//! app's own settings, from the interface's Settings), and `/app/update/install` and
+//! `/app/update/later` (the person's answer to a new version).
 
 use tauri::{AppHandle, Manager as _, Url};
 use tauri_plugin_opener::OpenerExt as _;
@@ -27,7 +28,13 @@ pub(crate) enum Go {
         notifications: Option<bool>,
         /// Start with the computer, when changed.
         start: Option<bool>,
+        /// Check for updates, when changed.
+        updates: Option<bool>,
     },
+    /// Install the update found, then start the new version.
+    Install,
+    /// Not now: stop showing the update until the next check.
+    Later,
     /// Open this address in the person's browser.
     Outside(Url),
 }
@@ -43,7 +50,10 @@ pub(crate) fn decide(url: &Url, port: Option<u16>) -> Go {
             "/app/settings" => Go::Settings {
                 notifications: switch(url, "notifications"),
                 start: switch(url, "start"),
+                updates: switch(url, "updates"),
             },
+            "/app/update/install" => Go::Install,
+            "/app/update/later" => Go::Later,
             _ => Go::Allow,
         };
     }
@@ -91,7 +101,10 @@ pub(crate) fn act(app: &AppHandle, go: Go) {
         Go::Settings {
             notifications,
             start,
-        } => crate::prefs::change(app, notifications, start),
+            updates,
+        } => crate::prefs::change(app, notifications, start, updates),
+        Go::Install => crate::updates::install(app),
+        Go::Later => crate::updates::later(app),
         Go::Outside(url) => {
             let _ = app.opener().open_url(url.as_str(), None::<&str>);
         }
@@ -153,14 +166,25 @@ mod tests {
         assert_eq!(decide(&url("tauri://localhost/app/quit"), None), Go::Quit);
         assert_eq!(
             decide(
-                &url("http://127.0.0.1:4100/app/settings?notifications=off&start=on"),
+                &url("http://127.0.0.1:4100/app/settings?notifications=off&start=on&updates=off"),
                 Some(4100)
             ),
             Go::Settings {
                 notifications: Some(false),
-                start: Some(true)
+                start: Some(true),
+                updates: Some(false)
             }
         );
+        assert_eq!(
+            decide(&url("http://127.0.0.1:4100/app/update/install"), Some(4100)),
+            Go::Install
+        );
+        assert_eq!(
+            decide(&url("tauri://localhost/app/update/later"), None),
+            Go::Later
+        );
+        let elsewhere = url("https://example.org/app/update/install");
+        assert_eq!(decide(&elsewhere, Some(4100)), Go::Outside(elsewhere));
         assert_eq!(
             decide(
                 &url("http://127.0.0.1:4100/app/settings?start=maybe"),
@@ -168,7 +192,8 @@ mod tests {
             ),
             Go::Settings {
                 notifications: None,
-                start: None
+                start: None,
+                updates: None
             }
         );
         // Not from another site.

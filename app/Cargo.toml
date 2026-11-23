@@ -39,8 +39,15 @@ tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"
 # Opening Ipse again brings its window forward instead of a second app.
 tauri-plugin-single-instance = "2"
+# New versions, checked when the person agreed, verified by signature (issue #156).
+tauri-plugin-updater = "2"
 # The window's size and position, kept from one start to the next.
 tauri-plugin-window-state = "2"
+
+[features]
+# Built by the update test in CI only (.github/workflows/app-update.yml): the app
+# installs what its manifest offers at once, then quits. Never in a release.
+update-test = []
 
 [dev-dependencies]
 tempfile = "3.27"

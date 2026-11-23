@@ -1,0 +1,47 @@
+# The desktop app updates itself (issue #156): an old version finds the new one in a
+# manifest served on the runner, verifies its signature with a key made for the test,
+# and replaces its own AppImage (.github/scripts/update_test.sh).
+name: App update
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/app-update.yml
+      - .github/scripts/update_test.sh
+      - app/**
+  push:
+    branches: [main]
+    paths:
+      - app/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-update-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  update:
+    name: An old version updates itself (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: System libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb libfuse2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: update
+          workspaces: |
+            .
+            app
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: .github/scripts/update_test.sh

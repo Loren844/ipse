@@ -4038,3 +4038,60 @@ p.automatic a {
 	color: var(--thread-ink);
 	font-weight: 600;
 }
+
+/* A new version of the desktop app (issue #156), above the screen: one quiet block,
+   the thread's red only on its main button. */
+.update-banner {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	max-width: 46rem;
+	margin-bottom: 2rem;
+	padding: 1rem 1.25rem;
+	border: 1.5px solid var(--line-strong);
+	border-radius: var(--radius-l);
+	background: var(--surface);
+}
+
+.update-banner.failed {
+	padding: 0;
+	border: 0;
+	background: none;
+}
+
+.update-banner h2 {
+	margin: 0;
+	font-size: var(--step-1);
+}
+
+.update-banner p {
+	margin: 0;
+}
+
+.update-banner .actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
+}
+
+.update-banner summary {
+	cursor: pointer;
+	font-size: var(--step--1);
+	font-weight: 700;
+}
+
+.update-notes {
+	white-space: pre-wrap;
+	max-height: 16rem;
+	overflow: auto;
+	margin-top: 0.5rem;
+	font-size: var(--step--1);
+	color: var(--muted);
+}
+
+.update-format {
+	padding: 0.5rem 0.75rem;
+	border-radius: var(--radius-s);
+	background: var(--warn-soft);
+	color: var(--warn);
+}

@@ -118,6 +118,17 @@
 				/>
 				<span>{i18n.t.startWithComputer}<span class="hint" id="start-hint">{i18n.t.startWithComputerHint}</span></span>
 			</label>
+			{#if appSettings.value && appSettings.value.updates !== null && appSettings.value.updates !== undefined}
+				<label class="check">
+					<input
+						type="checkbox"
+						checked={appSettings.value.updates}
+						aria-describedby="updates-hint"
+						onchange={(e) => appSettings.change('updates', e.currentTarget.checked)}
+					/>
+					<span>{i18n.t.checkUpdates}<span class="hint" id="updates-hint">{i18n.t.checkUpdatesHint}</span></span>
+				</label>
+			{/if}
 		</section>
 	{/if}
 
