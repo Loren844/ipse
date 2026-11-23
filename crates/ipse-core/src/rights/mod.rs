@@ -16,7 +16,7 @@ pub use access::{
 };
 pub use browse::{
     Backlink, BirthdayOut, Details, ENTITY_KINDS, EdgeOut, GraphOut, KindOut, Line, Lines, LinkOut,
-    MAX_GRAPH, MAX_LISTED, NodeOut, RelationLink,
+    MAX_GRAPH, MAX_LISTED, NodeOut, RelationLink, WholeGraphOut,
 };
 pub use clients::{Client, Clients, Standing, Token};
 pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};

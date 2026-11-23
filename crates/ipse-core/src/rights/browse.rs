@@ -175,6 +175,18 @@ pub struct GraphOut {
     pub more: usize,
 }
 
+/// The whole memory, for the graph view (issue #174).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+pub struct WholeGraphOut {
+    /// The owner's own file first when `centered`, then entities by name, then events,
+    /// the most recent first.
+    pub nodes: Vec<NodeOut>,
+    /// Each link once, by the places of its two files in `nodes`, the smaller first.
+    pub edges: Vec<(u32, u32)>,
+    /// True when the first node is the owner's own file.
+    pub centered: bool,
+}
+
 impl Access<'_> {
     /// The files around the entity or event `id`, `depth` steps away (1 or 2), among
     /// this client's categories that `categories` keeps (all when `None`) and the types
@@ -231,6 +243,45 @@ impl Access<'_> {
                 .collect(),
             more: found.more,
         })
+    }
+
+    /// The whole memory as one graph (issue #174): every entity and event of this
+    /// client's categories that `categories` keeps (all when `None`) and of the types
+    /// `kinds` keeps (all when empty), the owner's own file first (whatever the
+    /// filters, when this client may read it), and every link between two of them.
+    #[must_use]
+    pub fn whole_graph(&self, kinds: &[FileType], categories: Option<&[String]>) -> WholeGraphOut {
+        let kept = |t: FileType, c: &crate::vault::Category| {
+            let kind = if kinds.is_empty() {
+                t.is_entity() || t == FileType::Event
+            } else {
+                kinds.contains(&t)
+            };
+            kind && categories.is_none_or(|keep| keep.iter().any(|k| k == c.as_str()))
+        };
+        let me = self.about_me().and_then(|me| Id::parse(&me.id));
+        let found = self
+            .gateway
+            .index
+            .whole_graph(me.as_ref(), |c| self.reads(c.as_str()), kept);
+        let centered = found.nodes.first().is_some_and(|n| n.depth == 0);
+        WholeGraphOut {
+            nodes: found
+                .nodes
+                .into_iter()
+                .map(|n| NodeOut {
+                    id: n.id.to_string(),
+                    name: n.name.to_owned(),
+                    file_type: n.file_type.as_str().to_owned(),
+                    category: n.category.as_str().to_owned(),
+                    sensitive: self.sensitive(n.category.as_str()),
+                    depth: n.depth,
+                    start: n.start.map(ToString::to_string),
+                })
+                .collect(),
+            edges: found.edges,
+            centered,
+        }
     }
 
     /// True when `category` is closed to AIs unless the person opens it to one.

@@ -1243,56 +1243,42 @@ fn the_graph_through_the_api() {
     });
     let cookie = login(&ui);
 
-    // The owner's file by default: nobody links to it yet.
-    let (status, mine) = api(&ui, &cookie, "/api/graph");
-    assert_eq!(status, 200, "{mine}");
-    assert_eq!(mine["nodes"][0]["name"], "Inès Roux");
-    assert!(
-        mine["categories"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| c["name"] == "health" && c["sensitive"] == true)
-    );
-
-    let marie = "01jcx8m2p4q6r8t0v2w4y6z802";
-    let (_, graph) = api(&ui, &cookie, &format!("/api/graph?id={marie}&depth=2"));
+    // The whole memory, the owner first.
+    let (status, graph) = api(&ui, &cookie, "/api/graph");
+    assert_eq!(status, 200, "{graph}");
+    assert_eq!(graph["centered"], true);
     let names: Vec<&str> = graph["nodes"]
         .as_array()
         .unwrap()
         .iter()
         .map(|n| n["name"].as_str().unwrap())
         .collect();
-    assert_eq!(names, ["Marie Durand", "Atelier Nord", "Dr Morel"]);
+    assert_eq!(
+        names,
+        ["Inès Roux", "Atelier Nord", "Dr Morel", "Marie Durand"]
+    );
     assert_eq!(graph["nodes"][2]["sensitive"], true);
-    assert_eq!(graph["edges"][0]["word"], "travaille chez");
-
-    let (_, people) = api(
-        &ui,
-        &cookie,
-        &format!("/api/graph?id={marie}&kinds=person&categories=people,health"),
-    );
-    assert_eq!(people["nodes"].as_array().unwrap().len(), 2);
-    let (_, work) = api(
-        &ui,
-        &cookie,
-        &format!("/api/graph?id={marie}&categories=work"),
-    );
-    assert_eq!(work["nodes"][1]["name"], "Atelier Nord");
-    assert_eq!(work["nodes"].as_array().unwrap().len(), 2);
-
+    assert_eq!(graph["nodes"][2]["kind"], "person");
+    assert!(graph["nodes"][2].get("start").is_none(), "only for events");
+    let edges: Vec<u64> = graph["edges"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e.as_u64().unwrap())
+        .collect();
+    let mut pairs: Vec<(u64, u64)> = edges.chunks(2).map(|p| (p[0], p[1])).collect();
+    pairs.sort_unstable();
     assert_eq!(
-        api(
-            &ui,
-            &cookie,
-            &format!("/api/graph?id={marie}&kinds=summary")
-        )
-        .0,
-        400
+        pairs,
+        [(1, 3), (2, 3)],
+        "two numbers a link, the smaller first"
     );
-    assert_eq!(
-        api(&ui, &cookie, "/api/graph?id=01jcx8m2p4q6r8t0v2w4y6z899").0,
-        404
+    assert!(
+        graph["categories"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|c| c["name"] == "health" && c["sensitive"] == true)
     );
 }
 

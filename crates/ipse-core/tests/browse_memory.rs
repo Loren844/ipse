@@ -286,3 +286,101 @@ fn an_ai_graph_holds_only_what_it_may_read() {
         "a hidden file has no graph"
     );
 }
+
+/// The names of the two files of each link of the whole graph, in order.
+fn linked(graph: &ipse_core::rights::WholeGraphOut) -> Vec<(&str, &str)> {
+    graph
+        .edges
+        .iter()
+        .map(|&(a, b)| {
+            (
+                graph.nodes[a as usize].name.as_str(),
+                graph.nodes[b as usize].name.as_str(),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn the_whole_memory_is_one_graph_around_its_owner() {
+    let dir = tempfile::tempdir().unwrap();
+    memory(dir.path());
+    let mut gateway = Gateway::open(dir.path()).unwrap();
+    let owner = gateway.fresh_owner().unwrap();
+
+    let all = owner.whole_graph(&[], None);
+    assert!(all.centered);
+    let names: Vec<(&str, u8)> = all
+        .nodes
+        .iter()
+        .map(|n| (n.name.as_str(), n.depth))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("Inès Roux", 0),
+            ("Atelier Nord", 1),
+            ("Chez Marie", 1),
+            ("Dr Morel", 1),
+            ("Les Jours de sel", 1),
+            ("Marie Durand", 1),
+            ("Paul Roux", 1),
+            ("Dîner", 1),
+            ("Café", 1),
+        ],
+        "the owner first, then entities by name, then events, the most recent first"
+    );
+    assert!(all.nodes[3].sensitive, "health is marked");
+    let links = linked(&all);
+    for pair in [
+        ("Atelier Nord", "Marie Durand"),
+        ("Chez Marie", "Dîner"),
+        ("Dr Morel", "Marie Durand"),
+        ("Marie Durand", "Paul Roux"),
+        ("Marie Durand", "Dîner"),
+        ("Marie Durand", "Café"),
+    ] {
+        assert!(links.contains(&pair), "{pair:?} in {links:?}");
+    }
+    assert_eq!(links.len(), 6, "each link once, a missing file none");
+    assert!(all.edges.iter().all(|&(a, b)| a < b));
+
+    // Filters: the owner stays at the center.
+    let people = owner.whole_graph(&[FileType::Person], None);
+    let names: Vec<&str> = people.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["Inès Roux", "Dr Morel", "Marie Durand", "Paul Roux"]
+    );
+    assert_eq!(linked(&people).len(), 2);
+    let work = owner.whole_graph(&[], Some(&["work".to_owned()]));
+    let names: Vec<&str> = work.nodes.iter().map(|n| n.name.as_str()).collect();
+    assert_eq!(names, ["Inès Roux", "Atelier Nord"]);
+}
+
+#[test]
+fn an_ai_whole_graph_holds_only_what_it_may_read() {
+    let dir = tempfile::tempdir().unwrap();
+    memory(dir.path());
+    let vault = Vault::open(dir.path()).unwrap();
+    let mut clients = Clients::load(dir.path()).unwrap();
+    let categories = Categories::of(vault.settings());
+    let (_, token) = clients
+        .add(
+            "Claude",
+            DateTime::now(vault.settings().time_zone()),
+            &categories,
+            false,
+        )
+        .unwrap();
+    let gateway = Gateway::open(dir.path()).unwrap();
+    let ai = gateway.access(Some(token.expose())).unwrap();
+    let graph = ai.whole_graph(&[], None);
+    assert!(!graph.nodes.iter().any(|n| n.name == "Dr Morel"));
+    assert!(
+        !linked(&graph)
+            .iter()
+            .any(|(a, b)| *a == "Dr Morel" || *b == "Dr Morel")
+    );
+    assert!(graph.nodes.iter().any(|n| n.name == "Marie Durand"));
+}
