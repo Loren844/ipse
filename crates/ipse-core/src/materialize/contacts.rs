@@ -62,7 +62,7 @@ pub fn contacts_to_people(
 ) -> Result<PeopleSummary> {
     let ledger = Ledger::read(vault.root())?;
     let (items, last) = versions(journal, instance, KIND, ledger.applied(instance))?;
-    let existing = people_by_source(vault.root(), instance)?;
+    let (existing, elsewhere) = people_by_source(vault.root(), instance)?;
     let mut summary = PeopleSummary::default();
     let mut written = Vec::new();
     let mut conflicts = Vec::new();
@@ -104,7 +104,21 @@ pub fn contacts_to_people(
     };
 
     for (i, (source, versions, card)) in cards.iter().enumerate() {
-        let own_file = existing.get(source);
+        // The same card from another source (a file imported before, then the same
+        // address book on a server): found again by its identifier, not doubled.
+        let again = if existing.contains_key(source) {
+            None
+        } else {
+            source
+                .split_once(':')
+                .and_then(|(_, external_id)| elsewhere.get(external_id))
+                .filter(|path| add_source(path, source).is_ok_and(|added| added))
+        };
+        if let Some(path) = again {
+            change.touched(path);
+            written.push(path.clone());
+        }
+        let own_file = existing.get(source).or(again);
         if Some(i) == owner_index && own_file.is_none_or(|p| *p == owner_path) {
             let previous = versions.applied.as_ref().and_then(CardFields::from_data);
             if complete_owner(&owner_path, source, card, previous.as_ref(), vault)? {
@@ -284,12 +298,31 @@ fn create_person(source: String, card: &CardFields, vault: &Vault) -> Result<Opt
 }
 
 /// People files whose `sources` name a card of `instance`, by source.
-fn people_by_source(root: &Path, instance: &str) -> Result<HashMap<String, PathBuf>> {
+/// Adds `source` to the sources of the person file at `path`. Returns whether it was
+/// added.
+fn add_source(path: &Path, source: &str) -> Result<bool> {
+    let mut file = MemoryFile::read(path)?;
+    let common = file.common_mut();
+    if common.sources.iter().any(|s| s == source) {
+        return Ok(false);
+    }
+    common.sources.push(source.to_owned());
+    file.write_unsynced()?;
+    Ok(true)
+}
+
+/// The person files made from `instance`, by source (`contacts-2:<uid>`); and those
+/// made from other sources, by the card's identifier, to find a card again.
+fn people_by_source(
+    root: &Path,
+    instance: &str,
+) -> Result<(HashMap<String, PathBuf>, HashMap<String, PathBuf>)> {
     let prefix = format!("{instance}:");
     let mut by_source = HashMap::new();
+    let mut elsewhere = HashMap::new();
     let entries = match std::fs::read_dir(root.join(FileType::Person.folder())) {
         Ok(entries) => entries,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(by_source),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((by_source, elsewhere)),
         Err(source) => {
             return Err(crate::Error::Io {
                 action: "read",
@@ -313,10 +346,14 @@ fn people_by_source(root: &Path, instance: &str) -> Result<HashMap<String, PathB
         for source in &file.common().sources {
             if source.starts_with(&prefix) {
                 by_source.insert(source.clone(), path.clone());
+            } else if let Some((_, external_id)) = source.split_once(':') {
+                elsewhere
+                    .entry(external_id.to_owned())
+                    .or_insert_with(|| path.clone());
             }
         }
     }
-    Ok(by_source)
+    Ok((by_source, elsewhere))
 }
 
 /// What Ipse takes from a card.

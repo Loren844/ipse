@@ -24,6 +24,7 @@ ipse-protocol = { workspace = true }
 jiff = { workspace = true }
 keyring = { workspace = true }
 notify = { workspace = true }
+quick-xml = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

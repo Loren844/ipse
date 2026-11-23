@@ -21,18 +21,27 @@ use crate::vault::{DateTime, Source, Vault};
 pub struct Syncable {
     /// The connector: `calendar`.
     pub connector: &'static str,
-    /// The record kind it sends.
-    pub kind: &'static str,
+    /// The record kinds it sends.
+    pub kinds: &'static [&'static str],
     /// The secrets it reads from the keychain.
     pub secrets: &'static [&'static str],
 }
 
 /// The connectors that sync, built into Ipse.
-pub const SYNCABLE: [Syncable; 1] = [Syncable {
-    connector: "calendar",
-    kind: "calendar.event",
-    secrets: &["url"],
-}];
+pub const SYNCABLE: [Syncable; 2] = [
+    Syncable {
+        connector: "calendar",
+        kinds: &["calendar.event"],
+        secrets: &["url"],
+    },
+    // An account on a CalDAV and CardDAV server: its agenda and its contacts
+    // (`docs/connectors/dav.md`).
+    Syncable {
+        connector: "dav",
+        kinds: &["calendar.event", "contact.card"],
+        secrets: &["password"],
+    },
+];
 
 /// The built-in connector `connector`, if it syncs.
 #[must_use]
@@ -123,7 +132,8 @@ pub fn sync_instance(
     );
     launch.mode = ipse_protocol::Mode::Sync;
     launch.secrets = found;
-    launch.kinds = Some(vec![syncable.kind.to_owned()]);
+    launch.kinds = Some(syncable.kinds.iter().map(|&k| k.to_owned()).collect());
+    launch.config.clone_from(&instance.config);
     launch.full = options.full;
 
     let mut journal = Journal::new(root);
@@ -132,26 +142,27 @@ pub fn sync_instance(
     // The person's own edits are recorded first, so that the sync never hides them.
     let history = vault.history()?;
     let mut change = history.change(Source::Connector(instance.id.clone()));
-    let (events, people) = match syncable.connector {
-        "calendar" => (
-            Some(calendar_to_events(
-                vault,
-                &journal,
-                &instance.id,
-                &mut change,
-                options.now,
-            )?),
-            None,
-        ),
-        _ => (
-            None,
-            Some(contacts_to_people(
-                vault,
-                &journal,
-                &instance.id,
-                &mut change,
-            )?),
-        ),
+    let kinds = syncable.kinds;
+    let events = if kinds.contains(&"calendar.event") {
+        Some(calendar_to_events(
+            vault,
+            &journal,
+            &instance.id,
+            &mut change,
+            options.now,
+        )?)
+    } else {
+        None
+    };
+    let people = if kinds.contains(&"contact.card") {
+        Some(contacts_to_people(
+            vault,
+            &journal,
+            &instance.id,
+            &mut change,
+        )?)
+    } else {
+        None
     };
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;

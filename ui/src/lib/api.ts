@@ -160,6 +160,10 @@ export const api = {
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),
+	connectAccount: (url: string, user: string, password: string, name: string) =>
+		post<SourcesChange>('/api/sources/connect', { url, user, password, name }),
+	chooseCollections: (instance: string, collections: string[]) =>
+		post<SourcesChange>('/api/sources/choose', { instance, collections }),
 	syncSource: (instance: string) => post<SourcesChange>('/api/sources/sync', { instance }),
 	unfollow: (instance: string) => post<SourcesChange>('/api/sources/unfollow', { instance }),
 	diagnostics: (instance: string) => get<DiagnosticsView>(`/api/runs/${encodeURIComponent(instance)}/diagnostics`),

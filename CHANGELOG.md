@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Added
 
+- **Calendars and contacts accounts** (CalDAV and CardDAV): connect iCloud, Fastmail, Nextcloud or any such server with its address, your user name and an app password, then choose which calendars and address books to follow. Moved events and edited contacts reach your memory at the next sync, without exporting a file again; only what changed is read. An event or a contact already imported from a file is found again, not doubled. Ipse only reads, and the password stays in your system's keychain. In **Sources → Connect a calendars and contacts account**, or `ipse dav add <address> --user <name>` ([#154](https://github.com/Loren844/ipse/issues/154)).
 - **Sync in the background**, in the desktop app: the calendars you follow sync on their own at their interval, one at a time, while the app runs. Closing the window keeps Ipse in the menu bar (macOS) or the tray (Windows, Linux), with open, sync now and quit; it says so the first time. A system notification tells you when your AI proposes something new to review, or when a calendar keeps failing, and a mark beside **Sources** stays until it syncs again. **Settings → In the background** turns the notifications off, and makes Ipse start with the computer, without a window (off until you turn it on). Nothing runs between two syncs ([#153](https://github.com/Loren844/ipse/issues/153)).
 - **Accept automatically**, per connected AI: its summaries and its event kinds, each a switch in **IA connectées**, off until you turn it on. Ipse offers it in **À revoir** once you have accepted three in a row, never before. What is accepted this way is recorded in the history like any accepted proposal, does not wait in the inbox, is counted on the home screen, and is undone in one click. Facts, people, relations and anything else from the same AI still wait for you (decision 0017, [#173](https://github.com/Loren844/ipse/issues/173)).
 
@@ -19,6 +20,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Fixed
 
+- A test of the background sync no longer fails now and then on macOS: it waits for the sync's state as it waits for its run.
 - In **En ce moment**, a book or a series linked to its file lines up with the rest; the light theme's darkest red (links, names) is softened to the same family as the rest ([#171](https://github.com/Loren844/ipse/issues/171)).
 - Widening the window while the phone's **Plus** panel is open no longer leaves the page blocked behind it ([#177](https://github.com/Loren844/ipse/issues/177)).
 

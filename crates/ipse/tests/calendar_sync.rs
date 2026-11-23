@@ -146,6 +146,7 @@ fn setup(server: &Server) -> Setup {
         connector: "calendar".into(),
         name: "Perso".into(),
         every: SignedDuration::from_mins(15),
+        config: serde_json::Map::new(),
     };
     let secrets = MemorySecrets::default();
     secrets

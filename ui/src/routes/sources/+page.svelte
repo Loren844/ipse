@@ -1,5 +1,6 @@
 <script lang="ts">
-	// What feeds the memory (issue #152): files imported, calendars followed by link.
+	// What feeds the memory (issue #152): files imported, calendars followed by link,
+	// calendars and contacts accounts (CalDAV, CardDAV: issue #154).
 	import { api, SessionEnded, type SourcesChange, type SourcesView, type SourceView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Confirm, { type Question } from '#lib/Confirm.svelte';
@@ -15,11 +16,38 @@
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
 	let question: Question | null = $state(null);
 	/** What is under way: an import (its file's name), following, or a source syncing. */
-	let working: { kind: 'import'; name: string } | { kind: 'follow' } | { kind: 'sync'; instance: string } | null = $state(null);
+	let working:
+		| { kind: 'import'; name: string }
+		| { kind: 'follow' }
+		| { kind: 'connect' }
+		| { kind: 'sync'; instance: string }
+		| { kind: 'choose'; instance: string }
+		| null = $state(null);
 	let over = $state(false);
 	let picker: HTMLInputElement | undefined = $state();
 	let calendarName = $state('');
 	let link = $state('');
+	let accountName = $state('');
+	let address = $state('');
+	let user = $state('');
+	let password = $state('');
+	/** The collections ticked on each account, before they are sent. */
+	let picks: Record<string, string[]> = $state({});
+
+	const isAccount = (source: SourceView) => source.connector === 'dav';
+	const picked = (source: SourceView) =>
+		picks[source.instance] ?? source.account?.collections.filter((c) => c.followed).map((c) => c.url) ?? [];
+
+	function tick(source: SourceView, url: string, on: boolean) {
+		const now = picked(source).filter((u) => u !== url);
+		picks[source.instance] = on ? [...now, url] : now;
+	}
+
+	/** Why a source failed, in the words that fit it. */
+	function problem(source: SourceView, code: string | null): string {
+		const t = i18n.t;
+		return (isAccount(source) ? t.accountProblems[code ?? ''] : undefined) ?? t.runProblems[code ?? ''] ?? t.runFailed;
+	}
 
 	const title = (source: SourceView) => source.name ?? i18n.t.sourceKinds[source.connector] ?? source.connector;
 	const nameOf = (instance: string | null, sources: SourcesView) =>
@@ -37,12 +65,22 @@
 			case 'unfollowed':
 				return { tone: 'done', text: t.unfollowedNow(change.detail ?? '') };
 			case 'already':
-				return { tone: 'warn', text: t.alreadyFollowed(change.detail ?? '') };
+				return {
+					tone: 'warn',
+					text: working?.kind === 'connect' ? t.alreadyConnected(change.detail ?? '') : t.alreadyFollowed(change.detail ?? '')
+				};
+			case 'connected':
+				return { tone: 'done', text: t.connectedNow(name) };
+			case 'not_connected': {
+				const why = t.accountProblems[change.detail ?? ''];
+				return { tone: 'warn', text: why ?? t.sourceOutcomes.not_connected };
+			}
 			case 'imported':
 			case 'synced':
 				return { tone: 'done', text: t.sourceOutcomes[change.outcome] };
 			case 'failed': {
-				const why = t.runProblems[change.detail ?? ''];
+				const source = change.sources.sources.find((s) => s.instance === change.source);
+				const why = source && isAccount(source) ? problem(source, change.detail) : t.runProblems[change.detail ?? ''];
 				return { tone: 'warn', text: why ? `${t.sourceOutcomes.failed} ${why}` : t.sourceOutcomes.failed };
 			}
 			default:
@@ -90,10 +128,33 @@
 		}
 	}
 
+	async function connect(event: SubmitEvent) {
+		event.preventDefault();
+		const change = await run({ kind: 'connect' }, () =>
+			api.connectAccount(address.trim(), user.trim(), password, accountName.trim())
+		);
+		// The password leaves the page once it is kept.
+		if (change?.outcome === 'connected') {
+			password = '';
+			address = '';
+			user = '';
+			accountName = '';
+		}
+	}
+
+	async function choose(event: SubmitEvent, source: SourceView) {
+		event.preventDefault();
+		const change = await run({ kind: 'choose', instance: source.instance }, () =>
+			api.chooseCollections(source.instance, picked(source))
+		);
+		if (change) delete picks[source.instance];
+	}
+
 	function ask(source: SourceView): Promise<boolean> {
 		const t = i18n.t;
+		const body = isAccount(source) ? t.unfollowAccountBody : t.unfollowBody;
 		return new Promise(
-			(resolve) => (question = { title: t.unfollowTitle(title(source)), body: t.unfollowBody, yes: t.unfollow, no: t.keepFollowing, resolve })
+			(resolve) => (question = { title: t.unfollowTitle(title(source)), body, yes: t.unfollow, no: t.keepFollowing, resolve })
 		);
 	}
 
@@ -124,6 +185,8 @@
 	<div class="live" role="status" aria-live="polite">
 		{#if working?.kind === 'import'}
 			<p class="quiet">{i18n.t.importing(working.name)}</p>
+		{:else if working?.kind === 'connect'}
+			<p class="quiet">{i18n.t.connecting}</p>
 		{:else if outcome}
 			<Notice tone={outcome.tone}>{outcome.text}</Notice>
 		{/if}
@@ -197,6 +260,56 @@
 				</div>
 			</form>
 		</section>
+
+		<section aria-labelledby="account">
+			<h2 id="account">{i18n.t.accountTitle}</h2>
+			<p class="quiet" id="account-hint">{i18n.t.accountHint}</p>
+			<form class="setting-form" onsubmit={connect}>
+				<div class="form-field">
+					<label for="account-name">{i18n.t.accountName}</label>
+					<input id="account-name" type="text" bind:value={accountName} autocomplete="off" />
+				</div>
+				<div class="form-field">
+					<label for="account-address">{i18n.t.accountAddress}</label>
+					<input
+						id="account-address"
+						type="text"
+						inputmode="url"
+						bind:value={address}
+						required
+						autocomplete="off"
+						spellcheck="false"
+						aria-describedby="account-hint"
+					/>
+				</div>
+				<div class="form-field">
+					<label for="account-user">{i18n.t.accountUser}</label>
+					<input id="account-user" type="text" bind:value={user} required autocomplete="username" spellcheck="false" />
+				</div>
+				<div class="form-field">
+					<label for="account-password">{i18n.t.accountPassword}</label>
+					<input id="account-password" type="password" bind:value={password} required autocomplete="off" />
+				</div>
+				<div class="actions">
+					<button
+						type="submit"
+						class="button primary"
+						disabled={working !== null || !address.trim() || !user.trim() || !password}
+					>
+						{working?.kind === 'connect' ? i18n.t.connecting : i18n.t.connectGo}
+					</button>
+				</div>
+			</form>
+			<details class="exports">
+				<summary>{i18n.t.appPasswordHelp}</summary>
+				{#each i18n.t.appPasswordSteps as step (step.title)}
+					<h3>{step.title}</h3>
+					<ul>
+						{#each step.lines as line (line)}<li>{line}</li>{/each}
+					</ul>
+				{/each}
+			</details>
+		</section>
 	</div>
 
 	<section aria-labelledby="yours">
@@ -211,12 +324,51 @@
 							<h3>{title(source)}</h3>
 							<p class="quiet">{status(source)}</p>
 							{#if source.last && source.last.outcome !== 'done'}
-								<Notice tone="warn">{i18n.t.runProblems[source.last.code ?? ''] ?? i18n.t.runFailed}</Notice>
+								<Notice tone="warn">{problem(source, source.last.code)}</Notice>
 							{:else if source.last}
 								<p>{runCounts(source.last)}</p>
 							{/if}
 							{#if source.followed && source.failures > 1}
 								<p class="quiet">{i18n.t.failingSince(source.failures)}</p>
+							{/if}
+							{#if source.account}
+								{@const account = source.account}
+								{#snippet collections()}
+									{#if account.collections.length}
+										<form class="collections" onsubmit={(e) => choose(e, source)}>
+											<ul>
+												{#each account.collections as collection (collection.url)}
+													<li>
+														<label>
+															<input
+																type="checkbox"
+																checked={picked(source).includes(collection.url)}
+																onchange={(e) => tick(source, collection.url, e.currentTarget.checked)}
+															/>
+															{collection.name}
+															<span class="quiet">· {i18n.t.collectionKinds[collection.kind]}</span>
+														</label>
+													</li>
+												{/each}
+											</ul>
+											<button type="submit" class="button small primary" disabled={working !== null}>
+												{working?.kind === 'choose' && working.instance === source.instance ? i18n.t.syncing : i18n.t.followChosen}
+											</button>
+										</form>
+									{:else}
+										<p class="quiet">{i18n.t.noCollectionFound}</p>
+									{/if}
+								{/snippet}
+								{#if account.chosen}
+									<details class="exports">
+										<summary>{i18n.t.followedCollections}</summary>
+										{@render collections()}
+									</details>
+								{:else}
+									<h4>{i18n.t.chooseCollections}</h4>
+									<p class="quiet">{i18n.t.chooseCollectionsHint}</p>
+									{@render collections()}
+								{/if}
 							{/if}
 						</div>
 						{#if source.followed}

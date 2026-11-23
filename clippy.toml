@@ -1,3 +1,5 @@
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 allow-panic-in-tests = true
+# Protocol names, written as their standards write them.
+doc-valid-idents = ["CalDAV", "CardDAV", "WebDAV", ".."]

@@ -55,7 +55,12 @@ enum Command {
         #[command(subcommand)]
         action: CalendarAction,
     },
-    /// Sync the calendars you subscribed to
+    /// Connect a calendars and contacts account (CalDAV, CardDAV), list or remove accounts
+    Dav {
+        #[command(subcommand)]
+        action: DavAction,
+    },
+    /// Sync the calendars and accounts you follow
     Sync {
         /// Only those whose interval has passed: for a job the system runs every few minutes
         #[arg(long)]
@@ -162,6 +167,41 @@ enum CalendarAction {
     /// Stop syncing a calendar; its events stay in your memory
     Unsubscribe {
         /// The calendar's id, as `ipse calendar list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum DavAction {
+    /// Connect an account (iCloud, Fastmail, Nextcloud…) and follow its calendars and address books; asks its app password
+    Add {
+        /// The server's address, like cloud.example.org or caldav.icloud.com
+        address: String,
+        /// Your user name on the server
+        #[arg(long)]
+        user: String,
+        /// A name for this account, like "iCloud"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 15m or 1h (default: 15m)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the accounts you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing an account; its events and contacts stay in your memory
+    Remove {
+        /// The account's id, as `ipse dav list` shows it
         id: String,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
@@ -313,6 +353,17 @@ fn main() -> ExitCode {
             } => cmd::calendar::subscribe(&link, name.as_deref(), every.as_deref(), vault),
             CalendarAction::List { vault } => cmd::calendar::list(vault),
             CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
+        },
+        Command::Dav { action } => match action {
+            DavAction::Add {
+                address,
+                user,
+                name,
+                every,
+                vault,
+            } => cmd::dav::add(&address, &user, name.as_deref(), every.as_deref(), vault),
+            DavAction::List { vault } => cmd::dav::list(vault),
+            DavAction::Remove { id, vault } => cmd::dav::remove(&id, vault),
         },
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),

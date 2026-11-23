@@ -288,6 +288,43 @@ impl Window {
     }
 }
 
+/// Events read from calendar objects given one after another, as if from one file:
+/// for the CalDAV connector, whose server gives each event on its own.
+pub(crate) struct Reader(Import);
+
+impl Reader {
+    /// A reader for a vault in `time_zone`, expanding repeating events around `now`.
+    pub(crate) fn new(time_zone: TimeZone, now: Timestamp) -> Self {
+        Self(Import::new(time_zone, now))
+    }
+
+    /// Reads one calendar object. Returns whether it was read to its end.
+    pub(crate) fn read(&mut self, text: &str) -> bool {
+        let mut items = Items::new(text.as_bytes());
+        for item in items.by_ref() {
+            match item {
+                Ok(item) => self.0.add(item),
+                Err(_) => return false,
+            }
+        }
+        items.whole()
+    }
+
+    /// The records ready so far.
+    pub(crate) fn take(&mut self) -> Vec<Record> {
+        std::mem::take(&mut self.0.records)
+    }
+
+    /// Ends the reading: the occurrences of repeating events. Returns the last records,
+    /// the counts of upserts and deletes, and a word on what was left out.
+    pub(crate) fn finish(mut self, french: bool) -> (Vec<Record>, u64, u64, Option<String>) {
+        self.0.finish();
+        let report = self.0.report(french);
+        let records = std::mem::take(&mut self.0.records);
+        (records, self.0.upserts, self.0.deletes, report)
+    }
+}
+
 /// One import: turns what the file holds into records.
 struct Import {
     zones: Zones,

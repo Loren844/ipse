@@ -4,6 +4,7 @@
 pub(crate) mod calendar;
 pub(crate) mod contacts;
 mod content_line;
+pub(crate) mod dav;
 pub(crate) mod timeline;
 
 use ipse_core::{Error, Result};
@@ -15,6 +16,7 @@ pub(crate) fn run(name: &str) -> Result<()> {
     let outcome = match name {
         calendar::ID => calendar::run(stdin, stdout),
         contacts::ID => contacts::run(stdin, stdout),
+        dav::ID => dav::run(stdin, stdout),
         timeline::ID => timeline::run(stdin, stdout),
         _ => {
             return Err(Error::Refused(format!(

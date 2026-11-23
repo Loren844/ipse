@@ -266,12 +266,15 @@ fn events_by_external_id(root: &Path) -> Result<HashMap<String, PathBuf>> {
     Ok(by_id)
 }
 
-/// `calendar`, `calendar-2`…
-fn is_calendar(instance: &str) -> bool {
-    instance == "calendar"
-        || instance
-            .strip_prefix("calendar-")
-            .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+/// A source of events: `calendar`, `calendar-2`, an account `dav-3`…
+pub(crate) fn is_calendar(instance: &str) -> bool {
+    ["calendar", "dav"].into_iter().any(|connector| {
+        instance == connector
+            || instance
+                .strip_prefix(connector)
+                .and_then(|rest| rest.strip_prefix('-'))
+                .is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
+    })
 }
 
 /// Person files by email, to link guests; the owner's emails, to leave them out.
@@ -471,5 +474,26 @@ impl EventRecord {
             &self.status(false, None),
         );
         (out, merge.conflicts)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_calendar;
+
+    #[test]
+    fn calendars_and_accounts_are_sources_of_events() {
+        for instance in ["calendar", "calendar-2", "dav", "dav-3"] {
+            assert!(is_calendar(instance), "{instance}");
+        }
+        for instance in [
+            "contacts",
+            "calendar-",
+            "calendars",
+            "dav-x",
+            "google-timeline",
+        ] {
+            assert!(!is_calendar(instance), "{instance}");
+        }
     }
 }

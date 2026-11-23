@@ -7,14 +7,16 @@ import type { SourcesView } from "./SourcesView";
 export type SourcesChange = { 
 /**
  * `imported`, `followed` (and synced), `kept` (followed, the calendar could not be
- * reached: Ipse tries again), `synced`, `unfollowed`; or why not: `not_supported`
- * (a file Ipse cannot import), `bad_file`, `bad_link`, `already`, `failed`,
+ * reached: Ipse tries again), `connected` (an account, its collections to choose),
+ * `synced`, `unfollowed`; or why not: `not_supported` (a file Ipse cannot import),
+ * `bad_file`, `bad_link`, `bad_address`, `already`, `failed`, `not_connected`,
  * `keychain`.
  */
 outcome: string, 
 /**
- * For `already`: the name the calendar is followed under; for `unfollowed`, the
- * name it had. For `failed`: the connector's error code, as in the runs.
+ * For `already`: the name the calendar or the account is followed under; for
+ * `unfollowed`, the name it had. For `failed` and `not_connected`: the connector's
+ * error code, as in the runs.
  */
 detail: string | null, 
 /**

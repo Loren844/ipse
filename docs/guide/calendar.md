@@ -18,7 +18,19 @@ Each event becomes a file in `events/`, its guests linked to your contacts. `ips
 
 In `ipse ui`, **Sources → Follow a calendar by its link** does the same: paste the link, give it a name. The link goes to your system's keychain and is not shown again; the screen syncs a calendar now and stops following one.
 
-**With the desktop app, there is nothing to set up:** while it runs, your calendars sync on their own, each at its interval (15 minutes by default), one at a time. Closing the window keeps Ipse running from its icon in the menu bar (macOS) or the tray (Windows, Linux); its menu syncs everything now, opens the window or quits. When a calendar keeps failing, a notification says so and a mark appears beside **Sources**, which says what to do. **Settings → In the background** turns the notifications off and makes Ipse start with the computer, without a window.
+## Or connect your account
+
+iCloud, Fastmail, Nextcloud and most self-hosted servers also speak CalDAV and CardDAV: connect the account once, and both your calendars and your contacts stay in sync, without a public link. You need the server's address, your user name and an **app password**, which these services let you create for one app and revoke at any time:
+
+- **iCloud:** address `caldav.icloud.com`, your Apple Account email, and an app password from [account.apple.com](https://account.apple.com) → **Sign-In and Security → App-Specific Passwords**.
+- **Fastmail:** address `fastmail.com`, your Fastmail address, and an app password from **Settings → Privacy & Security → Manage app passwords**, with access to "Calendars and contacts (CalDAV/CardDAV)".
+- **Nextcloud:** your Nextcloud's address, and an app password from **Personal settings → Security → Devices & sessions**.
+
+In `ipse ui`, **Sources → Connect a calendars and contacts account**, then tick the calendars and address books to follow. On the command line, `ipse dav add caldav.icloud.com --user you@example.org --name iCloud --vault ~/Ipse` asks the password and follows everything it finds; `ipse dav list` shows the accounts, `ipse dav remove dav-2` stops one (its events and contacts stay). Ipse only reads; details in [the connector's page](../connectors/dav.md).
+
+## Syncing on its own
+
+**With the desktop app, there is nothing to set up:** while it runs, your calendars and accounts sync on their own, each at its interval (15 minutes by default), one at a time. Closing the window keeps Ipse running from its icon in the menu bar (macOS) or the tray (Windows, Linux); its menu syncs everything now, opens the window or quits. When a calendar keeps failing, a notification says so and a mark appears beside **Sources**, which says what to do. **Settings → In the background** turns the notifications off and makes Ipse start with the computer, without a window.
 
 Without the app, have your computer run `ipse sync --due` every 5 minutes: it syncs each calendar when its interval (15 minutes by default, `--every` to change it) has passed, and says nothing when nothing changed.
 
