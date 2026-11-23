@@ -397,7 +397,7 @@ fn proposals_waiting(gateway: &Gateway) -> Result<(usize, Vec<AutomaticView>)> {
 }
 
 /// Today in the vault's time zone.
-fn today(gateway: &Gateway) -> jiff::civil::Date {
+pub(crate) fn today(gateway: &Gateway) -> jiff::civil::Date {
     jiff::Timestamp::now()
         .to_zoned(gateway.settings().time_zone().clone())
         .date()
@@ -641,7 +641,10 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
     })))
 }
 
-fn event_view(details: Details, series: &HashMap<String, ipse_core::search::Series>) -> EventView {
+pub(crate) fn event_view(
+    details: Details,
+    series: &HashMap<String, ipse_core::search::Series>,
+) -> EventView {
     let entry = details.entry;
     EventView {
         series: series.get(&entry.id).cloned().map(Into::into),

@@ -9,6 +9,7 @@
 	import CalendarWeek from '#lib/CalendarWeek.svelte';
 	import { capitalize, dayOf, isDay, longDay, timeOf } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
+	import KindFilter from '#lib/KindFilter.svelte';
 	import Mention from '#lib/Mention.svelte';
 	import { rows, type Row } from '#lib/series.ts';
 
@@ -27,7 +28,17 @@
 	// keeps it.
 	const view: View = $derived((VIEWS as string[]).includes(page.url.searchParams.get('view') ?? '') ? (page.url.searchParams.get('view') as View) : 'list');
 	const day = $derived(isDay(page.url.searchParams.get('day') ?? '') ? (page.url.searchParams.get('day') as string) : today);
+	// One kind of event at a time (issue #134), in the address too.
+	const kind = $derived(page.url.searchParams.get('kind') || null);
+	const ofKind = (list: EventView[]) => (kind ? list.filter((e) => e.event_kind === kind) : list);
 	let period: { events: EventView[]; summaries: Record<string, string>; key: string } | null = $state(null);
+	/** The kinds the events loaded have, to choose from. */
+	const kinds = $derived.by(() => {
+		const found = new Set<string>();
+		for (const e of view === 'list' ? events : (period?.events ?? [])) if (e.event_kind) found.add(e.event_kind);
+		if (kind) found.add(kind);
+		return [...found];
+	});
 	let periodFailed = $state(false);
 
 	const range = $derived.by(() => {
@@ -62,9 +73,13 @@
 	});
 
 	/** This screen with another view or day. */
-	function show(next: { view?: View; day?: string }) {
+	function show(next: { view?: View; day?: string; kind?: string | null }) {
 		const url = new URL(page.url.href);
 		const v = next.view ?? view;
+		if (next.kind !== undefined) {
+			if (next.kind) url.searchParams.set('kind', next.kind);
+			else url.searchParams.delete('kind');
+		}
 		if (v === 'list') {
 			url.searchParams.delete('view');
 			url.searchParams.delete('day');
@@ -102,7 +117,7 @@
 	const open = new SvelteSet<string>();
 	const days = $derived.by(() => {
 		const groups: { day: string; events: Row[] }[] = [];
-		for (const row of rows(events, open, today)) {
+		for (const row of rows(ofKind(events), open, today)) {
 			if (row.folded) continue;
 			const d = dayOf(row.event.start);
 			const last = groups[groups.length - 1];
@@ -135,13 +150,22 @@
 		{/if}
 	</div>
 
+	{#if kinds.length}
+		<div class="kind-bar">
+			<KindFilter {kinds} bind:kind={() => kind, (k) => show({ kind: k })} />
+			{#if kind}
+				<a class="link-button" href="/agenda/kinds/{kind}">{i18n.t.kindPageLink(i18n.t.eventKinds[kind] ?? kind)}</a>
+			{/if}
+		</div>
+	{/if}
+
 	{#if view !== 'list'}
 		<h2 class="period" aria-live="polite">{title}</h2>
 		{#if period}
 			{#if view === 'week'}
-				<CalendarWeek {day} events={period.events} summaries={period.summaries} {today} />
+				<CalendarWeek {day} events={ofKind(period.events)} summaries={period.summaries} {today} />
 			{:else}
-				<CalendarMonth {day} events={period.events} summaries={period.summaries} {today} {title} />
+				<CalendarMonth {day} events={ofKind(period.events)} summaries={period.summaries} {today} {title} />
 			{/if}
 		{:else if periodFailed}
 			<p class="quiet">{i18n.t.failed}</p>
@@ -165,7 +189,9 @@
 							<span class="when">
 								{timeOf(event.start)}
 								{#if event.status === 'cancelled'}<span class="badge">{i18n.t.cancelled}</span>{/if}
-								{#if event.event_kind}<span class="kind-tag">{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</span>{/if}
+								{#if event.event_kind}<a class="kind-tag" href="/agenda/kinds/{event.event_kind}"
+										>{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</a
+									>{/if}
 							</span>
 							<a class="title" href="/agenda/{event.id}">{event.title}</a>
 							{#if count > 1 && event.series}

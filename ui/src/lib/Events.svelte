@@ -1,19 +1,35 @@
 <script lang="ts">
 	// Events on the thread: one knot each, by start; past ones fainter. With `group`, a
-	// repeating event is shown once, at its first occurrence here, and unfolds.
+	// repeating event is shown once, at its first occurrence here, and unfolds. With
+	// `filter`, the kinds of events present can be shown one at a time (issue #134).
+	import type { Snippet } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { EventView } from './api.ts';
 	import { dayOf, timeOf, when } from './format.ts';
 	import { i18n } from './i18n.svelte.ts';
+	import KindFilter from './KindFilter.svelte';
 	import Mention from './Mention.svelte';
 	import { rows } from './series.ts';
 
-	let { events, today, showDay = true, group = false }: { events: EventView[]; today: string; showDay?: boolean; group?: boolean } = $props();
+	let {
+		events,
+		today,
+		showDay = true,
+		group = false,
+		filter = false,
+		detail
+	}: { events: EventView[]; today: string; showDay?: boolean; group?: boolean; filter?: boolean; detail?: Snippet<[EventView]> } = $props();
 
+	let kind: string | null = $state(null);
+	const kinds = $derived([...new Set(events.map((e) => e.event_kind).filter((k): k is string => !!k))]);
+	const kept = $derived(kind ? events.filter((e) => e.event_kind === kind) : events);
 	const open = new SvelteSet<string>();
-	const shown = $derived(group ? rows(events, open, today) : events.map((event) => ({ event, count: 1, folded: false })));
+	const shown = $derived(group ? rows(kept, open, today) : kept.map((event) => ({ event, count: 1, folded: false })));
 </script>
 
+{#if filter && kinds.length > 1}
+	<KindFilter {kinds} bind:kind />
+{/if}
 <ol class="thread">
 	{#each shown as { event, count, folded } (event.id)}
 		{#if !folded}
@@ -22,7 +38,9 @@
 				<span class="when">
 					{showDay ? when(event.start, today) : timeOf(event.start)}
 					{#if event.status === 'cancelled'}<span class="badge">{i18n.t.cancelled}</span>{/if}
-					{#if event.event_kind}<span class="kind-tag">{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</span>{/if}
+					{#if event.event_kind}<a class="kind-tag" href="/agenda/kinds/{event.event_kind}"
+							>{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</a
+						>{/if}
 				</span>
 				<a class="title" href="/agenda/{event.id}">{event.title}</a>
 				{#if count > 1 && event.series}
@@ -34,6 +52,7 @@
 						</button>
 					</span>
 				{/if}
+				{#if detail}{@render detail(event)}{/if}
 				{#if event.people.length || event.place}
 					<span class="mentions">
 						{#each event.people as person, i (i)}<Mention link={person} />{/each}

@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::fold::words;
 use crate::vault::body::{Section, section_text};
 use crate::vault::{
-    Category, EventFields, EventKind, EventTime, FileType, Id, Language, LinkOrText, MemoryFile,
-    WikiLink,
+    Birthday, Category, EventFields, EventKind, EventTime, FileType, Id, Language, LinkOrText,
+    MemoryFile, WikiLink,
 };
 
 /// A text and its words as matched, computed once when the file is read.
@@ -57,6 +57,8 @@ pub(super) struct Document {
     pub(super) notes: Option<Field>,
     /// For an event: when, and who.
     pub(super) event: Option<EventSpan>,
+    /// For a person: their birthday, when known.
+    pub(super) birthday: Option<Birthday>,
     /// The files it links to, read once from its relations, or an event's place and
     /// people: for the graph.
     pub(super) links: Vec<DocLink>,
@@ -185,6 +187,7 @@ impl Document {
             relations: s.relations.into_iter().map(field).collect(),
             notes: s.notes.map(field),
             event,
+            birthday: s.birthday.as_deref().and_then(Birthday::parse),
         })
     }
 
@@ -201,6 +204,7 @@ impl Document {
             facts: self.facts.iter().map(text).collect(),
             relations: self.relations.iter().map(text).collect(),
             notes: self.notes.as_ref().map(text),
+            birthday: self.birthday.map(|b| b.to_string()),
             event: self.event.as_ref().map(|e| StoredEvent {
                 start: e.start.to_string(),
                 end: e.end.as_ref().map(ToString::to_string),
@@ -227,6 +231,8 @@ pub(super) struct Stored {
     relations: Vec<String>,
     notes: Option<String>,
     event: Option<StoredEvent>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    birthday: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -263,6 +269,7 @@ impl Stored {
             relations: Vec::new(),
             notes: None,
             event: None,
+            birthday: None,
         };
         if let Some(event) = file.event() {
             return Some(Self::event(base(event.title.clone()), file, event));
@@ -284,6 +291,7 @@ impl Stored {
                 .map(|r| format!("{} : {}", r.word, r.link))
                 .collect(),
             notes: sections.notes,
+            birthday: entity.birthday.map(|b| b.to_string()),
             ..base(entity.name.clone().unwrap_or(stem))
         })
     }

@@ -204,7 +204,7 @@
 			<section aria-labelledby="thread">
 				<h2 id="thread">{person ? i18n.t.onTheThread : i18n.t.eventsHere}</h2>
 				{#if entity.events.length}
-					<Events events={entity.events} {today} group />
+					<Events events={entity.events} {today} group filter />
 				{:else}
 					<p class="quiet">{person ? i18n.t.noEvents : i18n.t.noEventsHere}</p>
 				{/if}

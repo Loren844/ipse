@@ -1,6 +1,7 @@
 //! The timeline view (issue #133): two years of a busy agenda, 7 300 events (ten a
 //! day), each with people, some trips and celebrations, summed up per year and month
-//! with the people seen most.
+//! with the people seen most. Then the page of one kind (issue #134): the 1 464 meals
+//! among them, with the people seen most.
 #![allow(missing_docs, clippy::unwrap_used, clippy::print_stdout)]
 
 use std::time::{Duration, Instant};
@@ -70,6 +71,28 @@ fn main() {
     times.sort();
     println!(
         "timeline of {n} events over two years: median {:.2?} (21 runs)",
+        times[10]
+    );
+
+    let today = jiff::civil::date(2026, 1, 1);
+    let meals_made = (0..n).filter(|i| (2..=9).contains(&(i % 40))).count();
+    let mut times: Vec<Duration> = Vec::new();
+    for _ in 0..21 {
+        let start = Instant::now();
+        let meals = index.kind_summary(
+            ipse_core::vault::EventKind::Meal,
+            today,
+            12,
+            |_| true,
+            |stem| index.person_path(stem, |_| true).is_some(),
+        );
+        times.push(start.elapsed());
+        assert_eq!(meals.events as usize, meals_made);
+        assert_eq!(meals.last.len(), 12);
+    }
+    times.sort();
+    println!(
+        "page of one kind, {meals_made} meals among {n} events: median {:.2?} (21 runs)",
         times[10]
     );
 }
