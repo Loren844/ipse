@@ -3682,3 +3682,70 @@ button.owner[aria-expanded='true'] .chevron {
 	text-decoration-color: var(--thread);
 	text-underline-offset: 3px;
 }
+
+/* Accepting one kind of change from an AI in advance (issue #173). */
+.auto-accept {
+	margin-top: 1.25rem;
+	padding-top: 1rem;
+	border-top: 1px solid var(--line);
+}
+
+.auto-accept h3 {
+	margin: 0;
+	font-size: 1rem;
+}
+
+.auto-accept .hint {
+	max-width: 60ch;
+}
+
+.auto-accept ul {
+	list-style: none;
+	margin: 0.6rem 0 0;
+	padding: 0;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem 1.75rem;
+}
+
+.auto-accept label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.6rem;
+	font-weight: 500;
+}
+
+.offer {
+	margin: 1rem 0 1.5rem;
+	padding: 1rem 1.25rem;
+	border: 1.5px solid var(--thread);
+	border-radius: 12px;
+	background: var(--thread-soft);
+}
+
+.offer h2 {
+	margin: 0 0 0.4rem;
+	font-size: 1.05rem;
+}
+
+.offer p {
+	margin: 0 0 0.8rem;
+	max-width: 62ch;
+}
+
+.offer .actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+}
+
+p.automatic {
+	margin: 0 0 1rem;
+	color: var(--muted);
+}
+
+p.automatic a {
+	margin-left: 0.4rem;
+	color: var(--thread-ink);
+	font-weight: 600;
+}

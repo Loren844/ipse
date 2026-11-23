@@ -6,6 +6,7 @@
 		SessionEnded,
 		type DecisionView,
 		type InboxView,
+		type OfferView,
 		type ProposalLine,
 		type QuestionsView
 	} from '#lib/api.ts';
@@ -65,6 +66,36 @@
 		await Promise.all([inbox.load(() => api.proposals(), true), app.refresh()]);
 	}
 
+	/** Yes or no to accepting one kind of change from one AI in advance. */
+	async function offer(o: OfferView, yes: boolean) {
+		busy = true;
+		const what = i18n.t.standingsOf[o.standing];
+		try {
+			if (yes) await api.autoAccept(o.ai, o.standing, true);
+			else await api.declineOffer(o.ai, o.standing);
+			outcome = { tone: 'done', text: yes ? i18n.t.autoOn(o.name, what) : i18n.t.offerDeclined };
+		} catch (error) {
+			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
+			outcome = { tone: 'warn', text: i18n.t.actionFailed };
+		}
+		busy = false;
+		await inbox.load(() => api.proposals(), true);
+	}
+
+	/** Undoes one change accepted automatically, from the list. */
+	async function undo(line: ProposalLine) {
+		busy = true;
+		try {
+			await api.undo(line.id);
+			outcome = { tone: 'done', text: i18n.t.undoneNow };
+		} catch (error) {
+			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
+			outcome = { tone: 'warn', text: error instanceof Conflict ? i18n.t.alreadyDecided : i18n.t.actionFailed };
+		}
+		busy = false;
+		await Promise.all([inbox.load(() => api.proposals(), true), app.refresh()]);
+	}
+
 	async function answered(left: QuestionsView | null, tone: 'done' | 'warn', text: string) {
 		outcome = { tone, text };
 		await Promise.all([asked.load(async () => left ?? (await api.questions()), true), app.refresh()]);
@@ -76,7 +107,7 @@
 
 <svelte:head><title>{i18n.t.inbox} · Ipse</title></svelte:head>
 
-{#if ready && (ready.waiting.length || ready.decided.length || questions.length || outcome)}
+{#if ready && (ready.waiting.length || ready.decided.length || ready.offers.length || questions.length || outcome)}
 	<div class="screen">
 		<header class="page-head">
 			<h1>{i18n.t.inbox}</h1>
@@ -91,6 +122,17 @@
 		<div class="live" role="status" aria-live="polite" tabindex="-1" bind:this={status}>
 			{#if outcome}<Notice tone={outcome.tone}>{outcome.text}</Notice>{/if}
 		</div>
+
+		{#each ready.offers as o (`${o.ai}/${o.standing}`)}
+			<section class="offer" aria-labelledby="offer-{o.ai}-{o.standing}" data-testid="offer">
+				<h2 id="offer-{o.ai}-{o.standing}">{i18n.t.offerTitle(o.name, i18n.t.standingsOf[o.standing])}</h2>
+				<p>{i18n.t.offerBody(o.accepted)}</p>
+				<div class="actions">
+					<button type="button" class="button primary" disabled={busy} onclick={() => offer(o, true)}>{i18n.t.offerYes}</button>
+					<button type="button" class="button" disabled={busy} onclick={() => offer(o, false)}>{i18n.t.offerNo}</button>
+				</div>
+			</section>
+		{/each}
 
 		{#if ready.waiting.length}
 			<section aria-labelledby="waiting">
@@ -151,8 +193,11 @@
 								<a class="reason" href="/review/{line.id}">{line.reason}</a>
 								<p class="meta">
 									<span>{byline(line)}</span>
-									<span>{i18n.t.decidedOn(i18n.t.status[line.status], ago(line.decided ?? line.created))}</span>
+									<span>{i18n.t.decidedOn(line.automatic && line.status === 'accepted' ? i18n.t.acceptedAutomatically : i18n.t.status[line.status], ago(line.decided ?? line.created))}</span>
 								</p>
+								{#if line.automatic && line.status === 'accepted'}
+									<button type="button" class="button quiet-button" disabled={busy} onclick={() => undo(line)}>{i18n.t.undoNow}</button>
+								{/if}
 							</div>
 						</li>
 					{/each}

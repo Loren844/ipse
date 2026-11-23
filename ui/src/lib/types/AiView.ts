@@ -23,4 +23,14 @@ read: Array<string>,
 /**
  * The categories it proposes in.
  */
-propose: Array<string>, };
+propose: Array<string>, 
+/**
+ * What the person accepts from it in advance (decision 0017): `summaries`,
+ * `event_kinds`.
+ */
+auto_accept: Array<string>, 
+/**
+ * What Ipse offers to accept from it in advance, after the person accepted
+ * several of these in a row, one by one.
+ */
+offers: Array<string>, };

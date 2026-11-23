@@ -74,6 +74,15 @@
 		await setRights(ai, read, propose);
 	}
 
+	async function auto(ai: AiView, standing: string, on: boolean) {
+		const what = i18n.t.standingsOf[standing];
+		const next = await run(
+			() => api.autoAccept(ai.id, standing, on),
+			() => (on ? i18n.t.autoOn(ai.name, what) : i18n.t.autoOff(ai.name, what))
+		);
+		if (next) show(next);
+	}
+
 	async function disconnect(ai: AiView) {
 		const yes = await ask(i18n.t.disconnectTitle(ai.name), i18n.t.disconnectBody, i18n.t.disconnect, i18n.t.cancelForm);
 		if (!yes) return;
@@ -144,6 +153,7 @@
 					{busy}
 					onread={(category, on) => read(ai, category, on)}
 					onpropose={(category, on) => propose(ai, category, on)}
+					onauto={(standing, on) => auto(ai, standing, on)}
 					ondisconnect={() => disconnect(ai)}
 				/>
 			{/each}

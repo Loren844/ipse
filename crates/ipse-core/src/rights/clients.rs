@@ -52,6 +52,41 @@ pub struct Client {
     pub propose: Vec<String>,
     /// The person said this AI runs entirely on this computer.
     pub local: bool,
+    /// The kinds of change the person accepts in advance from this AI (decision
+    /// 0017): empty unless they turned one on.
+    pub auto_accept: Vec<Standing>,
+    /// The kinds the person said no to, or turned off: Ipse no longer offers them.
+    pub declined: Vec<Standing>,
+}
+
+/// A kind of change the person may accept in advance from one AI (decision 0017).
+/// Only low-risk changes the AI made for a task Ipse gave it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Standing {
+    /// Summaries of a day, week, month or year, written for a `summary` task.
+    Summaries,
+    /// Event kinds, set for a `classify` task.
+    EventKinds,
+}
+
+impl Standing {
+    /// Every kind, in the order the interface lists them.
+    pub const ALL: [Self; 2] = [Self::Summaries, Self::EventKinds];
+
+    /// `summaries` or `event_kinds`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Summaries => "summaries",
+            Self::EventKinds => "event_kinds",
+        }
+    }
+
+    /// The kind named `text`; `None` for any other name.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.as_str() == text)
+    }
 }
 
 impl Client {
@@ -68,6 +103,8 @@ impl Client {
             read: categories.all().into_iter().map(str::to_owned).collect(),
             propose: Vec::new(),
             local: true,
+            auto_accept: Vec::new(),
+            declined: Vec::new(),
         }
     }
 
@@ -98,6 +135,11 @@ struct RawClient {
     propose: Vec<String>,
     #[serde(default)]
     local: bool,
+    /// Unknown names, from a later version, are ignored.
+    #[serde(default)]
+    auto_accept: Vec<String>,
+    #[serde(default)]
+    declined: Vec<String>,
 }
 
 /// The connected AIs of one vault.
@@ -149,6 +191,16 @@ impl Clients {
                 read: c.read,
                 propose: c.propose,
                 local: c.local,
+                auto_accept: c
+                    .auto_accept
+                    .iter()
+                    .filter_map(|s| Standing::parse(s))
+                    .collect(),
+                declined: c
+                    .declined
+                    .iter()
+                    .filter_map(|s| Standing::parse(s))
+                    .collect(),
             })
             .collect();
         Ok(Self { path, clients })
@@ -202,6 +254,8 @@ impl Clients {
             read: categories.default_read(),
             propose: Vec::new(),
             local,
+            auto_accept: Vec::new(),
+            declined: Vec::new(),
         };
         self.clients.push(client.clone());
         self.save()?;
@@ -280,6 +334,62 @@ impl Clients {
         Ok(client)
     }
 
+    /// Turns on or off the standing consent `standing` for the AI `id` (decision
+    /// 0017), and saves. Turned off, it is no longer offered.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when there is no such AI; [`Error::Io`] when the list cannot
+    /// be saved.
+    pub fn set_auto_accept(&mut self, id: &str, standing: Standing, on: bool) -> Result<Client> {
+        let Some(client) = self.clients.iter_mut().find(|c| c.id == id) else {
+            return Err(Error::Refused(format!(
+                "There is no AI {id}. `ipse client list` shows their ids."
+            )));
+        };
+        client.auto_accept.retain(|s| *s != standing);
+        if on {
+            client.auto_accept.push(standing);
+            client.auto_accept.sort_unstable();
+        } else if !client.declined.contains(&standing) {
+            client.declined.push(standing);
+            client.declined.sort_unstable();
+        }
+        let client = client.clone();
+        self.save()?;
+        Ok(client)
+    }
+
+    /// Records that the person does not want `standing` offered again for the AI `id`,
+    /// and saves.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Clients::set_auto_accept`].
+    pub fn decline(&mut self, id: &str, standing: Standing) -> Result<Client> {
+        let Some(client) = self.clients.iter_mut().find(|c| c.id == id) else {
+            return Err(Error::Refused(format!(
+                "There is no AI {id}. `ipse client list` shows their ids."
+            )));
+        };
+        if !client.declined.contains(&standing) {
+            client.declined.push(standing);
+            client.declined.sort_unstable();
+        }
+        let client = client.clone();
+        self.save()?;
+        Ok(client)
+    }
+
+    /// The kinds of standing consent Ipse does not offer the AI: those it has, and
+    /// those the person declined. Give it to [`crate::proposals::Proposals::offers`].
+    #[must_use]
+    pub fn not_offered(client: &Client) -> Vec<Standing> {
+        let mut skip = client.auto_accept.clone();
+        skip.extend(&client.declined);
+        skip
+    }
+
     /// The client whose access code is `token`. Every stored hash is compared in
     /// constant time.
     #[must_use]
@@ -315,6 +425,18 @@ impl Clients {
                 list(&c.propose),
                 c.local
             );
+            if !c.auto_accept.is_empty() {
+                let names: Vec<String> = c
+                    .auto_accept
+                    .iter()
+                    .map(|s| s.as_str().to_owned())
+                    .collect();
+                let _ = writeln!(out, "auto_accept = {}", list(&names));
+            }
+            if !c.declined.is_empty() {
+                let names: Vec<String> = c.declined.iter().map(|s| s.as_str().to_owned()).collect();
+                let _ = writeln!(out, "declined = {}", list(&names));
+            }
         }
         write_atomic(&self.path, out.as_bytes())
     }

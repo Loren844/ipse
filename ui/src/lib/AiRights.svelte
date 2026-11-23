@@ -12,6 +12,7 @@
 		busy,
 		onread,
 		onpropose,
+		onauto,
 		ondisconnect
 	}: {
 		ai: AiView;
@@ -19,10 +20,12 @@
 		busy: boolean;
 		onread: (category: CategoryView, on: boolean) => void;
 		onpropose: (category: CategoryView, on: boolean) => void;
+		onauto: (standing: string, on: boolean) => void;
 		ondisconnect: () => void;
 	} = $props();
 
 	const name = (c: CategoryView) => c.label ?? capitalize(i18n.category(c.name));
+	const STANDINGS = ['summaries', 'event_kinds'];
 </script>
 
 <section class="ai" aria-labelledby="ai-{ai.id}" data-testid="ai">
@@ -96,6 +99,34 @@
 			{/each}
 		</tbody>
 	</table>
+
+	<div class="auto-accept" role="group" aria-labelledby="auto-{ai.id}">
+		<h3 id="auto-{ai.id}">{i18n.t.autoTitle}</h3>
+		<p class="hint">{i18n.t.autoLead(ai.name)}</p>
+		<ul>
+			{#each STANDINGS as standing (standing)}
+				{@const on = ai.auto_accept.includes(standing)}
+				<li>
+					<label>
+						<input
+							type="checkbox"
+							role="switch"
+							class="switch"
+							checked={on}
+							disabled={busy}
+							aria-label={i18n.t.autoSwitch(ai.name, i18n.t.standingsOf[standing])}
+							onchange={(e) => {
+								const next = e.currentTarget.checked;
+								e.currentTarget.checked = on;
+								onauto(standing, next);
+							}}
+						/>
+						<span>{i18n.t.standings[standing]}</span>
+					</label>
+				</li>
+			{/each}
+		</ul>
+	</div>
 
 	<div class="actions">
 		<button type="button" class="button quiet-button" disabled={busy} onclick={ondisconnect}>{i18n.t.disconnect}</button>

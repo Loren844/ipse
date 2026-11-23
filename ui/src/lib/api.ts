@@ -12,6 +12,7 @@ import type { ProposalView } from './types/ProposalView.ts';
 export type { AppInfo, DecisionView, EventsView, FileView, HomeView, InboxView, PeopleView, ProposalView };
 export type { ProposalLine } from './types/ProposalLine.ts';
 export type { AisView } from './types/AisView.ts';
+export type { OfferView } from './types/OfferView.ts';
 export type { AiView } from './types/AiView.ts';
 export type { CategoryView } from './types/CategoryView.ts';
 export type { ConnectedView } from './types/ConnectedView.ts';
@@ -144,6 +145,10 @@ export const api = {
 	setRights: (id: string, read: string[], propose: string[]) =>
 		post<AisView>(`/api/ais/${encodeURIComponent(id)}/rights`, { read, propose }),
 	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),
+	/** Accepts, or stops accepting, one kind of change from this AI in advance. */
+	autoAccept: (id: string, standing: string, on: boolean) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/auto`, { standing, on }),
+	/** Says no to an offer to accept one kind of change in advance. */
+	declineOffer: (id: string, standing: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/decline`, { standing }),
 	addCategory: (label: string, sensitive: boolean, openTo: string[]) =>
 		post<AisView>('/api/categories', { label, sensitive, open_to: openTo }),
 	history: (offset?: number) => get<HistoryView>('/api/history', { offset }),

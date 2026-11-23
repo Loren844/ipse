@@ -266,6 +266,23 @@ pub(crate) struct EventsView {
     summaries: Vec<super::summaries::DaySummary>,
 }
 
+/// Changes of one kind accepted in advance by the person (decision 0017).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct AutomaticView {
+    /// `summaries` or `event_kinds`.
+    standing: String,
+    /// How many proposals.
+    count: u32,
+}
+
+/// Days the home screen counts what was accepted in advance.
+const AUTOMATIC_DAYS: i64 = 7;
+
 /// The home screen.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(
@@ -284,6 +301,8 @@ pub(crate) struct HomeView {
     recent: Vec<LinkView>,
     /// Proposals waiting for the person, stale ones included.
     waiting: usize,
+    /// What was accepted in advance in the last days, by kind (decision 0017).
+    automatic: Vec<AutomaticView>,
     /// Questions waiting for the person's answer.
     questions: usize,
     /// The most recent day summary.
@@ -318,16 +337,44 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
 
 /// Proposals and questions waiting for the person.
 fn waiting(gateway: &Gateway) -> Result<usize> {
-    Ok(proposals_waiting(gateway)? + super::questions::waiting(gateway)?)
+    Ok(proposals_waiting(gateway)?.0 + super::questions::waiting(gateway)?)
 }
 
 /// Proposals waiting for the person, stale ones included.
-fn proposals_waiting(gateway: &Gateway) -> Result<usize> {
-    Ok(Proposals::new(gateway.vault())
-        .list()?
+fn proposals_waiting(gateway: &Gateway) -> Result<(usize, Vec<AutomaticView>)> {
+    let all = Proposals::new(gateway.vault()).list()?;
+    let waiting = all
         .iter()
         .filter(|p| matches!(p.status, Status::Waiting | Status::Stale { .. }))
-        .count())
+        .count();
+    // Accepted in advance by the person (decision 0017), in the last days.
+    let since = jiff::Timestamp::now() - jiff::SignedDuration::from_hours(24 * AUTOMATIC_DAYS);
+    let mut automatic: Vec<AutomaticView> = Vec::new();
+    for proposal in all.iter().filter(|p| p.automatic) {
+        let Status::Accepted { at, .. } = &proposal.status else {
+            continue;
+        };
+        if ipse_core::vault::DateTime::parse(at).is_none_or(|at| at.timestamp() < since) {
+            continue;
+        }
+        let standing = if proposal
+            .changes
+            .iter()
+            .all(|c| matches!(c, ipse_core::proposals::Change::WriteSummary { .. }))
+        {
+            "summaries"
+        } else {
+            "event_kinds"
+        };
+        match automatic.iter_mut().find(|a| a.standing == standing) {
+            Some(a) => a.count += 1,
+            None => automatic.push(AutomaticView {
+                standing: standing.to_owned(),
+                count: 1,
+            }),
+        }
+    }
+    Ok((waiting, automatic))
 }
 
 /// Today in the vault's time zone.
@@ -344,7 +391,7 @@ fn today(gateway: &Gateway) -> jiff::civil::Date {
 /// Errors reading the vault or its proposals.
 pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let today = today(gateway);
-    let waiting = proposals_waiting(gateway)?;
+    let (waiting, automatic) = proposals_waiting(gateway)?;
     let questions = super::questions::waiting(gateway)?;
     let latest = super::summaries::latest(gateway)?;
     let owner = gateway.fresh_owner()?;
@@ -389,6 +436,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         upcoming,
         recent,
         waiting,
+        automatic,
         questions,
         latest,
         now,

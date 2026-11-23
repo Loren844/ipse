@@ -28,6 +28,13 @@
 			</a>
 		{/if}
 
+		{#each view.automatic as a (a.standing)}
+			<p class="automatic" data-testid="automatic">
+				{i18n.t.automaticHome(a.count, a.standing)}
+				<a href="/review#decided">{i18n.t.see}</a>
+			</p>
+		{/each}
+
 		<section aria-labelledby="coming">
 			<h2 id="coming" class="visually-hidden">{i18n.t.comingUp}</h2>
 			{#if view.upcoming.length}

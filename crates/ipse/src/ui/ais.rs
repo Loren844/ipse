@@ -3,7 +3,8 @@
 //! [`Clients`] and [`Categories`], the same path as `ipse client`, and apply from each
 //! AI's next request.
 
-use ipse_core::rights::{Categories, Client, Clients, Gateway, last_access};
+use ipse_core::proposals::Proposals;
+use ipse_core::rights::{Categories, Client, Clients, Gateway, Standing, last_access};
 use ipse_core::vault::DateTime;
 
 use crate::install::{self, App, Places, System};
@@ -33,6 +34,12 @@ pub(crate) struct AiView {
     read: Vec<String>,
     /// The categories it proposes in.
     propose: Vec<String>,
+    /// What the person accepts from it in advance (decision 0017): `summaries`,
+    /// `event_kinds`.
+    auto_accept: Vec<String>,
+    /// What Ipse offers to accept from it in advance, after the person accepted
+    /// several of these in a row, one by one.
+    offers: Vec<String>,
 }
 
 /// One category, and who may see it.
@@ -145,6 +152,16 @@ struct RightsBody {
     propose: Vec<String>,
 }
 
+/// The body of `auto` and `decline`.
+#[derive(Deserialize)]
+struct StandingBody {
+    /// `summaries` or `event_kinds`.
+    standing: String,
+    /// For `auto`: on or off.
+    #[serde(default)]
+    on: bool,
+}
+
 #[derive(Deserialize)]
 struct CategoryBody {
     label: String,
@@ -169,7 +186,13 @@ pub(crate) fn view(gateway: &mut Gateway) -> Result<AisView> {
     let ais = clients
         .list()
         .iter()
-        .map(|c| ai_view(c, last.remove(&c.id)))
+        .map(|c| {
+            // An offer that cannot be worked out is simply not made.
+            let offers = Proposals::new(gateway.vault())
+                .offers(&c.id, &Clients::not_offered(c))
+                .unwrap_or_default();
+            ai_view(c, last.remove(&c.id), &offers)
+        })
         .collect();
     let settings = gateway.settings();
     let categories = Categories::of(settings);
@@ -212,7 +235,9 @@ fn apps() -> Vec<AppView> {
 }
 
 /// The person's changes: `POST /api/ais` connects an AI, `/api/ais/<id>/rights` sets
-/// what it reads and proposes in, `/api/ais/<id>/remove` disconnects it,
+/// what it reads and proposes in, `/api/ais/<id>/auto` turns a standing consent on or
+/// off and `/api/ais/<id>/decline` says no to one offered (decision 0017),
+/// `/api/ais/<id>/remove` disconnects it,
 /// `/api/categories` declares a category. `None` for an unknown address.
 ///
 /// # Errors
@@ -261,6 +286,20 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
                 Some(body.propose),
                 &categories,
             )?;
+        }
+        "auto" | "decline" => {
+            let body: StandingBody = read_body(body)?;
+            let standing = Standing::parse(&body.standing).ok_or_else(|| {
+                Error::Refused(
+                    "Only summaries and event kinds can be accepted in advance.".to_owned(),
+                )
+            })?;
+            let mut clients = Clients::load(&root)?;
+            if action == "auto" {
+                clients.set_auto_accept(id, standing, body.on)?;
+            } else {
+                clients.decline(id, standing)?;
+            }
         }
         "remove" => {
             if !Clients::load(&root)?.remove(id)? {
@@ -322,7 +361,7 @@ fn connect(gateway: &mut Gateway, body: &ConnectBody) -> Result<ConnectedView> {
         }
     };
     Ok(ConnectedView {
-        ai: ai_view(&client, None),
+        ai: ai_view(&client, None, &[]),
         code: installed.is_none().then(|| token.expose().to_owned()),
         installed,
         program,
@@ -346,8 +385,11 @@ fn name_of(text: &str, what: &str) -> Result<String> {
     Ok(name.to_owned())
 }
 
-fn ai_view(client: &Client, last_access: Option<String>) -> AiView {
+fn ai_view(client: &Client, last_access: Option<String>, offers: &[Standing]) -> AiView {
+    let names = |list: &[Standing]| list.iter().map(|s| s.as_str().to_owned()).collect();
     AiView {
+        auto_accept: names(&client.auto_accept),
+        offers: names(offers),
         id: client.id.clone(),
         name: client.name.clone(),
         local: client.local,

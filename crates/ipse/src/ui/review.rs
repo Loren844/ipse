@@ -52,6 +52,8 @@ pub(crate) struct ProposalLine {
     /// It merges files that may be the same (decision 0011): accepting merges them,
     /// refusing says they are different, and is remembered.
     merge: bool,
+    /// Accepted by the person's standing consent for its AI (decision 0017).
+    automatic: bool,
 }
 
 /// The inbox.
@@ -66,6 +68,27 @@ pub(crate) struct InboxView {
     waiting: Vec<ProposalLine>,
     /// The last decided ones, most recently decided first.
     decided: Vec<ProposalLine>,
+    /// Kinds of change Ipse offers to accept in advance from an AI, after the person
+    /// accepted several in a row (decision 0017).
+    offers: Vec<OfferView>,
+}
+
+/// An offer to accept one kind of change from one AI in advance.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct OfferView {
+    /// The AI's id.
+    ai: String,
+    /// Its name.
+    name: String,
+    /// `summaries` or `event_kinds`.
+    standing: String,
+    /// How many the person accepted in a row.
+    accepted: u32,
 }
 
 /// One change, in plain words.
@@ -202,7 +225,23 @@ pub(crate) fn list(gateway: &mut Gateway) -> Result<InboxView> {
     }
     decided.sort_by(|a, b| b.decided.cmp(&a.decided));
     decided.truncate(RECENT);
-    Ok(InboxView { waiting, decided })
+    let mut offers = Vec::new();
+    let proposals = Proposals::new(gateway.vault());
+    for client in Clients::load(gateway.vault().root())?.list() {
+        for standing in proposals.offers(&client.id, &Clients::not_offered(client))? {
+            offers.push(OfferView {
+                ai: client.id.clone(),
+                name: client.name.clone(),
+                standing: standing.as_str().to_owned(),
+                accepted: u32::try_from(ipse_core::proposals::OFFER_AFTER).unwrap_or(u32::MAX),
+            });
+        }
+    }
+    Ok(InboxView {
+        waiting,
+        decided,
+        offers,
+    })
 }
 
 /// What `GET /api/proposals/<id>` answers; `None` when there is no such proposal.
@@ -398,6 +437,7 @@ fn line(proposal: &Proposal, names: &[(String, String)], owner: &Access<'_>) -> 
             .changes
             .iter()
             .any(|c| matches!(c, ipse_core::proposals::Change::Merge { .. })),
+        automatic: proposal.automatic,
     }
 }
 

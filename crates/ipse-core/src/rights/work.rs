@@ -10,7 +10,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use super::Access;
-use crate::proposals::{Author, Change, Proposals, Status};
+use crate::proposals::{Accepted, Author, Change, Proposals, Status};
 use crate::summaries;
 use crate::tasks::{Task, TaskKind, TaskStatus, Tasks};
 use crate::vault::{Category, FileType, MemoryFile};
@@ -93,7 +93,8 @@ pub struct Proposed {
     /// The new proposal's id; `None` when the AI said there was nothing to propose.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proposal: Option<String>,
-    /// `waiting` for a proposal, `done` for a task closed with nothing to propose.
+    /// `waiting` for a proposal, `accepted` for one the person accepts in advance from
+    /// this AI (decision 0017), `done` for a task closed with nothing to propose.
     pub status: &'static str,
 }
 
@@ -363,9 +364,18 @@ impl Access<'_> {
         for category in &proposal.categories {
             self.returned(category);
         }
+        // The person's standing consent for this AI, if any: accepted now, by the same
+        // path as when they accept it (decision 0017).
+        let mut status = "waiting";
+        if !self.client.auto_accept.is_empty()
+            && let Some(Accepted::Applied(_)) = Proposals::new(&self.gateway.vault)
+                .accept_by_consent(&proposal.id, &self.client.auto_accept)?
+        {
+            status = "accepted";
+        }
         Ok(Proposed {
             proposal: Some(proposal.id),
-            status: "waiting",
+            status,
         })
     }
 
