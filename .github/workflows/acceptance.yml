@@ -1,0 +1,97 @@
+# Milestone 3's acceptance (issue #157): on Windows, macOS and Linux, the app installed
+# from a release's installer opens the invented memory, stops its server when it quits,
+# and connects Claude Desktop, whose server answers over MCP
+# (.github/scripts/acceptance.py). The screenshots are kept with the run.
+#
+# Runs after each release's installers are attached, by hand for any release, and on
+# a change to the test itself (with the latest release).
+name: Acceptance
+
+on:
+  workflow_run:
+    workflows: ["App release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "The release to install (like v0.2.0); the latest when empty"
+        required: false
+  pull_request:
+    paths:
+      - .github/workflows/acceptance.yml
+      - .github/scripts/acceptance.py
+
+permissions:
+  contents: read
+
+jobs:
+  install:
+    name: From the installer (${{ matrix.os }})
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.head_branch, 'v'))
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            file: linux-x64.deb
+          - os: macos-latest
+            file: macos-apple-silicon.dmg
+          - os: windows-latest
+            file: windows-x64.msi
+    steps:
+      - uses: actions/checkout@v5
+      - name: The release's installer
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || (github.event_name == 'workflow_run' && github.event.workflow_run.head_branch) || '' }}
+        run: |
+          if [ -z "$TAG" ]; then TAG=$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name); fi
+          name="Ipse-${TAG#v}-${{ matrix.file }}"
+          echo "Installing $name"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$name" --dir "$RUNNER_TEMP"
+          echo "INSTALLER=$RUNNER_TEMP/$name" >> "$GITHUB_ENV"
+      - name: Install (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "$INSTALLER" xvfb imagemagick dbus-x11
+          echo "APP=/usr/bin/ipse-app" >> "$GITHUB_ENV"
+          echo "IPSE=/usr/bin/ipse" >> "$GITHUB_ENV"
+      - name: Install (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          hdiutil attach "$INSTALLER" -mountpoint /Volumes/Ipse -nobrowse
+          cp -R /Volumes/Ipse/Ipse.app /Applications/
+          hdiutil detach /Volumes/Ipse
+          ls /Applications/Ipse.app/Contents/MacOS
+          echo "APP=/Applications/Ipse.app/Contents/MacOS/ipse-app" >> "$GITHUB_ENV"
+          echo "IPSE=/Applications/Ipse.app/Contents/MacOS/ipse" >> "$GITHUB_ENV"
+      - name: Install (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $process = Start-Process msiexec.exe -ArgumentList "/i `"$env:INSTALLER`" /qn /norestart" -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "msiexec: $($process.ExitCode)" }
+          $folder = Join-Path $env:ProgramFiles 'Ipse'
+          Get-ChildItem $folder
+          "APP=$folder\ipse-app.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          "IPSE=$folder\ipse.exe" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: The installed app, end to end
+        shell: bash
+        run: |
+          py=python3; if [ "${{ runner.os }}" = "Windows" ]; then py=python; fi
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            xvfb-run -a -s "-screen 0 1440x900x24" dbus-launch python3 .github/scripts/acceptance.py "$APP" "$IPSE" screenshots
+          else
+            $py .github/scripts/acceptance.py "$APP" "$IPSE" screenshots
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: screenshots-${{ matrix.os }}
+          path: screenshots
+          if-no-files-found: ignore
