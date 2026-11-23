@@ -14,9 +14,9 @@ test('every kind of file, a place with its events, what links to an organization
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Mémoire');
 	const kinds = page.getByTestId('kinds');
 	await expect(kinds.getByRole('link')).toHaveText([
-		/Personnes\s*148/,
-		/Lieux\s*4/,
-		/Organisations\s*2/,
+		/Personnes\s*149/,
+		/Lieux\s*10/,
+		/Organisations\s*3/,
 		/Projets\s*2/,
 		/Œuvres\s*3/,
 		/Objets\s*2/,
@@ -26,13 +26,24 @@ test('every kind of file, a place with its events, what links to an organization
 
 	await kinds.getByRole('link', { name: /Lieux/ }).click();
 	await expect(page).toHaveURL(`${ipse.origin}/memory/places`);
-	await expect(page.getByTestId('people').getByRole('link')).toHaveText([/Biarritz/, /Cabinet dentaire du Parc/, /Lyon/, /Studio Lotus/]);
+	await expect(page.getByTestId('people').getByRole('link')).toHaveText([
+		/Biarritz/,
+		/Cabinet dentaire du Parc/,
+		/Chez Capucine/,
+		/Chez Jade/,
+		/Chez Paul/,
+		/Chez Rose/,
+		/Domicile/,
+		/Lyon/,
+		/Studio Lotus/,
+		/Travail/
+	]);
 	await page.getByRole('link', { name: 'Studio Lotus' }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Studio Lotus');
 	await expect(page.getByText('Cours de yoga le mardi soir.')).toBeVisible();
 	await expect(page.getByRole('heading', { level: 2, name: 'Événements' })).toBeVisible();
 	await expect(page.locator('.thread li').first()).toContainText('Yoga');
-	await expect(page.getByText('Vient d’une proposition acceptée.')).toBeVisible();
+	await expect(page.getByText('Vient d’une proposition acceptée et votre historique des positions.')).toBeVisible();
 
 	await page.getByRole('link', { name: 'Mémoire', exact: true }).first().click();
 	await kinds.getByRole('link', { name: /Organisations/ }).click();

@@ -29,3 +29,22 @@ test('the demo memory has something on every screen', async ({ page }) => {
 	await sections.getByRole('link', { name: 'Résumés' }).click();
 	await expect(page.getByTestId('summary').first()).toBeVisible();
 });
+
+test('the demo has a location history: the map, and where one meets people', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.getByRole('link', { name: 'Carte' }).first().click();
+	const map = page.getByRole('application', { name: /Carte de vos lieux/ });
+	await expect(page.locator('.map-list').getByRole('button', { name: 'Chez Jade' })).toBeVisible();
+	expect(await map.locator('circle').count()).toBeGreaterThanOrEqual(8);
+	await page.locator('.map-list').getByRole('button', { name: 'Chez Jade' }).click();
+	await expect(page.locator('.map-side')).toContainText('Jade Petit');
+	await page.locator('.map-side').getByRole('link', { name: 'Jade Petit' }).click();
+	await expect(page.getByRole('heading', { name: 'Où vous vous voyez' })).toBeVisible();
+	await expect(page.getByTestId('places').getByRole('link', { name: 'Chez Jade' })).toBeVisible();
+});
+
+test('the music of the moment opens its files', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.getByTestId('now').getByRole('link', { name: 'Les Ondes Basses' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Les Ondes Basses');
+});
