@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Changed
 
+- A release's notes start with the desktop app: one link per system to its installer and how to open it the first time; the command-line installers come after, as such ([#168](https://github.com/Loren844/ipse/issues/168)).
 - **Mémoire de …**, at the bottom of the side bar, opens a menu: your file, the settings and, in the app, another memory; the settings left the side bar. On a phone, **Plus** shows your initials and starts with your file and the settings ([#176](https://github.com/Loren844/ipse/issues/176)).
 - In the desktop app, the interface's own words (menu, buttons, headings) are no longer selected like a web page's, and links and the logo can no longer be dragged out of the window; notes, facts, summaries and fields can still be copied ([#167](https://github.com/Loren844/ipse/issues/167)).
 
