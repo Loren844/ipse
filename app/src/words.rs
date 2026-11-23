@@ -48,6 +48,16 @@ pub(crate) struct Words {
     pub(crate) waiting: fn(usize) -> String,
     /// A notification: the followed source of this name fails to sync.
     pub(crate) sync_failed: fn(&str) -> String,
+    /// Asked once, at the first start: its title.
+    pub(crate) updates_title: &'static str,
+    /// Asked once, at the first start: whether to check for new versions.
+    pub(crate) updates_question: &'static str,
+    /// The answer that checks, the one chosen by default.
+    pub(crate) updates_yes: &'static str,
+    /// The answer that never checks.
+    pub(crate) updates_no: &'static str,
+    /// A notification: this version of Ipse can be installed.
+    pub(crate) update_ready: fn(&str) -> String,
 }
 
 /// Said the first time the window is closed: where the app's icon now sits.
@@ -84,6 +94,14 @@ fn english_sync_failed(source: &str) -> String {
     format!("Ipse cannot sync “{source}”. Sources says what to do.")
 }
 
+fn french_update_ready(version: &str) -> String {
+    format!("Ipse {version} est disponible. Ouvrez Ipse pour l’installer.")
+}
+
+fn english_update_ready(version: &str) -> String {
+    format!("Ipse {version} is available. Open Ipse to install it.")
+}
+
 const FRENCH: Words = Words {
     code: "fr",
     missing: "La commande ipse manque à côté de l’application. Réinstallez Ipse.",
@@ -106,6 +124,11 @@ const FRENCH: Words = Words {
     still_running: FRENCH_STILL_RUNNING,
     waiting: french_waiting,
     sync_failed: french_sync_failed,
+    updates_title: "Garder Ipse à jour ?",
+    updates_question: "Ipse peut regarder, au démarrage puis une fois par jour, si une nouvelle version existe. Il le demande à GitHub, où Ipse est publié, sans rien envoyer de votre mémoire. Rien n’est téléchargé ni installé sans votre accord. Vous pourrez changer d’avis dans Réglages.",
+    updates_yes: "Vérifier les mises à jour",
+    updates_no: "Ne pas vérifier",
+    update_ready: french_update_ready,
 };
 
 const ENGLISH: Words = Words {
@@ -130,6 +153,11 @@ const ENGLISH: Words = Words {
     still_running: ENGLISH_STILL_RUNNING,
     waiting: english_waiting,
     sync_failed: english_sync_failed,
+    updates_title: "Keep Ipse up to date?",
+    updates_question: "Ipse can check, when it starts and then once a day, whether a new version exists. It asks GitHub, where Ipse is published, and sends nothing of your memory. Nothing is downloaded or installed without your OK. You can change your mind in Settings.",
+    updates_yes: "Check for updates",
+    updates_no: "Don’t check",
+    update_ready: english_update_ready,
 };
 
 impl Words {

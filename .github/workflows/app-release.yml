@@ -9,6 +9,11 @@
 #   and macOS asks the person to open it anyway (docs/guide/install.md).
 # - Windows: WINDOWS_CERTIFICATE (a .pfx, base64) and WINDOWS_CERTIFICATE_PASSWORD.
 #   Without them the installer is unsigned, and SmartScreen asks to run it anyway.
+# - Updates (issue #156): TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
+#   made with `npx @tauri-apps/cli@2 signer generate`; its public key is in
+#   app/tauri.conf.json. With them, each system's file gets its signature (.sig) and the
+#   release gets latest.json (.github/scripts/update_manifest.py), which the app reads
+#   to update itself. Without them, the app is not offered the release.
 name: App release
 
 on:
@@ -116,9 +121,20 @@ jobs:
       - name: Build the installers
         working-directory: app
         shell: bash
+        env:
+          UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          UPDATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           extra=""
           if [ -f sign.json ]; then extra="--config sign.json"; fi
+          if [ -n "$UPDATE_KEY" ]; then
+            # Signed for updates: the .app.tar.gz, .msi and .AppImage each get a .sig.
+            export TAURI_SIGNING_PRIVATE_KEY="$UPDATE_KEY"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$UPDATE_KEY_PASSWORD"
+            extra="$extra --config {\"bundle\":{\"createUpdaterArtifacts\":true}}"
+          else
+            echo "::notice::No update key: the app is not offered this release."
+          fi
           npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config tauri.bundle.conf.json $extra
       - name: Name them by version and system
         shell: bash
@@ -135,6 +151,13 @@ jobs:
           for file in "$bundle"/dmg/*.dmg "$bundle"/msi/*.msi "$bundle"/appimage/*.AppImage "$bundle"/deb/*.deb; do
             [ -f "$file" ] || continue
             cp "$file" "out/Ipse-$version-$arch.${file##*.}"
+            if [ -f "$file.sig" ]; then cp "$file.sig" "out/Ipse-$version-$arch.${file##*.}.sig"; fi
+          done
+          # macOS updates itself from the app in an archive, beside the .dmg.
+          for file in "$bundle"/macos/*.app.tar.gz; do
+            [ -f "$file.sig" ] || continue
+            cp "$file" "out/Ipse-$version-$arch.app.tar.gz"
+            cp "$file.sig" "out/Ipse-$version-$arch.app.tar.gz.sig"
           done
           ls -l out
       - uses: actions/upload-artifact@v7
@@ -153,6 +176,20 @@ jobs:
           pattern: installers-*
           merge-multiple: true
           path: out
+      - uses: actions/checkout@v5
+        with:
+          path: source
+      - name: The manifest of updates, when the files are signed
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ls out/*.sig > /dev/null 2>&1; then
+            python3 source/.github/scripts/update_manifest.py out "$TAG" "$GITHUB_REPOSITORY" \
+              source/CHANGELOG.md source/crates/ipse-core/src/vault/settings.rs > out/latest.json
+            cat out/latest.json
+          else
+            echo "::notice::No signed file: no latest.json, the app is not offered this release."
+          fi
       - name: Wait for release.yml's release, then attach the installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -164,9 +201,6 @@ jobs:
             sleep 30
           done
           gh release upload "$TAG" out/* --repo "$GITHUB_REPOSITORY" --clobber
-      - uses: actions/checkout@v5
-        with:
-          path: source
       - name: The app first in the notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

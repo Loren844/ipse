@@ -13,6 +13,12 @@ const monthTitle = (date: Date) => {
 	return text.charAt(0).toUpperCase() + text.slice(1);
 };
 
+/** Today in the memory's time zone (Europe/Paris), which the agenda marks, at noon. */
+const today = () => {
+	const [year, month, day] = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date()).split('-').map(Number);
+	return new Date(year!, month! - 1, day!, 12);
+};
+
 test('the month: today marked, earlier and later months, a day opens its week', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Agenda' }).first().click();
@@ -20,14 +26,14 @@ test('the month: today marked, earlier and later months, a day opens its week', 
 	await expect(views.getByRole('button', { name: 'Liste' })).toHaveAttribute('aria-pressed', 'true');
 
 	await views.getByRole('button', { name: 'Mois' }).click();
-	const now = new Date();
+	const now = today();
 	await expect(page.getByRole('heading', { level: 2, name: monthTitle(now) })).toBeVisible();
 	const grid = page.getByRole('table', { name: monthTitle(now) });
 	await expect(grid.getByRole('columnheader')).toHaveCount(7);
 	await expect(grid.getByRole('columnheader').first()).toContainText('lun.');
-	const today = grid.locator('td[aria-current="date"]');
-	await expect(today).toHaveCount(1);
-	await expect(today.getByRole('link').first()).toHaveText(String(now.getDate()));
+	const marked = grid.locator('td[aria-current="date"]');
+	await expect(marked).toHaveCount(1);
+	await expect(marked.getByRole('link').first()).toHaveText(String(now.getDate()));
 	// Two years of invented agenda: the month has events, with their time.
 	await expect(grid.locator('.cell-events a').first()).toBeVisible();
 

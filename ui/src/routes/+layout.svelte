@@ -9,6 +9,7 @@
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
 	import OwnerMenu from '#lib/OwnerMenu.svelte';
+	import UpdateBanner from '#lib/UpdateBanner.svelte';
 	import Mark from '#lib/Mark.svelte';
 	import { initials } from '#lib/format.ts';
 
@@ -159,6 +160,7 @@
 			</div>
 		</header>
 		<main id="content" tabindex="-1">
+			{#if inApp}<UpdateBanner />{/if}
 			{@render children()}
 		</main>
 		<nav class="tabbar" aria-label={i18n.t.navLabel}>

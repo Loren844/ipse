@@ -85,6 +85,8 @@ jobs:
             app
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy, with the update test's feature
+        run: cargo clippy --all-targets --features update-test -- -D warnings
       - run: cargo test
       - run: cargo build
       - name: The app opens a memory

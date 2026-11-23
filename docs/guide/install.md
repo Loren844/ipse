@@ -34,6 +34,10 @@ Ipse asks what to open: **create your memory** (a new folder in your name), **tr
 
 Closing the window does not quit Ipse: it stays in the menu bar (macOS) or the tray (Windows, Linux), near the clock, and keeps the calendars you follow up to date ([Keep your calendar in sync](calendar.md)). Its icon's menu opens the window again, syncs now, or quits Ipse. On Linux, the tray needs `libayatana-appindicator3-1`, which the `.deb` installs; on a desktop without a tray, closing the window quits Ipse.
 
+## New versions
+
+At its first start, Ipse asks whether to check for new versions; **Settings → Check for updates** changes it later. When it checks, it asks GitHub once at start and once a day, and nothing else ([threat model](threat-model.md)). A new version shows at the top of the window with what changes: **Install and restart** downloads it, checks its signature, installs it and opens it again; **Later** hides it until the next check. If a new version changes the format of your memory's files, Ipse says so before you install it. On Windows the installer shows its progress; on Linux, an app installed from the `.deb` asks for your password to update.
+
 ## Uninstall
 
 - **macOS**: drag Ipse from Applications to the Bin.

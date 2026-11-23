@@ -19,6 +19,7 @@ mod navigation;
 mod prefs;
 mod server;
 mod tray;
+mod updates;
 mod words;
 
 #[cfg(target_os = "macos")]
@@ -91,6 +92,8 @@ fn main() {
         ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::Pending::default())
         .manage(State {
             server: Mutex::new(None),
             port: Arc::clone(&port),
@@ -146,6 +149,7 @@ fn main() {
             if !hidden || !app.state::<State>().tray.load(Ordering::Relaxed) {
                 let _ = window.show();
             }
+            updates::start(app.handle());
             Ok(())
         })
         .on_window_event(|window, event| {
