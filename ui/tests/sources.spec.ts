@@ -13,6 +13,8 @@ let ipse: Running;
 let calendar: Server;
 let secrets: string;
 let link = '';
+/** What the calendar answers: 200 with the file, or this status. */
+let status = 200;
 
 test.beforeEach(async () => {
 	// A test machine has no keychain: a development build keeps the link in this file.
@@ -20,7 +22,10 @@ test.beforeEach(async () => {
 	process.env.IPSE_TEST_SECRETS = secrets;
 	const ics = readFileSync(join(FIXTURES, 'calendar/google.ics'));
 	calendar = createServer((request, response) => {
-		if (request.url === '/basic.ics') {
+		if (request.url === '/basic.ics' && status !== 200) {
+			response.writeHead(status);
+			response.end();
+		} else if (request.url === '/basic.ics') {
 			response.writeHead(200, { 'content-type': 'text/calendar' });
 			response.end(ics);
 		} else {
@@ -34,6 +39,7 @@ test.beforeEach(async () => {
 	ipse = await startIpse('Inès Roux', 'fr');
 });
 test.afterEach(() => {
+	status = 200;
 	ipse.stop();
 	calendar.close();
 	delete process.env.IPSE_TEST_SECRETS;
@@ -107,4 +113,26 @@ test('follow a calendar by its link, sync it, then stop following it', async ({ 
 	// Its events stay: the agenda still lists the dinner.
 	await page.getByRole('link', { name: 'Agenda' }).first().click();
 	await expect(page.getByText('Dîner chez Julie').first()).toBeVisible();
+});
+
+test('a followed calendar that fails is marked beside Sources until it syncs again', async ({ page }) => {
+	await page.goto(ipse.url);
+	const nav = page.getByRole('navigation', { name: 'Sections' });
+	await nav.getByRole('link', { name: 'Sources' }).click();
+	await page.getByLabel('Nom de l’agenda').fill('Perso');
+	await page.getByLabel('Lien secret (iCal)').fill(link);
+	await page.getByRole('button', { name: 'Suivre cet agenda' }).click();
+	await expect(page.getByRole('status')).toHaveText('« Perso » est suivi.');
+	const failing = nav.getByRole('img', { name: 'Une source suivie ne se synchronise plus' });
+	await expect(failing).toHaveCount(0);
+
+	status = 503;
+	const source = page.getByTestId('sources').getByRole('listitem').filter({ hasText: 'Perso' });
+	await source.getByRole('button', { name: 'Synchroniser' }).click();
+	await expect(failing).toBeVisible();
+
+	status = 200;
+	await source.getByRole('button', { name: 'Synchroniser' }).click();
+	await expect(page.getByRole('status')).toHaveText('Synchronisé.');
+	await expect(failing).toHaveCount(0);
 });

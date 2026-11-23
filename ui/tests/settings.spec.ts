@@ -125,11 +125,53 @@ test('in the desktop app, settings open another memory through the app', async (
 	await expect(other).toHaveAttribute('data-sveltekit-reload', '');
 });
 
+test('in the desktop app, settings say what runs in the background and change it through the app', async ({ page }) => {
+	await page.addInitScript(() => {
+		window.ipseApp = { version: '0.2.0' };
+	});
+	// The app answers its own address: here, the test plays the app, and the window stays.
+	const asked: string[] = [];
+	await page.route('**/app/settings?*', async (route) => {
+		const url = new URL(route.request().url());
+		asked.push(url.search);
+		await route.fulfill({ status: 204 });
+		await page.evaluate((search) => {
+			const on = new URLSearchParams(search);
+			const settings = window.ipseApp!.settings!;
+			if (on.has('notifications')) settings.notifications = on.get('notifications') === 'on';
+			if (on.has('start')) settings.start = on.get('start') === 'on';
+			window.dispatchEvent(new Event('ipse-app-settings'));
+		}, url.search);
+	});
+	await page.goto(ipse.url);
+	await openSettings(page);
+	await expect(page.getByRole('heading', { name: 'En arrière-plan' })).toBeVisible();
+	const notifications = page.getByRole('checkbox', { name: /^Me prévenir/ });
+	const start = page.getByRole('checkbox', { name: /^Ouvrir Ipse au démarrage/ });
+	// Until the app gives its settings, nothing can be changed.
+	await expect(notifications).toBeDisabled();
+
+	// What the app runs once the page has loaded (app/src/prefs.rs).
+	await page.evaluate(() => {
+		window.ipseApp!.settings = { notifications: true, start: false };
+		window.dispatchEvent(new Event('ipse-app-settings'));
+	});
+	await expect(notifications).toBeChecked();
+	await expect(start).not.toBeChecked();
+
+	await start.check();
+	await expect(start).toBeChecked();
+	await notifications.uncheck();
+	await expect(notifications).not.toBeChecked();
+	expect(asked).toEqual(['?start=on', '?notifications=off']);
+});
+
 test('in a browser, nothing of the app shows', async ({ page }) => {
 	await page.goto(ipse.url);
 	await openSettings(page);
 	await expect(page.getByRole('heading', { name: 'Dans ce navigateur' })).toBeVisible();
 	await expect(page.getByRole('link', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveCount(0);
+	await expect(page.getByRole('heading', { name: 'En arrière-plan' })).toHaveCount(0);
 });
 
 test('in the desktop app, the interface is not selected or dragged, what one copies is', async ({ page }) => {

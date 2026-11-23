@@ -18,7 +18,9 @@ Each event becomes a file in `events/`, its guests linked to your contacts. `ips
 
 In `ipse ui`, **Sources → Follow a calendar by its link** does the same: paste the link, give it a name. The link goes to your system's keychain and is not shown again; the screen syncs a calendar now and stops following one.
 
-To keep them in sync on their own until the app does it, have your computer run `ipse sync --due` every 5 minutes: it syncs each calendar when its interval (15 minutes by default, `--every` to change it) has passed, and says nothing when nothing changed.
+**With the desktop app, there is nothing to set up:** while it runs, your calendars sync on their own, each at its interval (15 minutes by default), one at a time. Closing the window keeps Ipse running from its icon in the menu bar (macOS) or the tray (Windows, Linux); its menu syncs everything now, opens the window or quits. When a calendar keeps failing, a notification says so and a mark appears beside **Sources**, which says what to do. **Settings → In the background** turns the notifications off and makes Ipse start with the computer, without a window.
+
+Without the app, have your computer run `ipse sync --due` every 5 minutes: it syncs each calendar when its interval (15 minutes by default, `--every` to change it) has passed, and says nothing when nothing changed.
 
 - **macOS:** save this as `~/Library/LaunchAgents/org.ipse.sync.plist`, with your user name, then run `launchctl load ~/Library/LaunchAgents/org.ipse.sync.plist`. The first time, macOS asks whether `ipse` may use your keychain: choose **Always Allow**.
 

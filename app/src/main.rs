@@ -16,15 +16,20 @@
 mod commands;
 mod memory;
 mod navigation;
+mod prefs;
 mod server;
+mod tray;
 mod words;
 
 #[cfg(target_os = "macos")]
 mod menu;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
-use tauri::{Manager as _, RunEvent, WebviewWindowBuilder};
+use tauri::webview::PageLoadEvent;
+use tauri::{Manager as _, RunEvent, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::MacosLauncher;
 
 use crate::navigation::Go;
 use crate::server::Server;
@@ -35,6 +40,9 @@ pub(crate) struct State {
     pub(crate) server: Mutex<Option<Server>>,
     /// The port of that server, read on every navigation of the window.
     pub(crate) port: Arc<Mutex<Option<u16>>>,
+    /// Ipse's icon is in the menu bar or the tray: closing the window keeps the app
+    /// running there.
+    pub(crate) tray: AtomicBool,
 }
 
 impl State {
@@ -51,6 +59,10 @@ impl State {
         }
     }
 }
+
+/// The argument the system starts the app with when it starts with the computer: the
+/// window stays closed, Ipse works from its icon.
+const HIDDEN: &str = "--hidden";
 
 /// Runs before any script of a page in the window, the interface's included: tells the
 /// interface it is in the app, and gives Windows and Linux the shortcuts the menu gives
@@ -69,18 +81,20 @@ fn main() {
     let port: Arc<Mutex<Option<u16>>> = Arc::default();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.unminimize();
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            tray::show(app);
         }))
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![HIDDEN]),
+        ))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(State {
             server: Mutex::new(None),
             port: Arc::clone(&port),
+            tray: AtomicBool::new(false),
         })
         .invoke_handler(tauri::generate_handler![
             commands::start,
@@ -89,11 +103,15 @@ fn main() {
         ]);
     #[cfg(target_os = "macos")]
     let builder = builder
-        .menu(|app| menu::build(app, words::Words::here()))
+        .menu(|app| menu::build(app, &words::Words::here()))
         .on_menu_event(menu::chosen);
 
     let app = builder
         .setup(move |app| {
+            match tray::build(app.handle(), &words::Words::here()) {
+                Ok(_) => app.state::<State>().tray.store(true, Ordering::Relaxed),
+                Err(error) => eprintln!("Ipse has no icon in the menu bar or tray: {error}"),
+            }
             let config = app
                 .config()
                 .app
@@ -118,9 +136,27 @@ fn main() {
                         }
                     }
                 })
+                .on_page_load(|window, payload| {
+                    if payload.event() == PageLoadEvent::Finished {
+                        prefs::tell(window.app_handle());
+                    }
+                })
                 .build()?;
-            let _ = window.show();
+            let hidden = std::env::args().any(|arg| arg == HIDDEN);
+            if !hidden || !app.state::<State>().tray.load(Ordering::Relaxed) {
+                let _ = window.show();
+            }
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                let app = window.app_handle();
+                if app.state::<State>().tray.load(Ordering::Relaxed) {
+                    api.prevent_close();
+                    let _ = window.hide();
+                    prefs::told_closed(app);
+                }
+            }
         })
         .build(tauri::generate_context!());
     let app = match app {
@@ -130,10 +166,12 @@ fn main() {
             std::process::exit(1);
         }
     };
-    app.run(|handle, event| {
-        if let RunEvent::Exit = event {
-            handle.state::<State>().stop();
-        }
+    app.run(|handle, event| match event {
+        RunEvent::Exit => handle.state::<State>().stop(),
+        // The app's icon in the Dock, clicked while the window is closed.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { .. } => tray::show(handle),
+        _ => {}
     });
 }
 

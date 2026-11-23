@@ -17,7 +17,8 @@
     },
     "linux": {
       "deb": {
-        "section": "utils"
+        "section": "utils",
+        "depends": ["libayatana-appindicator3-1"]
       }
     }
   }

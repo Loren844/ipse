@@ -39,5 +39,29 @@ export const inApp = typeof window !== 'undefined' && window.ipseApp !== undefin
 /** Addresses the desktop app answers itself, in its window. */
 export const appLinks = {
 	/** Back to the app's first screen, to open or create another memory. */
-	switchMemory: '/app/switch'
+	switchMemory: '/app/switch',
+	/** The app's own settings: `?notifications=on`, `?start=off`. */
+	settings: '/app/settings'
 };
+
+/** The desktop app's own settings: system notifications, starting with the computer. */
+export type AppSettings = { notifications: boolean; start: boolean };
+
+/** The app's own settings, as the app last gave them to the page; `null` until it has. */
+class AppSettingsOfTheApp {
+	value: AppSettings | null = $state(null);
+
+	constructor() {
+		if (!inApp) return;
+		const read = () => (this.value = window.ipseApp?.settings ?? null);
+		read();
+		window.addEventListener('ipse-app-settings', read);
+	}
+
+	/** Asks the app to change `name`: it answers the address itself and gives the page the settings again. */
+	change(name: keyof AppSettings, on: boolean) {
+		location.href = `${appLinks.settings}?${name}=${on ? 'on' : 'off'}`;
+	}
+}
+
+export const appSettings = new AppSettingsOfTheApp();

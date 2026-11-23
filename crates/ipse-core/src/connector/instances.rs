@@ -253,9 +253,14 @@ impl SyncState {
     /// after failures, the backoff of `unavailable` passed (1, 5, 15, then 60 minutes).
     #[must_use]
     pub fn due(&self, instance: &Instance, now: Timestamp) -> bool {
-        let Some(run) = self.last(&instance.id) else {
-            return true;
-        };
+        self.due_at(instance).is_none_or(|at| now >= at)
+    }
+
+    /// When `instance` is next due, as [`due`](Self::due) decides; `None` when it never
+    /// ran, and is due at once. A time too far to represent is the latest one.
+    #[must_use]
+    pub fn due_at(&self, instance: &Instance) -> Option<Timestamp> {
+        let run = self.last(&instance.id)?;
         let wait = match run.failures {
             0 => instance.every,
             n => {
@@ -263,7 +268,7 @@ impl SyncState {
                 SignedDuration::from_mins(BACKOFF_MINUTES[step])
             }
         };
-        now.duration_since(run.at) >= wait
+        Some(run.at.checked_add(wait).unwrap_or(Timestamp::MAX))
     }
 
     /// Records a run of `id` at `at` and saves.
@@ -467,6 +472,7 @@ mod tests {
             state.due(&instance, at("2026-11-14T10:00:00Z")),
             "never ran"
         );
+        assert_eq!(state.due_at(&instance), None, "due at once");
 
         state
             .record("calendar-2", at("2026-11-14T10:00:00Z"), true)
@@ -474,6 +480,7 @@ mod tests {
         let state = SyncState::load(dir.path()).unwrap();
         assert!(!state.due(&instance, at("2026-11-14T10:14:59Z")));
         assert!(state.due(&instance, at("2026-11-14T10:15:00Z")));
+        assert_eq!(state.due_at(&instance), Some(at("2026-11-14T10:15:00Z")));
 
         let mut state = state;
         for (failures, wait) in [(1, 1), (2, 5), (3, 15), (4, 60), (5, 60)] {
@@ -489,6 +496,7 @@ mod tests {
                 .checked_add(SignedDuration::from_mins(wait))
                 .unwrap();
             assert!(state.due(&instance, after), "{failures}");
+            assert_eq!(state.due_at(&instance), Some(after), "{failures}");
         }
         state.forget("calendar-2").unwrap();
         assert!(

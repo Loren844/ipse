@@ -23,6 +23,7 @@ ipse-core = { workspace = true }
 ipse-protocol = { workspace = true }
 jiff = { workspace = true }
 keyring = { workspace = true }
+notify = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -43,6 +44,10 @@ harness = false
 
 [[bench]]
 name = "calendar"
+harness = false
+
+[[bench]]
+name = "sync"
 harness = false
 
 [[bench]]

@@ -34,6 +34,54 @@ pub(crate) struct Words {
     pub(crate) reload: &'static str,
     /// Menu: the Window menu.
     pub(crate) window: &'static str,
+    /// Menu bar or tray: show the window.
+    pub(crate) tray_open: &'static str,
+    /// Menu bar or tray: sync every followed source now.
+    pub(crate) tray_sync: &'static str,
+    /// Menu bar or tray: quit the app.
+    pub(crate) tray_quit: &'static str,
+    /// Said once, the first time the window is closed: its title.
+    pub(crate) still_running_title: &'static str,
+    /// Said once, the first time the window is closed.
+    pub(crate) still_running: &'static str,
+    /// A notification: this many more proposals or questions wait.
+    pub(crate) waiting: fn(usize) -> String,
+    /// A notification: the followed source of this name fails to sync.
+    pub(crate) sync_failed: fn(&str) -> String,
+}
+
+/// Said the first time the window is closed: where the app's icon now sits.
+#[cfg(target_os = "macos")]
+const FRENCH_STILL_RUNNING: &str = "Ipse garde votre mémoire à jour depuis son icône dans la barre des menus. Cliquez dessus pour rouvrir la fenêtre, ou pour quitter Ipse.";
+#[cfg(not(target_os = "macos"))]
+const FRENCH_STILL_RUNNING: &str = "Ipse garde votre mémoire à jour depuis son icône dans la zone de notification. Cliquez dessus pour rouvrir la fenêtre, ou pour quitter Ipse.";
+#[cfg(target_os = "macos")]
+const ENGLISH_STILL_RUNNING: &str = "Ipse keeps your memory up to date from its icon in the menu bar. Click it to open the window again, or to quit Ipse.";
+#[cfg(not(target_os = "macos"))]
+const ENGLISH_STILL_RUNNING: &str = "Ipse keeps your memory up to date from its icon in the tray. Click it to open the window again, or to quit Ipse.";
+
+fn french_waiting(n: usize) -> String {
+    if n == 1 {
+        "Une nouvelle proposition attend votre avis dans À revoir.".to_owned()
+    } else {
+        format!("{n} nouvelles propositions attendent votre avis dans À revoir.")
+    }
+}
+
+fn english_waiting(n: usize) -> String {
+    if n == 1 {
+        "A new proposal waits for you in Review.".to_owned()
+    } else {
+        format!("{n} new proposals wait for you in Review.")
+    }
+}
+
+fn french_sync_failed(source: &str) -> String {
+    format!("Ipse n’arrive pas à synchroniser « {source} ». Sources dit quoi faire.")
+}
+
+fn english_sync_failed(source: &str) -> String {
+    format!("Ipse cannot sync “{source}”. Sources says what to do.")
 }
 
 const FRENCH: Words = Words {
@@ -51,6 +99,13 @@ const FRENCH: Words = Words {
     view: "Présentation",
     reload: "Recharger",
     window: "Fenêtre",
+    tray_open: "Ouvrir Ipse",
+    tray_sync: "Synchroniser maintenant",
+    tray_quit: "Quitter Ipse",
+    still_running_title: "Ipse reste ouvert",
+    still_running: FRENCH_STILL_RUNNING,
+    waiting: french_waiting,
+    sync_failed: french_sync_failed,
 };
 
 const ENGLISH: Words = Words {
@@ -68,6 +123,13 @@ const ENGLISH: Words = Words {
     view: "View",
     reload: "Reload",
     window: "Window",
+    tray_open: "Open Ipse",
+    tray_sync: "Sync now",
+    tray_quit: "Quit Ipse",
+    still_running_title: "Ipse keeps running",
+    still_running: ENGLISH_STILL_RUNNING,
+    waiting: english_waiting,
+    sync_failed: english_sync_failed,
 };
 
 impl Words {
@@ -96,5 +158,17 @@ mod tests {
         assert_eq!(Words::of(Some("en-GB")).code, "en");
         assert_eq!(Words::of(Some("de-DE")).code, "en");
         assert_eq!(Words::of(None).code, "en");
+    }
+
+    #[test]
+    fn notifications_count_and_name() {
+        assert_eq!(
+            (FRENCH.waiting)(1),
+            "Une nouvelle proposition attend votre avis dans À revoir."
+        );
+        assert!((FRENCH.waiting)(3).starts_with("3 nouvelles propositions"));
+        assert!((ENGLISH.waiting)(2).starts_with("2 new proposals"));
+        assert!((FRENCH.sync_failed)("Perso").contains("« Perso »"));
+        assert!((ENGLISH.sync_failed)("Perso").contains("“Perso”"));
     }
 }

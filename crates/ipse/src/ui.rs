@@ -34,6 +34,7 @@ use serde::Serialize;
 
 mod ais;
 mod api;
+mod background;
 mod edit;
 mod graph;
 mod history;
@@ -79,6 +80,9 @@ struct State {
     port: u16,
     /// Serving the desktop app's window rather than a browser.
     app: bool,
+    /// Wakes the background scheduler when the followed sources change; only for the
+    /// desktop app.
+    wake: Option<std::sync::mpsc::Sender<background::Wake>>,
 }
 
 /// How `ipse ui` hands the interface over.
@@ -128,6 +132,7 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
             .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?
             .port();
         let code = random()?;
+        let (wake, wakes) = std::sync::mpsc::channel();
         let state = Arc::new(State {
             gateway: Mutex::new(gateway),
             keys: Mutex::new(Keys {
@@ -136,6 +141,7 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
             }),
             port,
             app: start == Start::App,
+            wake: (start == Start::App).then(|| wake.clone()),
         });
         let login = format!("http://127.0.0.1:{port}/login?code={code}");
         // Written without panicking: the terminal may be gone while the server runs on.
@@ -143,7 +149,8 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
         if start == Start::App {
             let _ = writeln!(out, "{login}");
             let _ = out.flush();
-            stop_with_the_app();
+            background::start(&state, wakes);
+            stop_with_the_app(wake);
         } else {
             let said = if start == Start::Browser && open_browser(&login) {
                 format!("Ipse is open in your browser, at http://127.0.0.1:{port}/.")
@@ -204,11 +211,20 @@ fn app_port(root: &std::path::Path) -> u16 {
     49152 + u16::from_le_bytes([a, b]) % 16384
 }
 
-/// Ends the process once its input reaches its end: the desktop app holds that input
-/// open while it runs, and the system closes it when the app quits or crashes.
-fn stop_with_the_app() {
-    std::thread::spawn(|| {
-        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+/// Reads the desktop app's requests on the input, one per line: `sync` syncs every
+/// followed source now. Ends the process once the input reaches its end: the app
+/// holds it open while it runs, and the system closes it when the app quits or
+/// crashes.
+fn stop_with_the_app(wake: std::sync::mpsc::Sender<background::Wake>) {
+    std::thread::spawn(move || {
+        let mut line = String::new();
+        let mut input = std::io::stdin().lock();
+        while std::io::BufRead::read_line(&mut input, &mut line).is_ok_and(|n| n > 0) {
+            if line.trim() == "sync" {
+                let _ = wake.send(background::Wake::Now);
+            }
+            line.clear();
+        }
         std::process::exit(0);
     });
 }
@@ -559,7 +575,15 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
         if !json {
             return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
-        change(gateway, path, request.body())
+        let changed = change(gateway, path, request.body());
+        if path.starts_with("sources/")
+            && changed.is_ok()
+            && let Some(wake) = &state.wake
+        {
+            // A source followed or no longer followed: the scheduler plans again.
+            let _ = wake.send(background::Wake::Changed);
+        }
+        changed
     } else {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
     };

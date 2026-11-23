@@ -200,6 +200,13 @@ nav a[aria-current='page'] svg {
 	font-variant-numeric: tabular-nums;
 }
 
+/* A followed source that no longer syncs: Sources says what to do. */
+.count.warn {
+	border-color: var(--warn);
+	background: var(--warn-soft);
+	color: var(--warn);
+}
+
 .foot {
 	margin-top: auto;
 	display: flex;

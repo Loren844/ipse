@@ -2,7 +2,8 @@
 //! the memory's interface on `127.0.0.1`. A link to anything else opens in the
 //! person's browser, so the window never loads another site. Two addresses are
 //! answered by the app itself, on either origin: `/app/switch` (back to the first
-//! screen) and `/app/quit`.
+//! screen), `/app/quit` and `/app/settings?notifications=on&start=off` (the app's
+//! own settings, from the interface's Settings).
 
 use tauri::{AppHandle, Manager as _, Url};
 use tauri_plugin_opener::OpenerExt as _;
@@ -20,6 +21,13 @@ pub(crate) enum Go {
     Switch,
     /// Quit the app.
     Quit,
+    /// Change the app's own settings: notifications, starting with the computer.
+    Settings {
+        /// Show system notifications, when changed.
+        notifications: Option<bool>,
+        /// Start with the computer, when changed.
+        start: Option<bool>,
+    },
     /// Open this address in the person's browser.
     Outside(Url),
 }
@@ -32,6 +40,10 @@ pub(crate) fn decide(url: &Url, port: Option<u16>) -> Go {
         return match url.path() {
             "/app/switch" => Go::Switch,
             "/app/quit" => Go::Quit,
+            "/app/settings" => Go::Settings {
+                notifications: switch(url, "notifications"),
+                start: switch(url, "start"),
+            },
             _ => Go::Allow,
         };
     }
@@ -41,6 +53,17 @@ pub(crate) fn decide(url: &Url, port: Option<u16>) -> Go {
         // Another program's link (`obsidian:`, `file:`…): not from the window.
         _ => Go::Refuse,
     }
+}
+
+/// The switch `name` of the query: `on` or `off`; `None` when absent or neither.
+fn switch(url: &Url, name: &str) -> Option<bool> {
+    url.query_pairs()
+        .find(|(key, _)| key == name)
+        .and_then(|(_, value)| match value.as_ref() {
+            "on" => Some(true),
+            "off" => Some(false),
+            _ => None,
+        })
 }
 
 /// The app's own pages: `tauri://localhost`, or `http://tauri.localhost` on Windows.
@@ -65,6 +88,10 @@ pub(crate) fn act(app: &AppHandle, go: Go) {
     match go {
         Go::Allow | Go::Refuse => {}
         Go::Quit => app.exit(0),
+        Go::Settings {
+            notifications,
+            start,
+        } => crate::prefs::change(app, notifications, start),
         Go::Outside(url) => {
             let _ = app.opener().open_url(url.as_str(), None::<&str>);
         }
@@ -124,6 +151,26 @@ mod tests {
             Go::Switch
         );
         assert_eq!(decide(&url("tauri://localhost/app/quit"), None), Go::Quit);
+        assert_eq!(
+            decide(
+                &url("http://127.0.0.1:4100/app/settings?notifications=off&start=on"),
+                Some(4100)
+            ),
+            Go::Settings {
+                notifications: Some(false),
+                start: Some(true)
+            }
+        );
+        assert_eq!(
+            decide(
+                &url("http://127.0.0.1:4100/app/settings?start=maybe"),
+                Some(4100)
+            ),
+            Go::Settings {
+                notifications: None,
+                start: None
+            }
+        );
         // Not from another site.
         let elsewhere = url("https://example.org/app/quit");
         assert_eq!(decide(&elsewhere, Some(4100)), Go::Outside(elsewhere));

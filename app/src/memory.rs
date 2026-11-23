@@ -9,7 +9,8 @@ use serde::{Deserialize, Serialize};
 use crate::server;
 
 /// The app's memory of which memory to open, in `memory.json` of the app's settings
-/// folder. Nothing else is kept there: the memory's own settings live in the memory.
+/// folder. The memory's own settings live in the memory; the app's own are in `app.json`
+/// ([`crate::prefs`]).
 #[derive(Debug, Default, Serialize, Deserialize)]
 pub(crate) struct Remembered {
     /// The memory's folder.

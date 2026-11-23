@@ -42,6 +42,8 @@ pub(crate) struct AppInfo {
     pub(crate) time_zone: String,
     /// Proposals waiting for the person, stale ones included, and questions.
     pub(crate) waiting: usize,
+    /// Followed sources whose last sync failed: the Sources screen says what to do.
+    pub(crate) failing: usize,
 }
 
 /// A link to another file, or a name as written.
@@ -322,6 +324,7 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
     let time_zone = settings.time_zone_name().to_owned();
     super::questions::plan(gateway)?;
     let waiting = waiting(gateway)?;
+    let failing = failing(gateway.vault().root())?;
     let owner = gateway.fresh_owner()?;
     let about = owner.about_me();
     let me = about.as_ref().map(|me| me.id.clone());
@@ -332,11 +335,27 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
         language,
         time_zone,
         waiting,
+        failing,
     })
 }
 
+/// Followed sources whose last sync failed.
+fn failing(root: &std::path::Path) -> Result<usize> {
+    let instances = ipse_core::connector::Instances::load(root)?;
+    let state = ipse_core::connector::SyncState::load(root)?;
+    Ok(instances
+        .list()
+        .iter()
+        .filter(|i| state.last(&i.id).is_some_and(|run| run.failures > 0))
+        .count())
+}
+
 /// Proposals and questions waiting for the person.
-fn waiting(gateway: &Gateway) -> Result<usize> {
+///
+/// # Errors
+///
+/// Errors reading the vault, its proposals or its tasks.
+pub(crate) fn waiting(gateway: &Gateway) -> Result<usize> {
     Ok(proposals_waiting(gateway)?.0 + super::questions::waiting(gateway)?)
 }
 

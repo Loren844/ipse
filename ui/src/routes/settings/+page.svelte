@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { api, Conflict, SessionEnded, type SettingsView } from '#lib/api.ts';
-	import { app, appLinks, inApp } from '#lib/app.svelte.ts';
+	import { app, appLinks, appSettings, inApp } from '#lib/app.svelte.ts';
 	import Copy from '#lib/Copy.svelte';
 	import { i18n, type Language } from '#lib/i18n.svelte.ts';
 	import Notice from '#lib/Notice.svelte';
@@ -93,6 +93,33 @@
 			</div>
 		</div>
 	</section>
+
+	{#if inApp}
+		<section aria-labelledby="background">
+			<h2 id="background">{i18n.t.inTheBackground}</h2>
+			<p class="quiet">{i18n.t.inTheBackgroundHint}</p>
+			<label class="check">
+				<input
+					type="checkbox"
+					checked={appSettings.value?.notifications ?? false}
+					disabled={!appSettings.value}
+					aria-describedby="notifications-hint"
+					onchange={(e) => appSettings.change('notifications', e.currentTarget.checked)}
+				/>
+				<span>{i18n.t.notifications}<span class="hint" id="notifications-hint">{i18n.t.notificationsHint}</span></span>
+			</label>
+			<label class="check">
+				<input
+					type="checkbox"
+					checked={appSettings.value?.start ?? false}
+					disabled={!appSettings.value}
+					aria-describedby="start-hint"
+					onchange={(e) => appSettings.change('start', e.currentTarget.checked)}
+				/>
+				<span>{i18n.t.startWithComputer}<span class="hint" id="start-hint">{i18n.t.startWithComputerHint}</span></span>
+			</label>
+		</section>
+	{/if}
 
 	{#if ready}
 		<section aria-labelledby="memory">
