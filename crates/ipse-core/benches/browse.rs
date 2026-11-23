@@ -2,7 +2,7 @@
 //! list, a search as one types (each prefix of a name), and one person in full; then
 //! the whole memory (issue #128): how many of each kind, one kind listed, and what links
 //! to a person; then the graph around a person (issue #130), and around one who takes
-//! part in 2 000 events.
+//! part in 2 000 events; then the whole memory as one graph (issue #174).
 #![allow(
     missing_docs,
     clippy::unwrap_used,
@@ -161,4 +161,25 @@ fn main() {
         "graph, 2 000 events       {:>9.2?}  (2 steps, 300 files)",
         median(hub)
     );
+
+    let mut whole = Vec::new();
+    let mut people_only = Vec::new();
+    for _ in 0..11 {
+        let start = Instant::now();
+        let graph = owner.whole_graph(&[], None);
+        whole.push(start.elapsed());
+        assert_eq!(graph.nodes.len(), PEOPLE + 1 + EVENTS);
+        assert!(graph.centered);
+        assert!(graph.edges.len() >= PEOPLE + EVENTS);
+        let start = Instant::now();
+        let graph = owner.whole_graph(&[ipse_core::vault::FileType::Person], None);
+        people_only.push(start.elapsed());
+        assert_eq!(graph.nodes.len(), PEOPLE + 1);
+    }
+    println!(
+        "whole memory as a graph   {:>9.2?}  ({} files, 2 000 events)",
+        median(whole),
+        PEOPLE + 1 + EVENTS
+    );
+    println!("whole graph, people only  {:>9.2?}", median(people_only));
 }

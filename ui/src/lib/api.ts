@@ -180,8 +180,7 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
-	graph: (id: string | undefined, depth: number, kinds?: string, categories?: string) =>
-		get<GraphView>('/api/graph', { id, depth, kinds, categories }),
+	graph: () => get<GraphView>('/api/graph'),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),

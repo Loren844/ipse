@@ -2449,13 +2449,21 @@ pre.diagnostics {
 	color: var(--thread-ink);
 }
 
-/* The graph (issue #130): the thread's red for the file at the center and its own
-   links, quiet lines for the rest; dashes, never colour alone, for what AIs cannot see. */
+/* The whole memory's graph (issue #174): quiet shapes and lines, the thread's red for
+   you, the chosen file and its links; a shape per kind and hollow shapes for what AIs
+   cannot see, never colour alone. Beside the list in Mémoire, instead of it when narrow. */
+.graph-filters-box summary {
+	cursor: pointer;
+	font-weight: 700;
+	font-size: var(--step--1);
+	width: fit-content;
+}
+
 .graph-filters {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 1rem 2rem;
-	margin: 1.5rem 0 1rem;
+	gap: 0.75rem 1.5rem;
+	margin-top: 0.75rem;
 }
 
 .graph-filters fieldset {
@@ -2516,158 +2524,216 @@ pre.diagnostics {
 	cursor: not-allowed;
 }
 
-.graph {
-	margin: 0;
+.screen.with-graph {
+	max-width: none;
+}
+
+.memory-split {
+	display: grid;
+	grid-template-columns: minmax(17rem, 24rem) minmax(0, 1fr);
+	gap: 2rem;
+	align-items: start;
+}
+
+.memory-split > .memory-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2.5rem;
+	min-width: 0;
+}
+
+.memory-graph {
+	position: sticky;
+	top: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	min-width: 0;
+}
+
+.graph-stage {
+	position: relative;
+	height: min(calc(100vh - 6rem), 52rem);
+	min-height: 22rem;
 	border: 1.5px solid var(--line);
 	border-radius: var(--radius-l);
 	background: var(--surface);
 	overflow: hidden;
 }
 
-.graph svg[data-testid='graph'] {
+.memory-graph-canvas {
+	position: absolute;
+	inset: 0;
+}
+
+.memory-graph-canvas canvas {
 	display: block;
-	width: 100%;
-	height: auto;
-	max-height: 78vh;
+	touch-action: none;
+	cursor: grab;
 	font-family: var(--text-font);
+	border-radius: var(--radius-l);
 }
 
-.graph .edges line {
-	stroke: var(--line-strong);
-	stroke-width: 1.2;
+.memory-graph-canvas:focus-visible {
+	outline-offset: -3px;
 }
 
-.graph .edges line.core {
-	stroke: var(--thread-faint);
-	stroke-width: 1.8;
+.graph-zoom {
+	position: absolute;
+	top: 0.6rem;
+	right: 0.6rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.3rem;
 }
 
-.graph .edges line.lit {
-	stroke: var(--thread);
-	stroke-width: 2.2;
-}
-
-.graph .node {
+.graph-zoom button {
+	display: grid;
+	place-items: center;
+	width: 2.1rem;
+	height: 2.1rem;
+	font: inherit;
+	font-weight: 700;
+	color: var(--text);
+	background: var(--surface);
+	border: 1.5px solid var(--line-strong);
+	border-radius: var(--radius-s);
 	cursor: pointer;
 }
 
-.graph .node circle {
-	fill: var(--surface);
-	stroke: var(--line-strong);
-	stroke-width: 1.5;
-}
-
-.graph .node.person circle {
-	fill: var(--thread-soft);
-	stroke: var(--thread-faint);
-}
-
-.graph .node.depth-0 circle {
-	fill: var(--thread);
-	stroke: var(--thread);
-}
-
-.graph .node.sensitive circle {
-	stroke: var(--warn);
-	stroke-dasharray: 4 3;
-	stroke-width: 2;
-}
-
-.graph .node .icon path {
+.graph-zoom svg {
 	fill: none;
-	stroke: var(--muted);
+	stroke: currentColor;
 	stroke-width: 1.8;
 	stroke-linecap: round;
 	stroke-linejoin: round;
 }
 
-.graph .node.person .icon path {
-	stroke: var(--thread-ink);
+.graph-loading {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	color: var(--muted);
 }
 
-.graph .node.depth-0 .icon path {
-	stroke: var(--on-thread);
+.graph-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	padding: 1rem 1.15rem;
+	border: 1.5px solid var(--line);
+	border-radius: var(--radius-l);
+	background: var(--surface);
 }
 
-.graph .node text {
-	font-size: 15px;
-	fill: var(--text);
-	paint-order: stroke;
-	stroke: var(--surface);
-	stroke-width: 4px;
-	stroke-linejoin: round;
-	opacity: 0;
-	pointer-events: none;
+.graph-panel h2 {
+	margin: 0;
+	font-size: var(--step-2);
 }
 
-.graph .node.depth-0 text {
-	font-family: var(--display);
-	font-weight: 700;
-	font-size: 22px;
-}
-
-.graph .node text .day {
-	fill: var(--muted);
-	font-size: 0.85em;
-}
-
-.graph .node.depth-2 text {
-	font-size: 13px;
-	fill: var(--muted);
-}
-
-.graph .node.labelled text,
-.graph .node.lit text {
-	opacity: 1;
-}
-
-.graph .node.lit circle {
-	stroke: var(--thread);
-	stroke-width: 2.5;
-}
-
-.graph figcaption {
+.graph-panel .facts {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 0.25rem 1rem;
-	padding: 0.7rem 1rem;
-	border-top: 1.5px solid var(--line);
+	align-items: center;
+	gap: 0.3rem 0.8rem;
 	color: var(--muted);
 	font-size: var(--step--1);
+	margin: 0;
 }
 
-.graph-list {
-	margin-top: 2.5rem;
+.graph-panel .actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem;
 }
 
-.graph-list h3 {
-	font-size: var(--step-0);
-	margin: 1.25rem 0 0.4rem;
-}
-
-.graph-list ul {
+.graph-panel ul {
 	list-style: none;
 	margin: 0;
 	padding: 0;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+	gap: 0.2rem 1rem;
+	max-height: 16rem;
+	overflow: auto;
+}
+
+.graph-panel li button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	width: 100%;
+	padding: 0.15rem 0;
+	font: inherit;
+	text-align: left;
+	color: var(--text);
+	background: none;
+	border: 0;
+	cursor: pointer;
+}
+
+.graph-panel li button:hover .name {
+	text-decoration: underline;
+}
+
+.graph-panel li .quiet {
+	font-size: var(--step--1);
+}
+
+.graph-shape {
+	flex: none;
+	fill: var(--muted);
+	stroke: var(--muted);
+	stroke-width: 1.5;
+}
+
+.graph-shape.hollow {
+	fill: none;
+}
+
+.graph-legend ul {
 	display: flex;
-	flex-direction: column;
+	flex-wrap: wrap;
+	gap: 0.3rem 1rem;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: var(--step--1);
+	color: var(--muted);
+}
+
+.graph-legend li {
+	display: inline-flex;
+	align-items: center;
 	gap: 0.35rem;
 }
 
-.graph-list li {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: baseline;
-	gap: 0.25rem 0.6rem;
+.graph-legend .you {
+	fill: var(--thread);
+	stroke: var(--thread);
 }
 
-.graph-list a {
-	color: var(--text);
-	font-weight: 500;
+.found a[aria-current='true'] {
+	background: var(--thread-soft);
 }
 
-.graph-list .link-button {
-	align-self: baseline;
+@media (max-width: 64rem) {
+	.memory-split {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.with-graph .memory-overview {
+		display: none;
+	}
+
+	.memory-graph {
+		position: static;
+	}
+
+	.graph-stage {
+		height: 68vh;
+	}
 }
 
 a.button {

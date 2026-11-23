@@ -1,7 +1,8 @@
 //! The neighbourhood of a file, for the graph view (issue #130): what it links to and
 //! what links to it, one or two steps away, among the files a client may read. Only
 //! the neighbourhood is computed, from the links the index read once per file, so that
-//! a memory of tens of thousands of files is drawn as fast as a small one.
+//! a memory of tens of thousands of files is drawn as fast as a small one. And the whole
+//! memory as one graph (issue #174), every file and every link, in one pass.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -209,5 +210,85 @@ impl SearchIndex {
             }
         }
         Neighbourhood { nodes, edges, more }
+    }
+}
+
+/// The whole memory as one graph (issue #174): every file the client may read and
+/// every link between two of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WholeGraph<'i> {
+    /// The file at the center first (depth 0), when there is one; then every other
+    /// file (depth 1): entities by name, then events, the most recent first.
+    pub nodes: Vec<GraphNode<'i>>,
+    /// Each link once, whichever way it is written, by the places of its two files in
+    /// `nodes`, the smaller first.
+    pub edges: Vec<(u32, u32)>,
+}
+
+impl SearchIndex {
+    /// Every file of the allowed categories that `keep` keeps (by type and category),
+    /// with `center` first when it is one of them or allowed (`keep` does not apply to
+    /// it), and every link between two of them. One pass over the files, one over
+    /// their links.
+    #[must_use]
+    pub fn whole_graph(
+        &self,
+        center: Option<&Id>,
+        allowed: impl Fn(&Category) -> bool,
+        keep: impl Fn(FileType, &Category) -> bool,
+    ) -> WholeGraph<'_> {
+        let center = center
+            .and_then(|id| self.by_id.get(id).copied())
+            .filter(|&slot| self.document(slot).is_some_and(|d| allowed(&d.category)));
+        let mut order: Vec<usize> = self
+            .slots
+            .iter()
+            .enumerate()
+            .filter_map(|(slot, entry)| {
+                let d = entry.as_ref()?.document.as_ref()?;
+                (Some(slot) != center && allowed(&d.category) && keep(d.file_type, &d.category))
+                    .then_some(slot)
+            })
+            .collect();
+        self.sort_for_graph(&mut order);
+        if let Some(slot) = center {
+            order.insert(0, slot);
+        }
+        let place: HashMap<usize, u32> = order
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &slot)| Some((slot, u32::try_from(i).ok()?)))
+            .collect();
+        let mut nodes = Vec::with_capacity(order.len());
+        let mut edges = Vec::new();
+        let mut seen: HashSet<(u32, u32)> = HashSet::new();
+        for (&slot, from) in order.iter().zip(0_u32..) {
+            let Some(d) = self.document(slot) else {
+                continue;
+            };
+            nodes.push(GraphNode {
+                id: &d.id,
+                name: &d.name.text,
+                file_type: d.file_type,
+                category: &d.category,
+                path: &d.path,
+                depth: u8::from(Some(slot) != center),
+                start: d.event.as_ref().map(|e| &e.start),
+            });
+            for link in &d.links {
+                let Some(to) = self
+                    .by_stem
+                    .get(&link.target)
+                    .and_then(|slots| slots.iter().find_map(|s| place.get(s).copied()))
+                else {
+                    continue;
+                };
+                let pair = (from.min(to), from.max(to));
+                if from != to && seen.insert(pair) {
+                    edges.push(pair);
+                }
+            }
+        }
+        WholeGraph { nodes, edges }
     }
 }

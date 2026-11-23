@@ -13,10 +13,6 @@ kind: string, category: string,
  */
 sensitive: boolean, 
 /**
- * Steps from the file at the center: 0 for that file.
- */
-depth: number, 
-/**
  * For an event, when it starts: `YYYY-MM-DD`, or RFC 3339.
  */
-start: string | null, };
+start?: string, };
