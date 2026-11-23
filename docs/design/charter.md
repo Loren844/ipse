@@ -17,7 +17,8 @@ The red is rare on purpose. If a screen has more than a few red marks, one of th
 - An **i whose stem loops back on itself**: *ipse*, oneself. Drawn on a 40 × 40 grid: a stem from the baseline up to a half-loop that curls to the right, a dot above. Stroke ends are round.
 - **Wordmark**: `ipse`, lowercase, Bricolage Grotesque 800, tracking −0.03 em, always beside the mark, never alone in a sentence.
 - In running text the name is **Ipse**, capitalized, never IPSE.
-- The app icon is the mark in white on a `--thread` rounded square (corner 11/40). Mark and icon are the same drawing at two scales (`ui/src/lib/Mark.svelte`, `app/welcome/mark.svg`).
+- The app icon is the mark in white on a `--thread` rounded square (corner 11/40), **centred optically**: the whole mark sits 4 units left of the grid's centre, so that stem and loop together balance in the square (centring the drawing's box, 6.4 units, makes the stem look off to the left). Its source is `app/icons/icon.svg`; the favicon, `app/welcome/mark.svg` and every file in `app/icons/` come from it.
+- Beside the wordmark (`ui/src/lib/Mark.svelte`) the mark is not shifted: there its stem aligns with the text.
 - The mark is `--thread` on light grounds, `--thread` (lightened in dark mode) on dark grounds. It is never outlined, shadowed, tilted, put in a gradient or used as a pattern.
 
 ## 3. Type
