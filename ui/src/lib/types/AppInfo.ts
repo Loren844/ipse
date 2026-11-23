@@ -24,4 +24,8 @@ time_zone: string,
 /**
  * Proposals waiting for the person, stale ones included, and questions.
  */
-waiting: number, };
+waiting: number, 
+/**
+ * Followed sources whose last sync failed: the Sources screen says what to do.
+ */
+failing: number, };

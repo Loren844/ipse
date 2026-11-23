@@ -32,6 +32,8 @@ The app comes with the `ipse` command, which your AI apps start to read your mem
 
 Ipse asks what to open: **create your memory** (a new folder in your name), **try it with an invented memory**, or **open an existing memory** made earlier with `ipse init`. It opens the same memory at each start; **Settings → Open or create another memory** goes back to that choice. Then [import your contacts and calendar](getting-started.md#3-import-your-contacts-and-your-calendar) from **Sources**, and connect your AI.
 
+Closing the window does not quit Ipse: it stays in the menu bar (macOS) or the tray (Windows, Linux), near the clock, and keeps the calendars you follow up to date ([Keep your calendar in sync](calendar.md)). Its icon's menu opens the window again, syncs now, or quits Ipse. On Linux, the tray needs `libayatana-appindicator3-1`, which the `.deb` installs; on a desktop without a tray, closing the window quits Ipse.
+
 ## Uninstall
 
 - **macOS**: drag Ipse from Applications to the Bin.

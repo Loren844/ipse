@@ -46,7 +46,7 @@ pub(crate) async fn start(app: AppHandle, choose: bool) -> Start {
     let mut problem = None;
     if let Some(folder) = last.as_ref().filter(|_| !choose) {
         if memory::is_memory(folder) {
-            match open_in_window(&app, folder.clone(), words).await {
+            match open_in_window(&app, folder.clone(), &words).await {
                 Ok(()) => return Start::Opened,
                 Err(said) => problem = Some(said),
             }
@@ -78,7 +78,7 @@ pub(crate) async fn create(app: AppHandle, new: New) -> Result<(), String> {
         .await
         .map_err(|_| words.not_created.to_owned())?
         .map_err(|said| with_details(words.not_created, &said))?;
-    open_in_window(&app, folder, words).await
+    open_in_window(&app, folder, &words).await
 }
 
 /// Opens the memory in `folder`.
@@ -88,7 +88,7 @@ pub(crate) async fn open(app: AppHandle, folder: PathBuf) -> Result<(), String> 
     if !memory::is_memory(&folder) {
         return Err(words.no_memory_here.to_owned());
     }
-    open_in_window(&app, folder, words).await
+    open_in_window(&app, folder, &words).await
 }
 
 /// Starts the server on `folder`, remembers the choice, and takes the window to it.
@@ -96,18 +96,21 @@ pub(crate) async fn open(app: AppHandle, folder: PathBuf) -> Result<(), String> 
 /// The app navigates the window itself: a page cannot, as the interface only accepts
 /// its one-time address from the person (no other site may send them there), and a
 /// navigation the app makes counts as theirs.
-async fn open_in_window(app: &AppHandle, folder: PathBuf, words: Words) -> Result<(), String> {
+async fn open_in_window(app: &AppHandle, folder: PathBuf, words: &Words) -> Result<(), String> {
     let state = app.state::<State>();
     state.stop();
     let opened = folder.clone();
-    let (server, address) = tauri::async_runtime::spawn_blocking(move || Server::start(&opened))
-        .await
-        .map_err(|_| words.not_opened.to_owned())?
-        .map_err(|failure| match failure {
-            Failure::Missing => words.missing.to_owned(),
-            Failure::Start(error) => with_details(words.not_opened, &error.to_string()),
-            Failure::Said(said) => with_details(words.not_opened, &said),
-        })?;
+    let told = app.clone();
+    let (server, address) = tauri::async_runtime::spawn_blocking(move || {
+        Server::start(&opened, move |event| crate::prefs::notify(&told, &event))
+    })
+    .await
+    .map_err(|_| words.not_opened.to_owned())?
+    .map_err(|failure| match failure {
+        Failure::Missing => words.missing.to_owned(),
+        Failure::Start(error) => with_details(words.not_opened, &error.to_string()),
+        Failure::Said(said) => with_details(words.not_opened, &said),
+    })?;
     *state
         .port
         .lock()

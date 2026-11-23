@@ -1,10 +1,12 @@
 //! The `ipse` command the app ships with, and the server it runs for the window.
 
-use std::io::{BufRead as _, BufReader, Read as _};
+use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
+
+use serde::Deserialize;
 
 /// How long `ipse ui` may take to say where it listens. Opening a memory reads its
 /// index; a large one takes a few seconds on a slow disk.
@@ -52,6 +54,31 @@ pub(crate) struct Server {
     pub(crate) port: u16,
 }
 
+/// What `ipse ui --app` tells the app while it runs, one JSON object per line after
+/// the address (`crates/ipse/src/ui/background.rs`).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(tag = "event", rename_all = "snake_case")]
+pub(crate) enum Event {
+    /// More proposals and questions wait for the person than before.
+    Waiting {
+        /// How many more.
+        new: usize,
+    },
+    /// A followed source failed to sync.
+    SyncFailed {
+        /// The name the person gave it.
+        source: String,
+    },
+}
+
+impl Event {
+    /// The event on one line of `ipse`'s output; `None` for anything else, such as an
+    /// event of a later version.
+    pub(crate) fn read(line: &str) -> Option<Event> {
+        serde_json::from_str(line.trim()).ok()
+    }
+}
+
 /// Why a memory could not be opened.
 #[derive(Debug)]
 pub(crate) enum Failure {
@@ -65,8 +92,12 @@ pub(crate) enum Failure {
 
 impl Server {
     /// Starts `ipse ui --app` on the memory in `folder`; returns it with the one-time
-    /// address for the window.
-    pub(crate) fn start(folder: &Path) -> Result<(Server, String), Failure> {
+    /// address for the window. `told` receives each [`Event`] it sends afterwards, on
+    /// a thread of its own.
+    pub(crate) fn start(
+        folder: &Path,
+        told: impl Fn(Event) + Send + 'static,
+    ) -> Result<(Server, String), Failure> {
         let program = program().ok_or(Failure::Missing)?;
         let mut child = command(&program)
             .arg("ui")
@@ -90,8 +121,13 @@ impl Server {
             let mut line = String::new();
             let mut lines = BufReader::new(stdout);
             let _ = sent.send(lines.read_line(&mut line).map(|_| line));
-            // Nothing more is expected on it; keep it drained.
-            let _ = std::io::copy(&mut lines, &mut std::io::sink());
+            // Then events, until the server stops.
+            for line in lines.lines() {
+                let Ok(line) = line else { break };
+                if let Some(event) = Event::read(&line) {
+                    told(event);
+                }
+            }
         });
         let address = received
             .recv_timeout(STARTING)
@@ -113,6 +149,14 @@ impl Server {
         });
         let port = port_of(&address).ok_or_else(|| Failure::Said(String::new()))?;
         Ok((Server { child, input, port }, address))
+    }
+
+    /// Asks the server to sync every followed source now. Returns whether it could be
+    /// asked.
+    pub(crate) fn sync_now(&mut self) -> bool {
+        self.input
+            .as_mut()
+            .is_some_and(|input| writeln!(input, "sync").and_then(|()| input.flush()).is_ok())
     }
 
     /// Stops the server and waits for it.
@@ -139,5 +183,21 @@ mod tests {
         assert_eq!(port_of("http://127.0.0.1:4100/login?code=ab"), Some(4100));
         assert_eq!(port_of("http://127.0.0.1:x/"), None);
         assert_eq!(port_of("http://example.org:80/"), None);
+    }
+
+    #[test]
+    fn events_are_read_from_their_line() {
+        assert_eq!(
+            Event::read(r#"{"event":"waiting","count":4,"new":1}"#),
+            Some(Event::Waiting { new: 1 })
+        );
+        assert_eq!(
+            Event::read("{\"event\":\"sync_failed\",\"source\":\"Perso\"}\n"),
+            Some(Event::SyncFailed {
+                source: "Perso".to_owned()
+            })
+        );
+        assert_eq!(Event::read(r#"{"event":"later","x":1}"#), None);
+        assert_eq!(Event::read("http://127.0.0.1:4100/login?code=ab"), None);
     }
 }

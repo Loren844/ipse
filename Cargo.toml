@@ -27,6 +27,9 @@ jiff = { version = "0.2", features = ["serde"] }
 # Zstandard in pure Rust, for the journal's sealed months (no C library to build).
 ruzstd = "0.9"
 sha2 = "0.11"
+# Watching the folders of proposals and tasks for the desktop app's notifications,
+# with the system's own file events (no polling).
+notify = "9.0"
 # Compact binary form of the saved search index (.ipse/index/).
 postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 # The system keychain: Keychain on macOS, Credential Manager on Windows, Secret Service on Linux.

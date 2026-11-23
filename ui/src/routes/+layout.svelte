@@ -146,6 +146,9 @@
 									{#if section.href === '/review' && info.waiting > 0}
 										<span class="count" aria-label={i18n.t.waiting(info.waiting)}>{info.waiting}</span>
 									{/if}
+									{#if section.href === '/sources' && info.failing > 0}
+										<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
+									{/if}
 								</a>
 							</li>
 						{/each}
@@ -217,6 +220,9 @@
 						<a href={section.href} aria-current={isCurrent(section.href) ? 'page' : undefined} onclick={closeMore}>
 							<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={section.icon} /></svg>
 							<span>{section.label}</span>
+							{#if section.href === '/sources' && info.failing > 0}
+								<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
+							{/if}
 						</a>
 					</li>
 				{/each}

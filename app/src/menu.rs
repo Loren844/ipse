@@ -14,7 +14,7 @@ const OTHER_MEMORY: &str = "other-memory";
 const RELOAD: &str = "reload";
 
 /// Builds the menu bar.
-pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: Words) -> tauri::Result<Menu<R>> {
+pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: &Words) -> tauri::Result<Menu<R>> {
     let ipse = Submenu::with_items(
         app,
         "Ipse",
