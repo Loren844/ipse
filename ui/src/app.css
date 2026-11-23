@@ -1,4 +1,5 @@
-/* Ipse's design tokens (direction "Fil", a madder-red thread): written once, used by every screen. */
+/* Ipse's design tokens (direction "Fil", a madder-red thread): written once, used by every screen.
+   What each one means and when to use it: docs/design/charter.md. app/welcome/welcome.css copies the colours. */
 :root {
 	--ground: #fbfaf8;
 	--surface: #ffffff;
@@ -20,12 +21,25 @@
 
 	--display: 'Bricolage Grotesque Variable', ui-sans-serif, system-ui, sans-serif;
 	--text-font: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, sans-serif;
+	/* Type: six steps, nothing in between (docs/design/charter.md, section 3). */
+	--step--2: 0.75rem;
 	--step--1: 0.875rem;
 	--step-0: 1rem;
-	--step-1: 1.3125rem;
-	--step-3: 3.25rem;
+	--step-1: 1.125rem;
+	--step-2: 1.3125rem;
+	--step-4: 3.25rem;
+	/* Shape: three radii and the pill; corners never mix within one component. */
+	--radius-s: 6px;
+	--radius: 12px;
+	--radius-l: 18px;
+	--radius-pill: 999px;
+	/* Depth: only what floats above the page casts a shadow. */
+	--shadow-pop: 0 8px 24px rgb(35 29 30 / 0.12);
+	--shadow-dialog: 0 20px 50px rgb(35 29 30 / 0.22);
+	/* Motion: for #169; nothing moves on its own, all of it off with reduced motion. */
+	--motion-quick: 150ms;
+	--motion-ease: cubic-bezier(0.2, 0, 0, 1);
 	--rail: 15.5rem;
-	--radius: 10px;
 	color-scheme: light;
 }
 
@@ -43,6 +57,8 @@
 	--thread-faint: #5a3238;
 	--focus: #cf6874;
 	--on-thread: #171314;
+	--shadow-pop: 0 8px 24px rgb(0 0 0 / 0.45);
+	--shadow-dialog: 0 20px 50px rgb(0 0 0 / 0.6);
 	--added: #8fd1ad;
 	--added-soft: #1c3127;
 	--warn: #ecc46f;
@@ -77,12 +93,12 @@ body {
 :focus-visible {
 	outline: 2.5px solid var(--focus);
 	outline-offset: 2px;
-	border-radius: 6px;
+	border-radius: var(--radius-s);
 }
 
 h1 {
 	font-family: var(--display);
-	font-size: clamp(2.25rem, 5vw, var(--step-3));
+	font-size: clamp(2.25rem, 5vw, var(--step-4));
 	font-weight: 800;
 	letter-spacing: -0.035em;
 	line-height: 1;
@@ -158,7 +174,7 @@ nav a {
 	color: var(--muted);
 	text-decoration: none;
 	font-weight: 500;
-	font-size: 0.9375rem;
+	font-size: var(--step-0);
 	transition: background-color 120ms ease, color 120ms ease;
 }
 
@@ -191,9 +207,9 @@ nav a[aria-current='page'] svg {
 	min-width: 1.5rem;
 	padding: 0 0.45rem;
 	border: 1.5px solid var(--thread);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	color: var(--thread-ink);
-	font-size: 0.75rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	line-height: 1.15rem;
 	text-align: center;
@@ -233,7 +249,7 @@ nav a[aria-current='page'] svg {
 	background: var(--thread);
 	color: var(--on-thread);
 	font-weight: 700;
-	font-size: 0.8rem;
+	font-size: var(--step--2);
 	line-height: 1;
 }
 
@@ -246,12 +262,12 @@ nav a[aria-current='page'] svg {
 
 .of {
 	color: var(--muted);
-	font-size: 0.78rem;
+	font-size: var(--step--2);
 }
 
 .name {
 	font-weight: 700;
-	font-size: 0.9375rem;
+	font-size: var(--step-0);
 	overflow-wrap: anywhere;
 }
 
@@ -260,18 +276,18 @@ nav a[aria-current='page'] svg {
 	align-self: flex-start;
 	flex-wrap: wrap;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	padding: 2px;
 }
 
 .segmented button {
 	font: inherit;
-	font-size: 0.78rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	color: var(--muted);
 	background: transparent;
 	border: 0;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	padding: 0.1rem 0.65rem;
 	cursor: pointer;
 }
@@ -328,7 +344,7 @@ main:focus {
 }
 
 .lead {
-	font-size: var(--step-1);
+	font-size: var(--step-2);
 	font-weight: 700;
 	color: var(--text);
 }
@@ -351,6 +367,30 @@ main:focus {
 	color: var(--muted);
 }
 
+/* A page's introduction under its title: one sentence or two, always the same voice. */
+.intro {
+	margin: 0;
+	max-width: 58ch;
+	color: var(--muted);
+	font-size: var(--step-1);
+	line-height: 1.5;
+}
+
+/* Lists to pick from look like the fields beside them, with the system's own menu. */
+select {
+	appearance: none;
+	padding-right: 2.25rem;
+	background-image:
+		linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+		linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+	background-position:
+		calc(100% - 1.15rem) 50%,
+		calc(100% - 0.8rem) 50%;
+	background-size: 0.36rem 0.36rem;
+	background-repeat: no-repeat;
+	cursor: pointer;
+}
+
 /* Screens of the memory. */
 .screen {
 	max-width: 46rem;
@@ -365,7 +405,7 @@ main:focus {
 
 .screen h2 {
 	font-family: var(--display);
-	font-size: 1.3rem;
+	font-size: var(--step-2);
 	font-weight: 700;
 	letter-spacing: -0.01em;
 	margin: 0 0 1rem;
@@ -375,6 +415,10 @@ main:focus {
 	display: flex;
 	flex-direction: column;
 	gap: 0.6rem;
+}
+
+.page-head > .actions {
+	margin-top: 0.9rem;
 }
 
 .date {
@@ -394,7 +438,7 @@ main:focus {
 
 .source {
 	margin: 0;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 a {
@@ -417,7 +461,7 @@ a {
 	gap: 1rem;
 	padding: 0.9rem 1.1rem;
 	border: 1.5px solid var(--thread);
-	border-radius: 12px;
+	border-radius: var(--radius);
 	color: var(--text);
 	text-decoration: none;
 	font-weight: 700;
@@ -484,7 +528,7 @@ a {
 
 .when {
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	display: flex;
 	align-items: center;
 	gap: 0.5rem;
@@ -504,10 +548,10 @@ a {
 }
 
 .badge {
-	font-size: 0.75rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	padding: 0 0.5rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	border: 1.5px solid var(--line-strong);
 	color: var(--muted);
 }
@@ -525,12 +569,12 @@ a {
 	align-items: center;
 	gap: 0.4rem;
 	padding: 0.1rem 0.6rem 0.1rem 0.15rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	background: var(--thread-soft);
 	color: var(--thread-ink);
 	text-decoration: none;
 	font-weight: 500;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	line-height: 1.4;
 }
 
@@ -551,7 +595,7 @@ a {
 
 .place {
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 /* People. */
@@ -567,7 +611,7 @@ a {
 	gap: 0.6rem;
 	padding: 0 0.9rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 12px;
+	border-radius: var(--radius);
 	background: var(--surface);
 }
 
@@ -637,17 +681,17 @@ a {
 
 .people .aliases {
 	color: var(--muted);
-	font-size: 0.875rem;
+	font-size: var(--step--1);
 }
 
 .more {
 	align-self: flex-start;
 	font: inherit;
 	font-weight: 700;
-	color: var(--thread-ink);
+	color: var(--text);
 	background: transparent;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	padding: 0.45rem 1rem;
 	cursor: pointer;
 }
@@ -664,7 +708,7 @@ a {
 }
 
 .person-head .face {
-	font-size: 1.5rem;
+	font-size: var(--step-2);
 }
 
 .person-head > div {
@@ -717,7 +761,7 @@ a {
 	padding: 0.7rem 1rem;
 	background: var(--surface);
 	border: 1.5px solid var(--line);
-	border-radius: 12px;
+	border-radius: var(--radius);
 }
 
 .notes {
@@ -731,10 +775,10 @@ a {
 	align-items: flex-start;
 	margin: 0;
 	padding: 0.8rem 1rem;
-	border-radius: 12px;
+	border-radius: var(--radius);
 	background: var(--line);
 	color: var(--text);
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 }
 
 .sensitive svg {
@@ -748,7 +792,7 @@ a {
 }
 
 .day-label h2 {
-	font-size: 1.05rem;
+	font-size: var(--step-1);
 	margin: 1.1rem 0 0;
 	color: var(--muted);
 }
@@ -803,7 +847,7 @@ a {
 	padding: 0.95rem 1.1rem;
 	background: var(--surface);
 	border: 1.5px solid var(--line);
-	border-radius: 12px;
+	border-radius: var(--radius);
 }
 
 .proposal:has(input:checked) {
@@ -844,7 +888,7 @@ a {
 	flex-wrap: wrap;
 	gap: 0.35rem 1rem;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .proposal .touches {
@@ -890,7 +934,7 @@ a {
 	font: inherit;
 	font-weight: 700;
 	padding: 0.55rem 1.15rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	border: 1.5px solid var(--line-strong);
 	background: transparent;
 	color: var(--text);
@@ -930,7 +974,7 @@ a {
 	align-items: flex-start;
 	margin: 0;
 	padding: 0.8rem 1rem;
-	border-radius: 12px;
+	border-radius: var(--radius);
 	background: var(--added-soft);
 	color: var(--text);
 	max-width: none;
@@ -1009,7 +1053,7 @@ h1.proposal-title {
 	gap: 0.55rem;
 	margin: 0;
 	padding: 0.2rem 0.6rem;
-	border-radius: 8px;
+	border-radius: var(--radius-s);
 	overflow-wrap: anywhere;
 	max-width: none;
 }
@@ -1060,7 +1104,7 @@ h1.proposal-title {
 	color: var(--text);
 	background: var(--surface);
 	border: 1.5px solid var(--line-strong);
-	border-radius: 10px;
+	border-radius: var(--radius);
 	padding: 0.6rem 0.8rem;
 	min-height: 5rem;
 	resize: vertical;
@@ -1073,7 +1117,7 @@ h1.proposal-title {
 
 .refuse .hint {
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	margin: 0;
 }
 
@@ -1085,7 +1129,7 @@ h1.proposal-title {
 	padding: 1.25rem 1.4rem 1.1rem;
 	background: var(--surface);
 	border: 1.5px solid var(--line);
-	border-radius: 14px;
+	border-radius: var(--radius);
 }
 
 .ai-head {
@@ -1105,9 +1149,10 @@ h1.proposal-title {
 	gap: 0.3rem 1rem;
 	margin: 0.2rem 0 0;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
+/* An AI is drawn as a ring with its initial: people are filled discs, AIs are open knots. */
 .ai-mark {
 	display: grid;
 	place-items: center;
@@ -1115,16 +1160,12 @@ h1.proposal-title {
 	width: 2.5rem;
 	height: 2.5rem;
 	border-radius: 50%;
-	background: var(--thread-soft);
+	border: 2.5px solid var(--thread);
 	color: var(--thread-ink);
-}
-
-.ai-mark svg {
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 1.8;
-	stroke-linecap: round;
-	stroke-linejoin: round;
+	font-family: var(--display);
+	font-weight: 800;
+	font-size: var(--step-1);
+	line-height: 1;
 }
 
 .rights {
@@ -1143,7 +1184,7 @@ h1.proposal-title {
 
 .rights thead th {
 	color: var(--muted);
-	font-size: 0.85rem;
+	font-size: var(--step--1);
 	padding-top: 0;
 }
 
@@ -1169,10 +1210,10 @@ h1.proposal-title {
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0 0.5rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	background: var(--line);
 	color: var(--text);
-	font-size: 0.78rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	line-height: 1.5;
 }
@@ -1196,7 +1237,7 @@ h1.proposal-title {
 	width: 2.6rem;
 	height: 1.5rem;
 	margin: 0;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	background: var(--line-strong);
 	cursor: pointer;
 	vertical-align: middle;
@@ -1231,7 +1272,7 @@ h1.proposal-title {
 
 .switch:focus-visible {
 	outline-offset: 3px;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 }
 
 .quiet-button {
@@ -1262,7 +1303,7 @@ h1.proposal-title {
 
 .categories .readers {
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	text-align: right;
 }
 
@@ -1280,7 +1321,7 @@ h1.proposal-title {
 
 .form h3 {
 	font-family: var(--display);
-	font-size: 1.1rem;
+	font-size: var(--step-1);
 	margin: 0;
 }
 
@@ -1306,7 +1347,7 @@ h1.proposal-title {
 	color: var(--text);
 	background: var(--surface);
 	border: 1.5px solid var(--line-strong);
-	border-radius: 10px;
+	border-radius: var(--radius);
 	padding: 0.55rem 0.8rem;
 }
 
@@ -1348,7 +1389,7 @@ h1.proposal-title {
 	gap: 0.5rem;
 	padding: 0.45rem 0.9rem 0.45rem 0.7rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	cursor: pointer;
 }
 
@@ -1381,7 +1422,7 @@ h1.proposal-title {
 .check .hint {
 	display: block;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	margin: 0;
 }
 
@@ -1391,7 +1432,7 @@ h1.proposal-title {
 	gap: 1rem;
 	padding: 1.4rem;
 	border: 1.5px solid var(--thread);
-	border-radius: 14px;
+	border-radius: var(--radius);
 	background: var(--surface);
 }
 
@@ -1418,11 +1459,11 @@ h1.proposal-title {
 	min-width: 0;
 	margin: 0;
 	padding: 0.7rem 0.9rem;
-	border-radius: 10px;
+	border-radius: var(--radius);
 	background: var(--ground);
 	border: 1px solid var(--line-strong);
 	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-	font-size: 0.82rem;
+	font-size: var(--step--1);
 	line-height: 1.5;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
@@ -1430,7 +1471,7 @@ h1.proposal-title {
 
 .button.small {
 	padding: 0.35rem 0.85rem;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 dialog.confirm {
@@ -1438,10 +1479,10 @@ dialog.confirm {
 	width: calc(100% - 2rem);
 	padding: 1.5rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 16px;
+	border-radius: var(--radius-l);
 	background: var(--surface);
 	color: var(--text);
-	box-shadow: 0 20px 50px rgb(0 0 0 / 0.25);
+	box-shadow: var(--shadow-dialog);
 }
 
 dialog.confirm::backdrop {
@@ -1450,7 +1491,7 @@ dialog.confirm::backdrop {
 
 dialog.confirm h2 {
 	font-family: var(--display);
-	font-size: 1.3rem;
+	font-size: var(--step-2);
 	margin: 0 0 0.75rem;
 	line-height: 1.2;
 }
@@ -1474,14 +1515,14 @@ dialog.confirm .actions {
 	padding: 0.25rem;
 	margin-top: 0.5rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	align-self: flex-start;
 }
 
 .views a {
 	white-space: nowrap;
 	padding: 0.35rem 0.95rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	color: var(--muted);
 	text-decoration: none;
 	font-weight: 700;
@@ -1509,13 +1550,13 @@ dialog.confirm .actions {
 }
 
 .more-files {
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .link-button {
 	align-self: flex-start;
 	font: inherit;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	color: var(--thread-ink);
 	background: none;
 	border: 0;
@@ -1544,7 +1585,7 @@ dialog.confirm .actions {
 
 .access-days h3 {
 	font-family: var(--display);
-	font-size: 1.05rem;
+	font-size: var(--step-1);
 	margin: 0 0 0.5rem;
 }
 
@@ -1605,11 +1646,11 @@ pre.diagnostics {
 	max-height: 20rem;
 	overflow: auto;
 	padding: 0.7rem 0.9rem;
-	border-radius: 10px;
+	border-radius: var(--radius);
 	background: var(--ground);
 	border: 1px solid var(--line-strong);
 	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-	font-size: 0.8rem;
+	font-size: var(--step--2);
 	line-height: 1.5;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
@@ -1635,14 +1676,14 @@ pre.diagnostics {
 
 .summary .summary-title {
 	font-family: var(--display);
-	font-size: 1.3rem;
+	font-size: var(--step-2);
 	font-weight: 700;
 	letter-spacing: -0.01em;
 	margin: 0;
 }
 
 .summary-text p {
-	font-size: 1.075rem;
+	font-size: var(--step-1);
 	line-height: 1.65;
 	margin: 0 0 0.6rem;
 	max-width: 62ch;
@@ -1657,7 +1698,7 @@ pre.diagnostics {
 }
 
 .summary-parts .quiet {
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	margin-right: 0.2rem;
 }
 
@@ -1672,11 +1713,10 @@ pre.diagnostics {
 
 .day-summary {
 	margin: 0.45rem 0 0;
-	padding: 0.55rem 0.85rem;
-	border-radius: 10px;
-	background: var(--thread-soft);
+	padding: 0.1rem 0 0.1rem 0.9rem;
+	border-left: 2px solid var(--thread);
 	color: var(--text);
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 	line-height: 1.55;
 	max-width: 62ch;
 	white-space: pre-line;
@@ -1714,7 +1754,7 @@ pre.diagnostics {
 
 	.rail .rail-search input {
 		/* 16 px at least: iOS zooms into smaller fields. */
-		font-size: 1rem;
+		font-size: var(--step-0);
 		padding: 0.45rem 0;
 	}
 
@@ -1762,7 +1802,7 @@ pre.diagnostics {
 		grid-auto-flow: column;
 		grid-auto-columns: 1fr;
 		width: 100%;
-		border-radius: 14px;
+		border-radius: var(--radius);
 		overflow: visible;
 	}
 
@@ -1774,8 +1814,8 @@ pre.diagnostics {
 		white-space: normal;
 		line-height: 1.25;
 		padding: 0.45rem 0.4rem;
-		border-radius: 10px;
-		font-size: 0.875rem;
+		border-radius: var(--radius);
+		font-size: var(--step--1);
 	}
 
 	.diff .what {
@@ -1804,7 +1844,7 @@ pre.diagnostics {
 	background: var(--surface);
 	border: 1.5px solid var(--line);
 	border-left: 4px solid var(--thread);
-	border-radius: 12px;
+	border-radius: var(--radius);
 }
 
 .question .asked {
@@ -1816,7 +1856,7 @@ pre.diagnostics {
 .question h3 {
 	margin: 0;
 	font-family: var(--display);
-	font-size: var(--step-1);
+	font-size: var(--step-2);
 	line-height: 1.2;
 }
 
@@ -1827,7 +1867,7 @@ pre.diagnostics {
 	display: flex;
 	flex-direction: column;
 	gap: 0.25rem;
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 }
 
 .question .clue {
@@ -1850,13 +1890,13 @@ pre.diagnostics {
 .question .hint {
 	margin: 0;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .question .open {
 	margin-left: auto;
 	color: var(--thread-ink);
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 }
 
 @media (max-width: 40rem) {
@@ -1867,7 +1907,7 @@ pre.diagnostics {
 	.question .clue {
 		display: block;
 		min-width: 0;
-		font-size: 0.85rem;
+		font-size: var(--step--1);
 	}
 
 	.question .open {
@@ -1906,7 +1946,7 @@ pre.diagnostics {
 }
 
 .settings .segmented button {
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 	padding: 0.4rem 1.05rem;
 }
 
@@ -1920,9 +1960,9 @@ pre.diagnostics {
 .setting-form select {
 	font: inherit;
 	color: var(--text);
-	background: var(--surface);
+	background-color: var(--surface);
 	border: 1.5px solid var(--line-strong);
-	border-radius: 10px;
+	border-radius: var(--radius);
 	padding: 0.55rem 0.8rem;
 }
 
@@ -1934,7 +1974,7 @@ pre.diagnostics {
 .setting-form .hint {
 	margin: 0;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .settings .live:empty {
@@ -1949,7 +1989,7 @@ pre.diagnostics {
 	margin: 0 0 0.25rem;
 	padding: 0 0.7rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 10px;
+	border-radius: var(--radius);
 	background: var(--surface);
 	color: var(--muted);
 }
@@ -1973,7 +2013,7 @@ pre.diagnostics {
 	background: transparent;
 	color: var(--text);
 	font: inherit;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	padding: 0.5rem 0;
 }
 
@@ -1986,42 +2026,43 @@ pre.diagnostics {
 	gap: 0.45rem;
 	margin: 0 0 0.6rem;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .crumbs a {
 	color: var(--thread-ink);
 }
 
+/* The kinds of the memory: an index, read like the contents of a book, not a grid of tiles. */
 .kinds {
 	list-style: none;
 	margin: 1.75rem 0 0;
 	padding: 0;
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
-	gap: 0.75rem;
+	grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+	column-gap: 2.5rem;
+	border-top: 1.5px solid var(--text);
 }
 
 .kinds a {
-	display: grid;
-	grid-template-columns: auto 1fr;
-	grid-template-rows: auto auto;
-	column-gap: 0.75rem;
-	padding: 1rem 1.1rem;
-	border: 1.5px solid var(--line);
-	border-radius: 12px;
-	background: var(--surface);
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	padding: 0.85rem 0.25rem;
+	border-bottom: 1px solid var(--line-strong);
 	color: var(--text);
 	text-decoration: none;
 }
 
-.kinds a:hover,
-.kinds a:focus-visible {
-	border-color: var(--thread);
+.kinds a:hover .kind-name,
+.kinds a:focus-visible .kind-name {
+	text-decoration: underline;
+	text-decoration-color: var(--thread);
+	text-underline-offset: 3px;
 }
 
 .kinds svg {
-	grid-row: 1 / 3;
+	flex: none;
 	align-self: center;
 	fill: none;
 	stroke: var(--thread);
@@ -2032,16 +2073,23 @@ pre.diagnostics {
 
 .kinds .kind-name {
 	font-weight: 700;
+	font-size: var(--step-1);
 }
 
 .kinds .kind-count {
-	color: var(--muted);
-	font-size: 0.9rem;
+	margin-left: auto;
+	font-family: var(--display);
+	font-weight: 800;
+	font-size: var(--step-2);
+	letter-spacing: -0.02em;
 	font-variant-numeric: tabular-nums;
+	color: var(--thread-ink);
 }
 
-.kinds a.empty svg {
+.kinds a.empty svg,
+.kinds a.empty .kind-count {
 	stroke: var(--muted);
+	color: var(--muted);
 }
 
 .kind-icon {
@@ -2051,9 +2099,9 @@ pre.diagnostics {
 	justify-content: center;
 	width: 34px;
 	height: 34px;
-	border-radius: 10px;
-	background: var(--thread-soft);
-	color: var(--thread-ink);
+	border-radius: 50%;
+	border: 1.5px solid var(--line-strong);
+	color: var(--thread);
 }
 
 .kind-icon svg {
@@ -2067,7 +2115,9 @@ pre.diagnostics {
 .kind-icon.big {
 	width: 72px;
 	height: 72px;
-	border-radius: 20px;
+	border-radius: 50%;
+	border-width: 2.5px;
+	border-color: var(--thread);
 }
 
 .now {
@@ -2102,7 +2152,7 @@ pre.diagnostics {
 
 .now .when {
 	color: var(--muted);
-	font-size: 0.85rem;
+	font-size: var(--step--1);
 }
 
 .screen section > h2 + .now,
@@ -2178,12 +2228,17 @@ pre.diagnostics {
 .editor textarea {
 	font: inherit;
 	color: var(--text);
-	background: var(--surface);
+	background-color: var(--surface);
 	border: 1.5px solid var(--line-strong);
 	border-radius: var(--radius);
 	padding: 0.55rem 0.8rem;
 	width: 100%;
 	min-width: 0;
+}
+
+.setting-form select,
+.editor select {
+	padding-right: 2.25rem;
 }
 
 .editor textarea {
@@ -2242,7 +2297,7 @@ pre.diagnostics {
 	width: 2rem;
 	height: 2rem;
 	border: 0;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	background: transparent;
 	color: var(--muted);
 	cursor: pointer;
@@ -2266,7 +2321,7 @@ pre.diagnostics {
 	gap: 0.15rem;
 	margin: 0;
 	padding: 0.1rem 0.1rem 0.1rem 0.75rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	background: var(--thread-soft);
 	color: var(--thread-ink);
 	font-weight: 500;
@@ -2299,7 +2354,7 @@ pre.diagnostics {
 	background: var(--surface);
 	border: 1.5px solid var(--line-strong);
 	border-radius: var(--radius);
-	box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+	box-shadow: var(--shadow-pop);
 }
 
 .picker [role='option'] {
@@ -2307,7 +2362,7 @@ pre.diagnostics {
 	align-items: center;
 	gap: 0.5rem;
 	padding: 0.45rem 0.6rem;
-	border-radius: 8px;
+	border-radius: var(--radius-s);
 	cursor: pointer;
 }
 
@@ -2362,7 +2417,7 @@ pre.diagnostics {
 
 .editor .segmented button,
 .kind-choice .segmented button {
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	padding: 0.3rem 0.85rem;
 }
 
@@ -2380,7 +2435,7 @@ pre.diagnostics {
 
 .kind-choice .segmented {
 	flex-wrap: wrap;
-	border-radius: 18px;
+	border-radius: var(--radius-l);
 }
 
 .link-button.danger {
@@ -2428,11 +2483,11 @@ pre.diagnostics {
 	align-items: center;
 	gap: 0.35rem;
 	font: inherit;
-	font-size: 0.85rem;
+	font-size: var(--step--1);
 	color: var(--muted);
 	background: transparent;
 	border: 1.5px dashed var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	padding: 0.2rem 0.7rem;
 	cursor: pointer;
 }
@@ -2464,7 +2519,7 @@ pre.diagnostics {
 .graph {
 	margin: 0;
 	border: 1.5px solid var(--line);
-	border-radius: 18px;
+	border-radius: var(--radius-l);
 	background: var(--surface);
 	overflow: hidden;
 }
@@ -2586,7 +2641,7 @@ pre.diagnostics {
 }
 
 .graph-list h3 {
-	font-size: 1rem;
+	font-size: var(--step-0);
 	margin: 1.25rem 0 0.4rem;
 }
 
@@ -2625,9 +2680,9 @@ a.button {
 	display: inline-block;
 	padding: 0 0.55rem;
 	border: 1.5px solid var(--line-strong);
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	color: var(--muted);
-	font-size: 0.78rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	line-height: 1.5;
 }
@@ -2664,11 +2719,11 @@ a.button {
 	width: 100%;
 	padding: 0.3rem 0.2rem;
 	border: 0;
-	border-radius: 12px;
+	border-radius: var(--radius);
 	background: transparent;
 	color: var(--muted);
 	font: inherit;
-	font-size: 0.72rem;
+	font-size: var(--step--2);
 	font-weight: 600;
 	line-height: 1.1;
 	text-align: center;
@@ -2716,7 +2771,7 @@ dialog.more {
 		calc(1rem + env(safe-area-inset-left));
 	border: 0;
 	border-top: 1px solid var(--line-strong);
-	border-radius: 20px 20px 0 0;
+	border-radius: var(--radius-l) var(--radius-l) 0 0;
 	background: var(--surface);
 	color: var(--text);
 }
@@ -2733,7 +2788,7 @@ dialog.more .sheet-head {
 }
 
 dialog.more h2 {
-	font-size: 1rem;
+	font-size: var(--step-0);
 	margin: 0;
 }
 
@@ -2752,7 +2807,7 @@ dialog.more ul a {
 	gap: 0.8rem;
 	min-height: 3rem;
 	padding: 0.5rem 0.75rem;
-	border-radius: 12px;
+	border-radius: var(--radius);
 	color: var(--text);
 	text-decoration: none;
 	font-weight: 500;
@@ -2810,7 +2865,7 @@ dialog.more .owner {
 }
 
 .agenda-bar .segmented button {
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	padding: 0.3rem 0.95rem;
 }
 
@@ -2836,7 +2891,7 @@ dialog.more .owner {
 .month th {
 	padding: 0 0.4rem 0.4rem;
 	color: var(--muted);
-	font-size: 0.82rem;
+	font-size: var(--step--1);
 	font-weight: 700;
 	text-align: left;
 }
@@ -2872,10 +2927,10 @@ dialog.more .owner {
 	place-items: center;
 	min-width: 1.7rem;
 	height: 1.7rem;
-	border-radius: 999px;
+	border-radius: var(--radius-pill);
 	color: var(--text);
 	font-weight: 700;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	text-decoration: none;
 }
 
@@ -2914,7 +2969,7 @@ dialog.more .owner {
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	color: var(--text);
-	font-size: 0.82rem;
+	font-size: var(--step--1);
 	line-height: 1.35;
 	text-decoration: none;
 }
@@ -2941,7 +2996,7 @@ dialog.more .owner {
 	display: inline-block;
 	margin-top: 0.15rem;
 	color: var(--muted);
-	font-size: 0.78rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 }
 
@@ -2976,13 +3031,13 @@ dialog.more .owner {
 	align-items: baseline;
 	gap: 0.35rem;
 	margin: 0;
-	font-size: 0.85rem;
+	font-size: var(--step--1);
 	color: var(--muted);
 }
 
 .week-day .date-number {
 	font-family: var(--display);
-	font-size: 1.5rem;
+	font-size: var(--step-2);
 	font-weight: 800;
 	color: var(--text);
 	letter-spacing: -0.02em;
@@ -2997,7 +3052,7 @@ dialog.more .owner {
 }
 
 .day-summary-link {
-	font-size: 0.8rem;
+	font-size: var(--step--2);
 	color: var(--muted);
 }
 
@@ -3015,7 +3070,7 @@ dialog.more .owner {
 	flex-direction: column;
 	align-items: flex-start;
 	gap: 0.15rem;
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 	line-height: 1.35;
 	overflow-wrap: anywhere;
 }
@@ -3034,7 +3089,7 @@ dialog.more .owner {
 .week-day .nothing {
 	margin: 0;
 	color: var(--muted);
-	font-size: 0.85rem;
+	font-size: var(--step--1);
 }
 
 /* A phone: the week as a list of days; the month shows how many events a day has. */
@@ -3082,10 +3137,10 @@ dialog.more .owner {
 		display: inline-block;
 		min-width: 1.2rem;
 		padding: 0 0.3rem;
-		border-radius: 999px;
+		border-radius: var(--radius-pill);
 		background: var(--thread-soft);
 		color: var(--thread-ink);
-		font-size: 0.72rem;
+		font-size: var(--step--2);
 		font-weight: 700;
 	}
 }
@@ -3143,7 +3198,7 @@ dialog.more .owner {
 }
 
 .exports h3 {
-	font-size: 1rem;
+	font-size: var(--step-0);
 	margin: 1rem 0 0.3rem;
 }
 
@@ -3179,7 +3234,7 @@ dialog.more .owner {
 
 .source h3 {
 	margin: 0;
-	font-size: 1.1rem;
+	font-size: var(--step-1);
 	color: var(--text);
 }
 
@@ -3227,7 +3282,7 @@ nav.crumbs {
 	align-items: baseline;
 	gap: 0.5rem;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 nav.crumbs a {
@@ -3330,7 +3385,7 @@ nav.crumbs:empty {
 
 .strip-label {
 	color: var(--muted);
-	font-size: 0.72rem;
+	font-size: var(--step--2);
 	font-weight: 700;
 	text-align: center;
 	overflow: hidden;
@@ -3352,7 +3407,7 @@ nav.crumbs:empty {
 
 .seen-count {
 	color: var(--muted);
-	font-size: 0.8rem;
+	font-size: var(--step--2);
 	font-variant-numeric: tabular-nums;
 	margin-right: 0.35rem;
 }
@@ -3371,7 +3426,7 @@ nav.crumbs:empty {
 
 .period-summary {
 	margin: 0;
-	font-size: 1.1rem;
+	font-size: var(--step-1);
 	max-width: 60ch;
 }
 
@@ -3392,12 +3447,12 @@ nav.crumbs:empty {
 
 .month-card h2 {
 	margin: 0;
-	font-size: 1.35rem;
+	font-size: var(--step-2);
 }
 
 .month-summary {
 	margin: 0;
-	font-size: 0.92rem;
+	font-size: var(--step--1);
 	display: -webkit-box;
 	-webkit-line-clamp: 4;
 	line-clamp: 4;
@@ -3411,7 +3466,7 @@ nav.crumbs:empty {
 	gap: 0.2rem 0.75rem;
 	margin: 0;
 	font-weight: 700;
-	font-size: 0.92rem;
+	font-size: var(--step--1);
 }
 
 .marks {
@@ -3529,9 +3584,9 @@ nav.crumbs:empty {
 	bottom: 0.3rem;
 	margin: 0;
 	padding: 0.05rem 0.4rem;
-	border-radius: 4px;
+	border-radius: var(--radius-s);
 	background: color-mix(in srgb, var(--surface) 85%, transparent);
-	font-size: 0.72rem;
+	font-size: var(--step--2);
 }
 
 .map-side {
@@ -3546,7 +3601,7 @@ nav.crumbs:empty {
 
 .map-side h3 {
 	margin: 0.5rem 0 0;
-	font-size: 0.95rem;
+	font-size: var(--step-0);
 }
 
 .map-side p {
@@ -3561,7 +3616,7 @@ nav.crumbs:empty {
 	display: flex;
 	flex-direction: column;
 	gap: 0.4rem;
-	font-size: 0.92rem;
+	font-size: var(--step--1);
 }
 
 .map-list {
@@ -3673,14 +3728,14 @@ button.owner[aria-expanded='true'] .chevron {
 	list-style: none;
 	background: var(--surface);
 	border: 1.5px solid var(--line-strong);
-	border-radius: 12px;
-	box-shadow: 0 10px 30px rgb(0 0 0 / 0.12);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-pop);
 }
 
 .owner-items a {
 	display: block;
 	padding: 0.5rem 0.65rem;
-	border-radius: 8px;
+	border-radius: var(--radius-s);
 	color: var(--text);
 	font-weight: 500;
 	text-decoration: none;
@@ -3705,7 +3760,7 @@ button.owner[aria-expanded='true'] .chevron {
 	align-items: baseline;
 	gap: 0.6rem;
 	color: var(--muted);
-	font-size: 0.9rem;
+	font-size: var(--step--1);
 }
 
 .knot .series .unfold {
@@ -3730,7 +3785,7 @@ button.owner[aria-expanded='true'] .chevron {
 
 .auto-accept h3 {
 	margin: 0;
-	font-size: 1rem;
+	font-size: var(--step-0);
 }
 
 .auto-accept .hint {
@@ -3755,15 +3810,13 @@ button.owner[aria-expanded='true'] .chevron {
 
 .offer {
 	margin: 1rem 0 1.5rem;
-	padding: 1rem 1.25rem;
-	border: 1.5px solid var(--thread);
-	border-radius: 12px;
-	background: var(--thread-soft);
+	padding: 0.25rem 0 0.25rem 1.25rem;
+	border-left: 2px solid var(--thread);
 }
 
 .offer h2 {
 	margin: 0 0 0.4rem;
-	font-size: 1.05rem;
+	font-size: var(--step-1);
 }
 
 .offer p {

@@ -59,7 +59,7 @@
 <div class="screen wide map-screen">
 	<header class="page-head">
 		<h1>{i18n.t.map}</h1>
-		<p class="quiet">{i18n.t.mapLead}</p>
+		<p class="intro">{i18n.t.mapLead}</p>
 	</header>
 
 	{#if remote.state.kind === 'failed'}

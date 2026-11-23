@@ -54,7 +54,7 @@
 <div class="screen">
 	<header class="page-head">
 		<h1>{i18n.t.summariesNav}</h1>
-		<p class="quiet">{i18n.t.summariesLead}</p>
+		<p class="intro">{i18n.t.summariesLead}</p>
 		<div class="views periods" role="navigation" aria-label={i18n.t.summariesNav}>
 			{#each periods as choice (choice.value)}
 				<a
