@@ -72,7 +72,7 @@ const words = {
 		thisBrowser: 'Dans ce navigateur',
 		thisBrowserHint: 'Ces choix restent sur cet ordinateur, dans ce navigateur.',
 		sourcesNav: 'Sources',
-		sourcesLead: 'Ce qui alimente votre mémoire : les fichiers que vous importez, et les agendas qu’Ipse suit pour vous.',
+		sourcesLead: 'Ce qui alimente votre mémoire : les fichiers que vous importez, et les agendas et comptes qu’Ipse suit pour vous.',
 		importTitle: 'Importer un fichier',
 		importHint: 'Contacts (.vcf), agenda (.ics) ou historique des positions (Timeline.json). Ipse lit le fichier et n’en garde pas de copie.',
 		dropHere: 'Déposez un fichier ici, ou',
@@ -113,6 +113,7 @@ const words = {
 		sourceKinds: {
 			contacts: 'Contacts',
 			calendar: 'Agenda',
+			dav: 'Compte d’agendas et de contacts',
 			'google-timeline': 'Historique des positions'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -136,6 +137,9 @@ const words = {
 				'Ipse ne sait pas encore lire ce type de fichier : il lit les contacts (.vcf), les agendas (.ics) et l’historique des positions (Timeline.json).',
 			bad_file: 'Ce fichier n’a pas pu être lu. Vérifiez que c’est bien l’export de l’application, sans modification.',
 			bad_link: 'Ce lien ne peut pas être suivi : il faut une adresse https:// vers un agenda au format iCal.',
+			bad_address:
+				'Ce compte ne peut pas être connecté : il faut l’adresse du serveur (https://, ou simplement son nom), le nom d’utilisateur et le mot de passe d’application.',
+			not_connected: 'Le compte n’a pas pu être connecté.',
 			failed: 'L’agenda n’a pas pu être lu.',
 			keychain:
 				'Ipse n’a pas pu utiliser le trousseau de votre système pour garder le lien. Sur Linux, un trousseau comme GNOME Keyring doit être installé et déverrouillé.',
@@ -145,6 +149,55 @@ const words = {
 		followedNow: (name: string) => `« ${name} » est suivi.`,
 		keptNow: (name: string) => `« ${name} » est suivi, mais l’agenda n’a pas pu être joint pour l’instant : Ipse réessaiera.`,
 		unfollowedNow: (name: string) => `« ${name} » n’est plus suivi. Ses événements restent dans votre mémoire.`,
+		accountTitle: 'Connecter un compte d’agendas et de contacts',
+		accountHint:
+			'iCloud, Fastmail, Nextcloud ou tout serveur CalDAV et CardDAV : votre agenda et vos contacts restent à jour sans exporter de fichier. Ipse ne fait que lire, et garde le mot de passe dans le trousseau de votre système.',
+		accountName: 'Nom du compte',
+		accountAddress: 'Adresse du serveur',
+		accountUser: 'Nom d’utilisateur',
+		accountPassword: 'Mot de passe d’application',
+		connectGo: 'Connecter ce compte',
+		connecting: 'Connexion au compte…',
+		appPasswordHelp: 'Où trouver l’adresse et créer un mot de passe d’application',
+		appPasswordSteps: [
+			{
+				title: 'iCloud',
+				lines: [
+					'Adresse : caldav.icloud.com. Nom d’utilisateur : l’e-mail de votre compte Apple.',
+					'Votre mot de passe Apple ne fonctionne pas ici : créez un mot de passe d’application sur account.apple.com → Connexion et sécurité → Mots de passe pour app.'
+				]
+			},
+			{
+				title: 'Fastmail',
+				lines: [
+					'Adresse : fastmail.com. Nom d’utilisateur : votre adresse Fastmail.',
+					'Réglages → Confidentialité et sécurité → Gérer les mots de passe d’application, avec l’accès « Agendas et contacts (CalDAV/CardDAV) ».'
+				]
+			},
+			{
+				title: 'Nextcloud',
+				lines: [
+					'Adresse : celle de votre Nextcloud, par exemple cloud.exemple.org.',
+					'Paramètres personnels → Sécurité → Appareils et sessions → Créer un mot de passe d’application.'
+				]
+			},
+			{ title: 'Radicale, Baïkal et les autres', lines: ['L’adresse du serveur et votre compte sur celui-ci.'] }
+		],
+		alreadyConnected: (name: string) => `Ce compte est déjà connecté, sous le nom « ${name} ».`,
+		connectedNow: (name: string) => `« ${name} » est connecté. Choisissez les agendas et les carnets d’adresses à suivre.`,
+		chooseCollections: 'Choisissez ce qu’Ipse suit',
+		chooseCollectionsHint: 'Rien n’est lu avant votre choix. Vous pourrez le changer à tout moment.',
+		followedCollections: 'Agendas et carnets d’adresses suivis',
+		followChosen: 'Suivre la sélection',
+		collectionKinds: { calendar: 'Agenda', contacts: 'Carnet d’adresses' } as Record<string, string>,
+		noCollectionFound: 'Aucun agenda ni carnet d’adresses trouvé sur ce compte pour l’instant.',
+		unfollowAccountBody: 'Ipse ne le synchronisera plus et oubliera son mot de passe. Ses événements et ses contacts restent dans votre mémoire.',
+		accountProblems: {
+			auth: 'Le serveur a refusé le nom d’utilisateur ou le mot de passe. Vérifiez-les, et utilisez un mot de passe d’application.',
+			bad_input: 'Aucun agenda ni carnet d’adresses n’a été trouvé à cette adresse : vérifiez l’adresse du serveur.',
+			unavailable: 'Le serveur n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+			rate_limited: 'Le serveur demande de ralentir : réessayez dans quelques minutes.'
+		} as Record<string, string>,
 		thisApp: 'Affichage',
 		thisAppHint: 'Ces choix restent sur cet ordinateur.',
 		inTheBackground: 'En arrière-plan',
@@ -744,7 +797,7 @@ const words = {
 		thisBrowser: 'In this browser',
 		thisBrowserHint: 'These choices stay on this computer, in this browser.',
 		sourcesNav: 'Sources',
-		sourcesLead: 'What feeds your memory: the files you import, and the calendars Ipse follows for you.',
+		sourcesLead: 'What feeds your memory: the files you import, and the calendars and accounts Ipse follows for you.',
 		importTitle: 'Import a file',
 		importHint: 'Contacts (.vcf), a calendar (.ics) or your location history (Timeline.json). Ipse reads the file and keeps no copy of it.',
 		dropHere: 'Drop a file here, or',
@@ -782,6 +835,7 @@ const words = {
 		sourceKinds: {
 			contacts: 'Contacts',
 			calendar: 'Calendar',
+			dav: 'Calendars and contacts account',
 			'google-timeline': 'Location history'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -802,6 +856,8 @@ const words = {
 			not_supported: 'Ipse cannot read this kind of file yet: it reads contacts (.vcf), calendars (.ics) and location history (Timeline.json).',
 			bad_file: 'This file could not be read. Check that it is the app’s export, unchanged.',
 			bad_link: 'This link cannot be followed: it takes an https:// address of a calendar in iCal format.',
+			bad_address: 'This account cannot be connected: it takes the server’s address (https://, or just its name), the user name and the app password.',
+			not_connected: 'The account could not be connected.',
 			failed: 'The calendar could not be read.',
 			keychain:
 				'Ipse could not use your system’s keychain to keep the link. On Linux, a keyring such as GNOME Keyring must be installed and unlocked.',
@@ -811,6 +867,55 @@ const words = {
 		followedNow: (name: string) => `“${name}” is followed.`,
 		keptNow: (name: string) => `“${name}” is followed, but the calendar could not be reached for now: Ipse will try again.`,
 		unfollowedNow: (name: string) => `“${name}” is no longer followed. Its events stay in your memory.`,
+		accountTitle: 'Connect a calendars and contacts account',
+		accountHint:
+			'iCloud, Fastmail, Nextcloud or any CalDAV and CardDAV server: your agenda and your contacts stay up to date without exporting a file. Ipse only reads, and keeps the password in your system’s keychain.',
+		accountName: 'Account name',
+		accountAddress: 'Server address',
+		accountUser: 'User name',
+		accountPassword: 'App password',
+		connectGo: 'Connect this account',
+		connecting: 'Connecting to the account…',
+		appPasswordHelp: 'Where to find the address and create an app password',
+		appPasswordSteps: [
+			{
+				title: 'iCloud',
+				lines: [
+					'Address: caldav.icloud.com. User name: your Apple Account email.',
+					'Your Apple Account password does not work here: create an app password at account.apple.com → Sign-In and Security → App-Specific Passwords.'
+				]
+			},
+			{
+				title: 'Fastmail',
+				lines: [
+					'Address: fastmail.com. User name: your Fastmail address.',
+					'Settings → Privacy & Security → Manage app passwords, with access to “Calendars and contacts (CalDAV/CardDAV)”.'
+				]
+			},
+			{
+				title: 'Nextcloud',
+				lines: [
+					'Address: your Nextcloud’s, like cloud.example.org.',
+					'Personal settings → Security → Devices & sessions → Create new app password.'
+				]
+			},
+			{ title: 'Radicale, Baïkal and others', lines: ['The server’s address and your account on it.'] }
+		],
+		alreadyConnected: (name: string) => `This account is already connected, as “${name}”.`,
+		connectedNow: (name: string) => `“${name}” is connected. Choose the calendars and address books to follow.`,
+		chooseCollections: 'Choose what Ipse follows',
+		chooseCollectionsHint: 'Nothing is read before you choose. You can change it at any time.',
+		followedCollections: 'Calendars and address books followed',
+		followChosen: 'Follow these',
+		collectionKinds: { calendar: 'Calendar', contacts: 'Address book' } as Record<string, string>,
+		noCollectionFound: 'No calendar or address book found on this account for now.',
+		unfollowAccountBody: 'Ipse will no longer sync it and forgets its password. Its events and contacts stay in your memory.',
+		accountProblems: {
+			auth: 'The server refused the user name or the password. Check them, and use an app password.',
+			bad_input: 'No calendar or address book was found at this address: check the server’s address.',
+			unavailable: 'The server could not be reached. Check its address and your connection.',
+			rate_limited: 'The server asks to slow down: try again in a few minutes.'
+		} as Record<string, string>,
 		thisApp: 'Display',
 		thisAppHint: 'These choices stay on this computer.',
 		inTheBackground: 'In the background',

@@ -45,11 +45,15 @@ fn vault() -> (tempfile::TempDir, Vault) {
 }
 
 fn import(vault: &Vault, records: &[Record]) -> PeopleSummary {
+    import_from(vault, "contacts", records)
+}
+
+fn import_from(vault: &Vault, instance: &str, records: &[Record]) -> PeopleSummary {
     let mut journal = Journal::new(vault.root());
-    journal.append("contacts", records, None).unwrap();
+    journal.append(instance, records, None).unwrap();
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector("contacts".into()));
-    let summary = contacts_to_people(vault, &journal, "contacts", &mut change).unwrap();
+    let mut change = history.change(Source::Connector(instance.into()));
+    let summary = contacts_to_people(vault, &journal, instance, &mut change).unwrap();
     change.commit("Import contacts").unwrap();
     summary
 }
@@ -309,4 +313,38 @@ fn a_conflict_becomes_a_proposal_from_the_source() {
         after.contains("birthday: 1990-04-03"),
         "refused key untouched: {after}"
     );
+}
+
+#[test]
+fn the_same_card_from_a_server_is_found_again_not_doubled() {
+    let (dir, vault) = vault();
+    import(&vault, &[card("c-1", elodie())]);
+    // The same address book, later followed on a CalDAV/CardDAV server: same UID.
+    let mut moved = elodie();
+    moved["phones"] = json!(["0612345678", "0711111111"]);
+    let summary = import_from(
+        &vault,
+        "dav-2",
+        &[
+            card("c-1", moved),
+            card("c-9", json!({"full_name": "Marc Leroy"})),
+        ],
+    );
+    assert_eq!((summary.added, summary.updated), (1, 1), "{summary:?}");
+    let people: Vec<_> = std::fs::read_dir(dir.path().join("people"))
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .filter(|p| read(p).contains("Élodie"))
+        .collect();
+    assert_eq!(people.len(), 1, "one file for Élodie");
+    let text = read(&people[0]);
+    assert!(
+        text.contains("contacts:c-1") && text.contains("dav-2:c-1"),
+        "{text}"
+    );
+    assert!(text.contains("0711111111"), "{text}");
+
+    // Again: nothing more.
+    let again = import_from(&vault, "dav-2", &[card("c-1", elodie())]);
+    assert_eq!(again.added, 0);
 }

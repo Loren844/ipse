@@ -39,6 +39,9 @@ pub struct Instance {
     pub name: String,
     /// How often it syncs.
     pub every: SignedDuration,
+    /// Its settings, given to the connector in `hello` (`config`): strings and lists of
+    /// strings only, never a secret.
+    pub config: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Deserialize)]
@@ -53,6 +56,8 @@ struct RawInstance {
     connector: String,
     name: String,
     every: String,
+    #[serde(default)]
+    config: serde_json::Map<String, serde_json::Value>,
 }
 
 /// The instances of one vault.
@@ -105,6 +110,7 @@ impl Instances {
                     connector: raw.connector,
                     name: raw.name,
                     every,
+                    config: raw.config,
                 })
             })
             .collect::<Result<_>>()?;
@@ -150,6 +156,7 @@ impl Instances {
             connector: connector.to_owned(),
             name: name.to_owned(),
             every,
+            config: serde_json::Map::new(),
         })
     }
 
@@ -168,6 +175,25 @@ impl Instances {
         }
         self.list.push(instance);
         self.save()
+    }
+
+    /// Replaces the settings of the instance `id` and saves. Returns `false` when there
+    /// is none.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] when the list cannot be saved.
+    pub fn set_config(
+        &mut self,
+        id: &str,
+        config: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<bool> {
+        let Some(instance) = self.list.iter_mut().find(|i| i.id == id) else {
+            return Ok(false);
+        };
+        instance.config = config;
+        self.save()?;
+        Ok(true)
     }
 
     /// Removes the instance `id` and saves. Returns `false` when there is none.
@@ -198,6 +224,9 @@ impl Instances {
                 quote(&i.name),
                 quote(&format_duration(i.every)),
             );
+            if !i.config.is_empty() {
+                let _ = writeln!(out, "config = {}", inline_table(&i.config));
+            }
         }
         write_atomic(&self.path, out.as_bytes())
     }
@@ -390,6 +419,27 @@ fn format_duration(d: SignedDuration) -> String {
 }
 
 /// A TOML basic string. JSON's string escapes are all valid in TOML.
+/// `config` as a TOML inline table: strings and lists of strings, the rest left out.
+fn inline_table(config: &serde_json::Map<String, serde_json::Value>) -> String {
+    use serde_json::Value;
+    let entries: Vec<String> = config
+        .iter()
+        .filter_map(|(key, value)| {
+            let value = match value {
+                Value::String(text) => quote(text),
+                Value::Array(items) => {
+                    let items: Vec<String> =
+                        items.iter().filter_map(Value::as_str).map(quote).collect();
+                    format!("[{}]", items.join(", "))
+                }
+                _ => return None,
+            };
+            Some(format!("{} = {value}", quote(key)))
+        })
+        .collect();
+    format!("{{ {} }}", entries.join(", "))
+}
+
 fn quote(text: &str) -> String {
     serde_json::to_string(text).unwrap_or_else(|_| "\"\"".to_owned())
 }
@@ -445,6 +495,52 @@ mod tests {
     }
 
     #[test]
+    fn settings_are_kept_with_their_instance() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut instances = Instances::load(dir.path()).unwrap();
+        let account = instances
+            .new_instance("dav", "Nextcloud", SignedDuration::from_mins(15))
+            .unwrap();
+        assert!(account.config.is_empty());
+        instances.add(account.clone()).unwrap();
+        let config = serde_json::json!({
+            "url": "https://cloud.example.org",
+            "user": "inès \"r\"",
+            "collections": ["/dav/cal/perso/", "/dav/card/contacts/"],
+            "ignored": 3,
+        });
+        let serde_json::Value::Object(config) = config else {
+            unreachable!()
+        };
+        assert!(instances.set_config(&account.id, config).unwrap());
+        assert!(
+            !instances
+                .set_config("dav-9", serde_json::Map::new())
+                .unwrap()
+        );
+
+        let back = Instances::load(dir.path()).unwrap();
+        let kept = &back.get(&account.id).unwrap().config;
+        assert_eq!(kept["url"], "https://cloud.example.org");
+        assert_eq!(kept["user"], "inès \"r\"");
+        assert_eq!(
+            kept["collections"],
+            serde_json::json!(["/dav/cal/perso/", "/dav/card/contacts/"])
+        );
+        assert!(
+            !kept.contains_key("ignored"),
+            "only strings and lists of them"
+        );
+        let text = std::fs::read_to_string(dir.path().join(INSTANCES_FILE)).unwrap();
+        assert!(
+            text.contains(
+                "config = { \"collections\" = [\"/dav/cal/perso/\", \"/dav/card/contacts/\"]"
+            ),
+            "{text}"
+        );
+    }
+
+    #[test]
     fn instances_files_with_errors_are_reported() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(INSTANCES_FILE);
@@ -466,6 +562,7 @@ mod tests {
             connector: "calendar".into(),
             name: "Perso".into(),
             every: SignedDuration::from_mins(15),
+            config: serde_json::Map::new(),
         };
         let mut state = SyncState::load(dir.path()).unwrap();
         assert!(

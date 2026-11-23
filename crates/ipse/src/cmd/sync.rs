@@ -21,7 +21,7 @@ pub(crate) fn run(due: bool, full: bool, vault: Option<PathBuf>) -> Result<()> {
     if instances.list().is_empty() {
         if !due {
             println!(
-                "Nothing to sync yet. Subscribe to a calendar with `ipse calendar subscribe <link>`."
+                "Nothing to sync yet. Subscribe to a calendar with `ipse calendar subscribe <link>`, or connect an account with `ipse dav add <address> --user <name>`."
             );
         }
         return Ok(());

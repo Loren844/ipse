@@ -18,7 +18,8 @@ use jiff::Timestamp;
 use serde_json::{Map, Value, json};
 
 use ipse_protocol::connector::{Session, SessionResult};
-use phone::{Country, e164};
+pub(crate) use phone::Country;
+use phone::e164;
 use vcard::{Card, CardError, Cards};
 
 /// The connector's identifier.
@@ -149,6 +150,25 @@ fn bad_input<R: BufRead, W: Write>(mut session: Session<R, W>, french: bool) -> 
 
 fn say(french: bool, en: &str, fr: &str) -> String {
     if french { fr } else { en }.to_owned()
+}
+
+/// The cards of `text`, as `contact.card` records; with the number of cards that could
+/// not be read. `None` when the text cannot be read at all.
+pub(crate) fn records(
+    text: &str,
+    country: Option<Country>,
+    observed_at: Timestamp,
+) -> Option<(Vec<Record>, u64)> {
+    let mut out = Vec::new();
+    let mut skipped = 0;
+    for card in Cards::new(text.as_bytes()) {
+        match card {
+            Ok(card) => out.push(record(card, country, observed_at)),
+            Err(CardError::Unreadable) => skipped += 1,
+            Err(CardError::Io) => return None,
+        }
+    }
+    Some((out, skipped))
 }
 
 /// A card as a `contact.card` record. Its identifier is the card's `UID`, or a hash of

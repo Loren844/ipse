@@ -326,7 +326,7 @@ impl Stored {
 fn series_of(sources: &[String]) -> Option<String> {
     sources.iter().find_map(|source| {
         let (connector, id) = source.split_once(':')?;
-        if connector != "calendar" && !connector.starts_with("calendar-") {
+        if !crate::materialize::is_calendar(connector) {
             return None;
         }
         let (uid, _) = id.rsplit_once('#')?;

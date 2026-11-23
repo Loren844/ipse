@@ -95,7 +95,7 @@ Your browser opens on your memory: the people you know, what is coming, what hap
 
 ## Going further
 
-- [Keep your calendar in sync](calendar.md): subscribe to your calendar's link.
+- [Keep your calendar in sync](calendar.md): subscribe to your calendar's link, or connect your iCloud, Fastmail or Nextcloud account.
 - [Let your AI tidy up your memory](tidy-up.md): notes, nicknames and summaries, done by your AI.
 - [Review what it proposes](review.md): accept, refuse, undo.
 - [Connecting AI apps](connecting.md): other apps, and changing what each AI sees.

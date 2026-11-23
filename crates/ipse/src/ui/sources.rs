@@ -1,8 +1,9 @@
 //! The Sources screen's API (issue #152): what feeds the memory, adding to it and
 //! following it, as `ipse import`, `ipse calendar` and `ipse sync` do.
 //!
-//! A calendar's secret link arrives in a request body and goes straight to the system
-//! keychain: it is never written to a file, a log or an answer.
+//! A calendar's secret link, or an account's app password (issue #154), arrives in a
+//! request body and goes straight to the system keychain: it is never written to a
+//! file, a log or an answer.
 
 use std::path::{Path, PathBuf};
 
@@ -15,7 +16,9 @@ use serde::{Deserialize, Serialize};
 
 use super::history::{RunView, run_view};
 use crate::cmd::calendar::{DEFAULT_EVERY, NotFollowed, follow, unfollow};
+use crate::cmd::dav::{self as account, NotConnected};
 use crate::cmd::sync::connector_command;
+use crate::connectors::dav::{self, Kind};
 use crate::keychain::secrets;
 
 /// Runs read to list the sources and their last import.
@@ -48,6 +51,38 @@ pub(crate) struct SourceView {
     last: Option<RunView>,
     /// How many imports and syncs it had.
     runs: u32,
+    /// For a calendars and contacts account: what was found on it, and what is followed.
+    account: Option<AccountView>,
+}
+
+/// The calendars and address books of an account.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct AccountView {
+    /// Whether the person chose what to follow; until then nothing is.
+    chosen: bool,
+    collections: Vec<CollectionView>,
+}
+
+/// One calendar or address book of an account.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct CollectionView {
+    /// Its address on the server: what the screen sends back to follow it.
+    url: String,
+    /// `calendar` or `contacts`.
+    kind: String,
+    /// Its name on the server.
+    name: String,
+    followed: bool,
 }
 
 /// What `GET /api/sources` answers, and every change of the screen.
@@ -71,12 +106,14 @@ pub(crate) struct SourcesView {
 )]
 pub(crate) struct SourcesChange {
     /// `imported`, `followed` (and synced), `kept` (followed, the calendar could not be
-    /// reached: Ipse tries again), `synced`, `unfollowed`; or why not: `not_supported`
-    /// (a file Ipse cannot import), `bad_file`, `bad_link`, `already`, `failed`,
+    /// reached: Ipse tries again), `connected` (an account, its collections to choose),
+    /// `synced`, `unfollowed`; or why not: `not_supported` (a file Ipse cannot import),
+    /// `bad_file`, `bad_link`, `bad_address`, `already`, `failed`, `not_connected`,
     /// `keychain`.
     outcome: String,
-    /// For `already`: the name the calendar is followed under; for `unfollowed`, the
-    /// name it had. For `failed`: the connector's error code, as in the runs.
+    /// For `already`: the name the calendar or the account is followed under; for
+    /// `unfollowed`, the name it had. For `failed` and `not_connected`: the connector's
+    /// error code, as in the runs.
     detail: Option<String>,
     /// The source the change was about, as it now is.
     source: Option<String>,
@@ -89,6 +126,22 @@ pub(crate) struct SourcesChange {
 struct FollowBody {
     link: String,
     name: Option<String>,
+}
+
+/// `POST /api/sources/connect`.
+#[derive(Debug, Deserialize)]
+struct ConnectBody {
+    url: String,
+    user: String,
+    password: String,
+    name: Option<String>,
+}
+
+/// `POST /api/sources/choose`.
+#[derive(Debug, Deserialize)]
+struct ChooseBody {
+    instance: String,
+    collections: Vec<String>,
 }
 
 /// `POST /api/sources/sync` and `/api/sources/unfollow`.
@@ -110,17 +163,22 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
     let mut sources: Vec<SourceView> = instances
         .list()
         .iter()
-        .map(|instance| SourceView {
-            instance: instance.id.clone(),
-            connector: instance.connector.clone(),
-            name: Some(instance.name.clone()),
-            followed: true,
-            every_minutes: u32::try_from(instance.every.as_secs() / 60).ok(),
-            failures: state.last(&instance.id).map_or(0, |run| run.failures),
-            last: None,
-            runs: 0,
+        .map(|instance| {
+            Ok(SourceView {
+                instance: instance.id.clone(),
+                connector: instance.connector.clone(),
+                name: Some(instance.name.clone()),
+                followed: true,
+                every_minutes: u32::try_from(instance.every.as_secs() / 60).ok(),
+                failures: state.last(&instance.id).map_or(0, |run| run.failures),
+                last: None,
+                runs: 0,
+                account: (instance.connector == dav::ID)
+                    .then(|| account_view(gateway, instance))
+                    .transpose()?,
+            })
         })
-        .collect();
+        .collect::<Result<_>>()?;
     // The log is newest first: the first run of an instance is its last. A source
     // that synced and is no longer followed is gone: its runs stay in the history.
     for run in runs {
@@ -140,6 +198,7 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
                 failures: 0,
                 last: None,
                 runs: 0,
+                account: None,
             });
             let last = sources.len() - 1;
             &mut sources[last]
@@ -152,6 +211,31 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
     Ok(SourcesView { sources })
 }
 
+/// What was found on the account `instance`, and what is followed.
+fn account_view(
+    gateway: &Gateway,
+    instance: &ipse_core::connector::Instance,
+) -> Result<AccountView> {
+    let chosen = account::chosen(instance);
+    let collections = account::found(gateway.vault(), &instance.id)?
+        .into_iter()
+        .map(|found| CollectionView {
+            followed: chosen.as_ref().is_some_and(|c| c.contains(&found.url)),
+            kind: match found.kind {
+                Kind::Calendar => "calendar",
+                Kind::Contacts => "contacts",
+            }
+            .to_owned(),
+            url: found.url,
+            name: found.name,
+        })
+        .collect();
+    Ok(AccountView {
+        chosen: chosen.is_some(),
+        collections,
+    })
+}
+
 /// The connector of an instance: `calendar-2` is a `calendar`.
 fn connector_of(instance: &str) -> &str {
     match instance.rsplit_once('-') {
@@ -160,7 +244,7 @@ fn connector_of(instance: &str) -> &str {
     }
 }
 
-/// A change of the screen: `follow`, `sync` or `unfollow`.
+/// A change of the screen: `follow`, `connect`, `choose`, `sync` or `unfollow`.
 ///
 /// # Errors
 ///
@@ -173,13 +257,37 @@ pub(crate) fn change(
 ) -> Result<Option<SourcesChange>> {
     match action {
         "follow" => follow_calendar(gateway, body).map(Some),
+        "connect" => connect_account(gateway, body).map(Some),
+        "choose" => {
+            let body: ChooseBody = read(body)?;
+            let synced = account::choose(
+                gateway.vault(),
+                &body.instance,
+                &body.collections,
+                &*secrets(),
+            )?;
+            let outcome = if synced.succeeded() {
+                "synced"
+            } else {
+                "failed"
+            };
+            let code = failed_code(gateway, synced.succeeded())?;
+            answer(gateway, outcome, code, Some(body.instance)).map(Some)
+        }
         "sync" => {
             let body: InstanceBody = read(body)?;
             sync_now(gateway, &body.instance).map(Some)
         }
         "unfollow" => {
             let body: InstanceBody = read(body)?;
-            let instance = unfollow(gateway.vault(), &body.instance, &*secrets())?;
+            let is_account = Instances::load(gateway.vault().root())?
+                .get(&body.instance)
+                .is_some_and(|i| i.connector == dav::ID);
+            let instance = if is_account {
+                account::disconnect(gateway.vault(), &body.instance, &*secrets())?
+            } else {
+                unfollow(gateway.vault(), &body.instance, &*secrets())?
+            };
             answer(
                 gateway,
                 "unfollowed",
@@ -244,6 +352,48 @@ fn follow_calendar(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> 
     }
 }
 
+/// Connects a calendars and contacts account, as `ipse dav add`, without following
+/// anything yet: the person chooses from what was found.
+fn connect_account(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> {
+    let body: ConnectBody = read(body)?;
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty());
+    let vault = gateway.vault();
+    match account::connect(
+        vault,
+        body.url.trim(),
+        &body.user,
+        &body.password,
+        name,
+        DEFAULT_EVERY,
+        &*secrets(),
+    ) {
+        Ok(connected) => answer(gateway, "connected", None, Some(connected.instance.id)),
+        Err(NotConnected::BadAddress(_)) => answer(gateway, "bad_address", None, None),
+        Err(NotConnected::Already(name)) => answer(gateway, "already", Some(name), None),
+        Err(NotConnected::Failed(_)) => {
+            let code = failed_code(gateway, false)?;
+            answer(gateway, "not_connected", code, None)
+        }
+        Err(NotConnected::Other(Error::Refused(_))) => answer(gateway, "keychain", None, None),
+        Err(NotConnected::Other(error)) => Err(error),
+    }
+}
+
+/// The error code of the last run, when it failed.
+fn failed_code(gateway: &Gateway, succeeded: bool) -> Result<Option<String>> {
+    if succeeded {
+        return Ok(None);
+    }
+    Ok(runs(gateway.vault().root(), 1)?
+        .into_iter()
+        .next()
+        .and_then(|run| run.code))
+}
+
 /// Syncs a followed source now, as `ipse sync`.
 fn sync_now(gateway: &mut Gateway, id: &str) -> Result<SourcesChange> {
     let vault = gateway.vault();
@@ -263,14 +413,7 @@ fn sync_now(gateway: &mut Gateway, id: &str) -> Result<SourcesChange> {
     } else {
         "failed"
     };
-    let code = if synced.succeeded() {
-        None
-    } else {
-        runs(vault.root(), 1)?
-            .into_iter()
-            .next()
-            .and_then(|run| run.code)
-    };
+    let code = failed_code(gateway, synced.succeeded())?;
     answer(gateway, outcome, code, Some(id.to_owned()))
 }
 

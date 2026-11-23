@@ -263,10 +263,11 @@ fn a_source_that_is_due_syncs_on_its_own() {
         assert!(waited.elapsed() < PATIENCE, "the due source synced");
         std::thread::sleep(Duration::from_millis(100));
     }
-    assert!(
-        vault.join(".ipse/sync.toml").exists(),
-        "its run is recorded"
-    );
+    // The run is logged before the sync state is saved: wait for that too.
+    while !vault.join(".ipse/sync.toml").exists() {
+        assert!(waited.elapsed() < PATIENCE, "its run is recorded");
+        std::thread::sleep(Duration::from_millis(100));
+    }
     std::thread::sleep(Duration::from_secs(1));
     assert_eq!(count(), 2, "once, then it waits for its interval");
 }

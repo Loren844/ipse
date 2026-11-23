@@ -19,6 +19,7 @@ use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 pub use contacts::{PeopleSummary, contacts_to_people};
+pub(crate) use events::is_calendar;
 pub use events::{EventsSummary, calendar_to_events};
 pub use location::{LocationSummary, NEAR, location_to_vault, meters};
 pub use relations::ADDED_FILE;
