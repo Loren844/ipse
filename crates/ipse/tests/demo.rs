@@ -4,7 +4,7 @@
 // Test helpers may panic: a failed expectation is a failed test.
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::print_stdout)]
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
@@ -142,15 +142,7 @@ fn a_demo_memory_full_of_invented_people_and_events() {
     ] {
         assert!(files(&root.join(folder)).len() >= at_least, "{folder}");
     }
-    let year = jiff::Zoned::now().date().year();
-    let music = std::fs::read_to_string(root.join(format!("states/music/{year}.md"))).unwrap();
-    assert!(music.contains("| Les Ondes Basses |"), "{music}");
-    assert!(
-        events.iter().any(|p| std::fs::read_to_string(p)
-            .unwrap()
-            .contains("place: \"[[studio-lotus]]\"")),
-        "yoga classes linked to their studio"
-    );
+    music_and_places(&root, &events);
 
     // Kinds on part of the events: the older ones; kinds proposed for the nearest.
     let kinds = events
@@ -206,4 +198,34 @@ fn a_demo_memory_takes_no_name() {
         .output()
         .unwrap();
     assert!(!out.status.success());
+}
+
+/// The music of the moment has its files, and a location history ties places to
+/// events (issue #170).
+fn music_and_places(root: &Path, events: &[PathBuf]) {
+    let year = jiff::Zoned::now().date().year();
+    let music = std::fs::read_to_string(root.join(format!("states/music/{year}.md"))).unwrap();
+    // The music of the moment has its files (issue #170).
+    assert!(music.contains("| [[les-ondes-basses]] |"), "{music}");
+    assert!(root.join("organizations/les-ondes-basses.md").is_file());
+    assert!(root.join("people/mira-sol.md").is_file());
+    // A location history: places with positions, the dinners at them, a state log.
+    let located = files(&root.join("places"))
+        .iter()
+        .filter(|p| std::fs::read_to_string(p).unwrap().contains("\ngeo: ["))
+        .count();
+    assert!(located >= 8, "{located} places with a position");
+    assert!(root.join(format!("states/location/{year}.md")).is_file());
+    assert!(
+        events.iter().any(|p| std::fs::read_to_string(p)
+            .unwrap()
+            .contains("place: \"[[chez-jade]]\"")),
+        "a dinner linked to the place the phone saw"
+    );
+    assert!(
+        events.iter().any(|p| std::fs::read_to_string(p)
+            .unwrap()
+            .contains("place: \"[[studio-lotus]]\"")),
+        "yoga classes linked to their studio"
+    );
 }

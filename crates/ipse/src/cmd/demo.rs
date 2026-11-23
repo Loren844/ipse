@@ -64,6 +64,9 @@ struct Words {
     yoga_reason: &'static str,
     /// What is going on right now: topic, subject (a name, linked when a file has it).
     now: &'static [(&'static str, &'static str)],
+    /// Where the person lives, then the weekend's and the holidays' cities: name,
+    /// latitude, longitude. Invented visits happen around them (issue #170).
+    cities: [(&'static str, f64, f64); 3],
 }
 
 const FR: Words = Words {
@@ -304,6 +307,16 @@ const FR: Words = Words {
             "Cuisine libanaise",
             "Recettes préférées : taboulé et moutabal.",
         ),
+        (
+            "organization",
+            "Les Ondes Basses",
+            "Groupe d’électro découvert en concert cet automne.",
+        ),
+        (
+            "person",
+            "Mira Sol",
+            "Chanteuse, écoutée en boucle ces temps-ci.",
+        ),
     ],
     things_reason: "Ce dont vous m’avez parlé ces derniers mois.",
     owner_links: &[
@@ -321,6 +334,11 @@ const FR: Words = Words {
         ("music", "Mira Sol"),
         ("watching", "Les Jours de sel"),
         ("reading", "La Maison des marées"),
+    ],
+    cities: [
+        ("Paris", 48.8566, 2.3522),
+        ("Lyon", 45.7640, 4.8357),
+        ("Biarritz", 43.4832, -1.5586),
     ],
 };
 
@@ -468,6 +486,12 @@ const EN: Words = Words {
             "Lebanese cooking",
             "Favourite dishes: tabbouleh and moutabal.",
         ),
+        (
+            "organization",
+            "Low Waves",
+            "An electronic band, first seen live this autumn.",
+        ),
+        ("person", "Mira Sol", "A singer, on repeat lately."),
     ],
     things_reason: "What you told me about over the last months.",
     owner_links: &[
@@ -485,6 +509,11 @@ const EN: Words = Words {
         ("music", "Mira Sol"),
         ("watching", "Salt Days"),
         ("reading", "The House of Tides"),
+    ],
+    cities: [
+        ("Boston", 42.3601, -71.0589),
+        ("Chicago", 41.8781, -87.6298),
+        ("Bar Harbor", 44.3876, -68.2039),
     ],
 };
 
@@ -979,12 +1008,185 @@ pub(crate) fn fill(vault: &Vault) -> Result<Made> {
     result?;
 
     claude(vault, words, &people, today)?;
+    location(vault, words, today)?;
     let count = |folder: &str| walk(&vault.root().join(folder));
     Ok(Made {
         owner: people.owner.name.clone(),
         people: count("people").saturating_sub(1),
         events: count("events"),
     })
+}
+
+/// Days of location history the demo has.
+const LOCATION_DAYS: i64 = 150;
+
+/// A location history (issue #170), as the older Google Takeout writes it, so that
+/// places carry names: home each night, work on weekdays, and the places of the past
+/// events, around the person's city; the weekend and the holidays in their cities.
+/// Imported through the same connector as a person's export.
+#[allow(clippy::too_many_lines)] // one invented history, written in order
+fn location(vault: &Vault, words: &Words, today: Date) -> Result<()> {
+    let zone = vault.settings().time_zone().clone();
+    let at = |day: Date, hour: i8, minute: i8| {
+        day.at(hour, minute, 0, 0)
+            .to_zoned(zone.clone())
+            .map(|z| z.timestamp())
+            .ok()
+    };
+    let [home, weekend_city, holidays_city] = words.cities;
+    // A stable position near the city for each place, from its name.
+    let near = |name: &str| {
+        let hash = blake3::hash(to_file_stem(name).unwrap_or_default().as_bytes());
+        let [a, b, ..] = *hash.as_bytes();
+        let shift = |byte: u8| (f64::from(byte) - 127.5) / 127.5 * 0.04;
+        (home.1 + shift(a), home.2 + shift(b) * 1.4)
+    };
+    // The places the person's AI wrote down get their position, so that the visits
+    // find them instead of making a second file.
+    let city = |name: &str| {
+        [weekend_city, holidays_city]
+            .into_iter()
+            .find(|(c, ..)| *c == name)
+            .map(|(_, lat, lon)| (lat, lon))
+    };
+    for (_, name, _) in words.things.iter().filter(|(kind, ..)| *kind == "place") {
+        let path = vault.root().join(format!(
+            "places/{}.md",
+            to_file_stem(name).unwrap_or_default()
+        ));
+        let Ok(mut file) = MemoryFile::read(&path) else {
+            continue;
+        };
+        let (lat, lon) = city(name).unwrap_or_else(|| near(name));
+        if let Some(entity) = file.entity_mut() {
+            entity.geo = ipse_core::vault::Geo::new(lat, lon);
+        }
+        file.write()?;
+    }
+    vault.history()?.record_outside_edits()?;
+
+    let mut visits: Vec<String> = Vec::new();
+    let mut away: Vec<Date> = Vec::new();
+    let mut visit = |start: jiff::Timestamp,
+                     end: jiff::Timestamp,
+                     (lat, lon): (f64, f64),
+                     id: &str,
+                     name: Option<&str>,
+                     semantic: Option<&str>| {
+        let name = name
+            .map(|n| format!(r#","name":{}"#, serde_json::Value::from(n)))
+            .unwrap_or_default();
+        let semantic = semantic
+            .map(|s| format!(r#","semanticType":"{s}""#))
+            .unwrap_or_default();
+        #[allow(clippy::cast_possible_truncation)] // degrees × 10⁷ fit an i64
+        let (lat, lon) = ((lat * 1e7).round() as i64, (lon * 1e7).round() as i64);
+        visits.push(format!(
+            r#"{{"placeVisit":{{"location":{{"latitudeE7":{lat},"longitudeE7":{lon},"placeId":"demo-{id}"{name}{semantic}}},"duration":{{"startTimestamp":"{start}","endTimestamp":"{end}"}},"visitConfidence":90}}}}"#
+        ));
+    };
+
+    // The places of past events, and the trips.
+    let index = SearchIndex::load(vault.root())?;
+    let since = today.saturating_sub(LOCATION_DAYS.days());
+    for event in index.events(
+        |_| true,
+        |e| e.start.date() >= since && e.start.date() < today,
+    ) {
+        let Ok(file) = MemoryFile::read(vault.root().join(event.path)) else {
+            continue;
+        };
+        let Some(fields) = file.event() else {
+            continue;
+        };
+        let first = fields.start.date();
+        let trip = if fields.title == words.weekend {
+            Some(weekend_city)
+        } else if fields.title == words.holidays {
+            Some(holidays_city)
+        } else {
+            None
+        };
+        if let Some((city, lat, lon)) = trip {
+            let last = fields
+                .end
+                .as_ref()
+                .map_or(first, |e| e.date().saturating_sub(1.day()))
+                .max(first);
+            // The trip's first afternoon: one visit, which stays clear of the evenings'
+            // events (an all-day event is never matched to a visit).
+            let mut day = first;
+            while day <= last {
+                away.push(day);
+                day = day.saturating_add(1.day());
+            }
+            if let (Some(start), Some(end)) = (at(first, 13, 0), at(first, 17, 0)) {
+                let id = to_file_stem(city).unwrap_or_default();
+                visit(start, end, (lat, lon), &id, Some(city), None);
+            }
+            continue;
+        }
+        let Some(place) = fields.place.as_ref() else {
+            continue;
+        };
+        let name = match place {
+            ipse_core::vault::LinkOrText::Link(link) => {
+                link.display.clone().unwrap_or_else(|| link.target.clone())
+            }
+            ipse_core::vault::LinkOrText::Text(text) => text.clone(),
+        };
+        let start = match &fields.start {
+            ipse_core::vault::EventTime::At(t) => t.timestamp(),
+            ipse_core::vault::EventTime::Day(day) => match at(*day, 10, 0) {
+                Some(t) => t,
+                None => continue,
+            },
+        };
+        let end = match &fields.end {
+            Some(ipse_core::vault::EventTime::At(t)) => t.timestamp(),
+            _ => start.saturating_add(2.hours()).unwrap_or(start),
+        };
+        let id = to_file_stem(&name).unwrap_or_default();
+        let named = matches!(place, ipse_core::vault::LinkOrText::Text(_)).then_some(name.as_str());
+        visit(start, end, near(&name), &id, named, None);
+    }
+
+    // Home each night, work on weekdays, but on trips.
+    let work = near(words.work);
+    let mut day = since;
+    while day < today {
+        if !away.contains(&day) {
+            if let (Some(start), Some(end)) =
+                (at(day, 22, 30), at(day.saturating_add(1.day()), 7, 30))
+            {
+                visit(
+                    start,
+                    end,
+                    (home.1, home.2),
+                    "home",
+                    None,
+                    Some("TYPE_HOME"),
+                );
+            }
+            let weekday = !matches!(day.weekday(), Weekday::Saturday | Weekday::Sunday);
+            if weekday && let (Some(start), Some(end)) = (at(day, 9, 15), at(day, 12, 15)) {
+                visit(start, end, work, "work", None, Some("TYPE_WORK"));
+            }
+        }
+        day = day.saturating_add(1.day());
+    }
+
+    let dir = scratch()?;
+    let result = (|| {
+        let file = dir.join("location-history.json");
+        write(
+            &file,
+            &format!(r#"{{"timelineObjects":[{}]}}"#, visits.join(",")),
+        )?;
+        super::import::import_into(vault, &file)
+    })();
+    let _ = std::fs::remove_dir_all(&dir);
+    result.map(|_| ())
 }
 
 fn walk(dir: &Path) -> usize {
