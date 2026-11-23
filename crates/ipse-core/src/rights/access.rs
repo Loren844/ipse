@@ -9,7 +9,7 @@
 //! - the category is checked again on the file as it is when read, not only in the index.
 
 use std::cell::RefCell;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 
 use serde::Serialize;
@@ -510,6 +510,18 @@ impl<'g> Access<'g> {
             events.extend(self.entry(event.path));
         }
         Events { events, more }
+    }
+
+    /// The series of repeating events this client may read, by event id (see
+    /// [`SearchIndex::series`]). Only occurrences it may read are counted.
+    #[must_use]
+    pub fn series(&self) -> HashMap<String, crate::search::Series> {
+        self.gateway
+            .index
+            .series(|c| self.reads(c.as_str()))
+            .into_iter()
+            .map(|(id, series)| (id.to_string(), series))
+            .collect()
     }
 
     /// The states that hold now, of `topics` (every topic when empty), each with when

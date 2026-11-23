@@ -31,7 +31,7 @@
 		<section aria-labelledby="coming">
 			<h2 id="coming" class="visually-hidden">{i18n.t.comingUp}</h2>
 			{#if view.upcoming.length}
-				<Events events={view.upcoming} today={view.today} />
+				<Events events={view.upcoming} today={view.today} group />
 			{:else}
 				<div class="empty-thread">
 					<p class="lead">{i18n.t.nothingComing}</p>
