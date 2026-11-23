@@ -80,11 +80,10 @@
 	}
 
 	const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-	/** The glide when the view moves to a file: `--motion-quick`, twice over. */
+	/** The glide when the view moves to a file: `--motion-calm`. */
 	function glideTime() {
 		if (reduced) return 0;
-		const quick = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-quick')) || 150;
-		return quick * 2;
+		return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--motion-calm')) || 220;
 	}
 
 	function refilter() {

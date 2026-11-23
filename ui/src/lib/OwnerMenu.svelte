@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { drop } from './motion.ts';
 	// "Mémoire de …" at the bottom of the rail opens a small menu (issue #176): the
 	// owner's file, the settings and, in the app, another memory. A menu button:
 	// Enter or a click opens it on its first item, arrows move, Escape closes it.
@@ -66,7 +67,7 @@
 <div class="owner-menu">
 	{#if open}
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-		<ul class="owner-items" role="menu" aria-label={i18n.t.memoryOf} bind:this={menu} onkeydown={keys}>
+		<ul class="owner-items" transition:drop role="menu" aria-label={i18n.t.memoryOf} bind:this={menu} onkeydown={keys}>
 			{#each items as item (item.href)}
 				<li role="none">
 					<a role="menuitem" href={item.href} data-sveltekit-reload={item.reload ? '' : undefined} onclick={() => hide(false)}>{item.label}</a>
