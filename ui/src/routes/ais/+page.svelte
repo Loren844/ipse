@@ -129,7 +129,7 @@
 	<div class="screen">
 		<header class="page-head">
 			<h1>{i18n.t.ais}</h1>
-			<p class="quiet">{i18n.t.aisLead}</p>
+			<p class="intro">{i18n.t.aisLead}</p>
 			{#if !connecting}
 				<div class="actions">
 					<button type="button" class="button primary" bind:this={connectButton} onclick={() => (connecting = true)}>{i18n.t.connectAi}</button>

@@ -92,7 +92,7 @@
 			{/if}
 		</nav>
 		<h1>{chosenMonth ? monthTitle(chosenMonth.month) : chosenYear ? chosenYear.year : i18n.t.timeline}</h1>
-		{#if !year}<p class="quiet">{i18n.t.timelineLead}</p>{/if}
+		{#if !year}<p class="intro">{i18n.t.timelineLead}</p>{/if}
 	</header>
 
 	{#if remote.state.kind === 'failed'}

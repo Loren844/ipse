@@ -24,7 +24,7 @@
 <div class="screen">
 	<header class="page-head">
 		<h1>{i18n.t.history}</h1>
-		<p class="quiet">{i18n.t.historyLead}</p>
+		<p class="intro">{i18n.t.historyLead}</p>
 		<div class="views" role="navigation" aria-label={i18n.t.history}>
 			{#each views as choice (choice.value)}
 				<a
