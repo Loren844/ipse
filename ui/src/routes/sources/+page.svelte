@@ -118,7 +118,7 @@
 <div class="screen sources">
 	<header class="page-head">
 		<h1>{i18n.t.sourcesNav}</h1>
-		<p class="quiet">{i18n.t.sourcesLead}</p>
+		<p class="intro">{i18n.t.sourcesLead}</p>
 	</header>
 
 	<div class="live" role="status" aria-live="polite">

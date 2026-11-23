@@ -30,7 +30,7 @@
 
 <section class="ai" aria-labelledby="ai-{ai.id}" data-testid="ai">
 	<header class="ai-head">
-		<span class="ai-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d={icons.ais} /></svg></span>
+		<span class="ai-mark" aria-hidden="true">{ai.name.trim().charAt(0).toLocaleUpperCase()}</span>
 		<div>
 			<h2 id="ai-{ai.id}">{ai.name}</h2>
 			<p class="meta">

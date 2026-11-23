@@ -62,7 +62,7 @@
 			<h1>{i18n.t.memory}</h1>
 			<a class="button small" href="/memory/new">+ {i18n.t.newFile}</a>
 		</div>
-		<p class="lead">{i18n.t.memoryLead}</p>
+		<p class="intro">{i18n.t.memoryLead}</p>
 	</header>
 
 	<div class="search">
