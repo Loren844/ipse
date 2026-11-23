@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api, type EventView } from '#lib/api.ts';
@@ -9,6 +10,7 @@
 	import { capitalize, dayOf, isDay, longDay, timeOf } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
+	import { rows, type Row } from '#lib/series.ts';
 
 	type View = 'list' | 'week' | 'month';
 	const VIEWS: View[] = ['list', 'week', 'month'];
@@ -96,13 +98,16 @@
 	onMount(() => load());
 
 	// One thread for the whole period: each day opens with its name, then its events.
+	// A repeating event shows once, at its next occurrence, and unfolds (issue #175).
+	const open = new SvelteSet<string>();
 	const days = $derived.by(() => {
-		const groups: { day: string; events: EventView[] }[] = [];
-		for (const event of events) {
-			const d = dayOf(event.start);
+		const groups: { day: string; events: Row[] }[] = [];
+		for (const row of rows(events, open, today)) {
+			if (row.folded) continue;
+			const d = dayOf(row.event.start);
 			const last = groups[groups.length - 1];
-			if (last?.day === d) last.events.push(event);
-			else groups.push({ day: d, events: [event] });
+			if (last?.day === d) last.events.push(row);
+			else groups.push({ day: d, events: [row] });
 		}
 		return groups;
 	});
@@ -155,7 +160,7 @@
 							</p>
 						{/if}
 					</li>
-					{#each group.events as event (event.id)}
+					{#each group.events as { event, count } (event.id)}
 						<li class="knot" class:past={group.day < today} class:cancelled={event.status === 'cancelled'}>
 							<span class="when">
 								{timeOf(event.start)}
@@ -163,6 +168,15 @@
 								{#if event.event_kind}<span class="kind-tag">{i18n.t.eventKinds[event.event_kind] ?? event.event_kind}</span>{/if}
 							</span>
 							<a class="title" href="/agenda/{event.id}">{event.title}</a>
+							{#if count > 1 && event.series}
+								{@const key = event.series.key}
+								<span class="series">
+									{i18n.t.every(event.series.weekday, event.series.time)}
+									<button type="button" class="unfold" aria-expanded={open.has(key)} onclick={() => (open.has(key) ? open.delete(key) : open.add(key))}>
+										{open.has(key) ? i18n.t.hideSeries : i18n.t.showSeries(count)}
+									</button>
+								</span>
+							{/if}
 							{#if event.people.length || event.place}
 								<span class="mentions">
 									{#each event.people as person, i (i)}<Mention link={person} />{/each}

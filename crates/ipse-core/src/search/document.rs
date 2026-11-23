@@ -110,6 +110,9 @@ pub(super) struct EventSpan {
     pub(super) kind: Option<EventKind>,
     /// The file stem of its place, when it is a link.
     pub(super) place: Option<String>,
+    /// For an occurrence of a repeating calendar event: a short hash of the calendar's
+    /// `UID`, the same for every occurrence.
+    pub(super) series: Option<String>,
 }
 
 impl Document {
@@ -166,6 +169,7 @@ impl Document {
                 participants: e.participants,
                 kind: e.kind.as_deref().and_then(EventKind::parse),
                 place: e.place,
+                series: e.series,
             }),
         };
         let links = links_of(&s.relations, &s.facts, event.is_some());
@@ -203,6 +207,7 @@ impl Document {
                 participants: e.participants.clone(),
                 kind: e.kind.map(|k| k.as_str().to_owned()),
                 place: e.place.clone(),
+                series: e.series.clone(),
             }),
         }
     }
@@ -233,6 +238,8 @@ struct StoredEvent {
     kind: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     place: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    series: Option<String>,
 }
 
 impl Stored {
@@ -306,8 +313,24 @@ impl Stored {
                     .as_ref()
                     .and_then(LinkOrText::link)
                     .map(|l| l.target.clone()),
+                series: series_of(&file.common().sources),
             }),
             ..base
         }
     }
+}
+
+/// The series of an occurrence imported from a calendar: its source reads
+/// `calendar:<UID>#<when>`; a short hash of the `UID`, so that the index keeps no
+/// identifier from elsewhere.
+fn series_of(sources: &[String]) -> Option<String> {
+    sources.iter().find_map(|source| {
+        let (connector, id) = source.split_once(':')?;
+        if connector != "calendar" && !connector.starts_with("calendar-") {
+            return None;
+        }
+        let (uid, _) = id.rsplit_once('#')?;
+        let hash = blake3::hash(uid.as_bytes()).to_hex();
+        Some(hash[..16].to_owned())
+    })
 }

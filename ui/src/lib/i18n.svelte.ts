@@ -219,6 +219,10 @@ const words = {
 		weekFrom: (monday: string) => `Semaine du ${monday.charAt(0).toLowerCase()}${monday.slice(1)}`,
 		nothingThatDay: 'Rien de prévu',
 		moreEvents: (n: number) => `+ ${n} autre${n > 1 ? 's' : ''}`,
+		every: (weekday: number | null, time: string | null) =>
+			weekday ? `chaque ${['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'][weekday - 1]}${time ? `, ${time}` : ''}` : 'événement répété',
+		showSeries: (n: number) => `Voir les ${n}`,
+		hideSeries: 'Replier',
 		questions: 'Qui est-ce ?',
 		questionsLead: 'Ces personnes sont enregistrées sous un prénom ou un surnom. Vous seul pouvez dire qui elles sont ; votre IA vous le demandera aussi, de temps en temps, au fil d’une conversation.',
 		questionTitle: (name: string) => `Qui est «\u00a0${name}\u00a0»\u00a0?`,
@@ -851,6 +855,10 @@ const words = {
 		weekFrom: (monday: string) => `Week of ${monday}`,
 		nothingThatDay: 'Nothing planned',
 		moreEvents: (n: number) => `+ ${n} more`,
+		every: (weekday: number | null, time: string | null) =>
+			weekday ? `every ${['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][weekday - 1]}${time ? `, ${time}` : ''}` : 'repeating event',
+		showSeries: (n: number) => `Show all ${n}`,
+		hideSeries: 'Fold',
 		questions: 'Who is this?',
 		questionsLead: 'These people are saved under a first name or a nickname. Only you can say who they are; your AI will also ask you now and then, in the course of a conversation.',
 		questionTitle: (name: string) => `Who is “${name}”?`,

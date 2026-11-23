@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Changed
 
+- A repeating event (yoga every Tuesday, a weekly meeting) shows once on the home screen, in the agenda's list and on a person's or a place's page: "chaque mardi, 19:00", at its next occurrence, and unfolds to show them all. A series is the occurrences of one calendar event, or the same title at the same weekday and time three weeks in a row. The week and month views keep every occurrence, and series still count among the people seen most ([#175](https://github.com/Loren844/ipse/issues/175)).
 - The demo memory has a location history: its places sit on the map, dinners and yoga classes link to where they happened, and a person's page says where you see each other; the music of the moment, a band and a singer, has its own files ([#170](https://github.com/Loren844/ipse/issues/170)).
 - A release's notes start with the desktop app: one link per system to its installer and how to open it the first time; the command-line installers come after, as such ([#168](https://github.com/Loren844/ipse/issues/168)).
 - **Mémoire de …**, at the bottom of the side bar, opens a menu: your file, the settings and, in the app, another memory; the settings left the side bar. On a phone, **Plus** shows your initials and starts with your file and the settings ([#176](https://github.com/Loren844/ipse/issues/176)).

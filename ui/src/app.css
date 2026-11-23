@@ -3659,3 +3659,26 @@ button.owner[aria-expanded='true'] .chevron {
 	height: 22px;
 	font-size: 0.6rem;
 }
+
+/* A repeating event, shown once (issue #175). */
+.knot .series {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 0.6rem;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.knot .series .unfold {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--thread-ink);
+	font: inherit;
+	font-weight: 600;
+	cursor: pointer;
+	text-decoration: underline;
+	text-decoration-color: var(--thread);
+	text-underline-offset: 3px;
+}

@@ -3,7 +3,7 @@
 //! `ui/src/lib/types/` as TypeScript by `cargo test`, so the interface and the core
 //! never drift.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use ipse_core::proposals::{Proposals, Status};
 use ipse_core::rights::{Details, Gateway, LinkOut};
@@ -108,6 +108,37 @@ pub(crate) struct EventView {
     sensitive: bool,
     /// Where it comes from: `calendar`, `proposal`, `person`…
     sources: Vec<String>,
+    /// The series it is an occurrence of, when it repeats: lists show a series once.
+    series: Option<SeriesView>,
+}
+
+/// A series of repeating events (issue #175).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct SeriesView {
+    /// The same for every occurrence, and nothing else.
+    key: String,
+    /// The weekday of every occurrence, when they share one: 1 for Monday to 7.
+    weekday: Option<i8>,
+    /// The time every occurrence starts at, `HH:MM`, when they share one.
+    time: Option<String>,
+    /// How many occurrences it has in the whole memory.
+    occurrences: u32,
+}
+
+impl From<ipse_core::search::Series> for SeriesView {
+    fn from(s: ipse_core::search::Series) -> Self {
+        Self {
+            key: s.key,
+            weekday: s.weekday,
+            time: s.time,
+            occurrences: s.occurrences,
+        }
+    }
 }
 
 /// A relation of an entity.
@@ -318,6 +349,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let latest = super::summaries::latest(gateway)?;
     let owner = gateway.fresh_owner()?;
     let ahead = today.saturating_add(HOME_DAYS_AHEAD.days());
+    let series = owner.series();
     let upcoming = owner
         .events(
             &EventTime::Day(today),
@@ -328,7 +360,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         .events
         .into_iter()
         .filter_map(|e| owner.details(&e.id))
-        .map(event_view)
+        .map(|d| event_view(d, &series))
         .collect();
     let back = today.saturating_sub(RECENT_DAYS.days());
     let past = owner.events(&EventTime::Day(back), &EventTime::Day(today), None, 200);
@@ -432,12 +464,13 @@ pub(crate) fn events(
     let summaries = super::summaries::days(gateway, from, to)?;
     let owner = gateway.fresh_owner()?;
     let found = owner.events(&EventTime::Day(from), &EventTime::Day(to), None, 200);
+    let series = owner.series();
     Ok(EventsView {
         events: found
             .events
             .into_iter()
             .filter_map(|e| owner.details(&e.id))
-            .map(event_view)
+            .map(|d| event_view(d, &series))
             .collect(),
         more: found.more,
         from: from.to_string(),
@@ -459,13 +492,18 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         return Ok(None);
     };
     if details.entry.file_type == "event" {
-        return Ok(Some(FileView::Event(event_view(details))));
+        return Ok(Some(FileView::Event(event_view(details, &owner.series()))));
     }
     let is_owner = owner.about_me().is_some_and(|me| me.id == details.entry.id);
     let (linked_events, others): (Vec<_>, Vec<_>) = owner
         .backlinks(id)
         .into_iter()
         .partition(|b| b.from.file_type.as_deref() == Some("event"));
+    let series = if is_owner {
+        HashMap::new()
+    } else {
+        owner.series()
+    };
     let events = if is_owner {
         Vec::new()
     } else if details.entry.file_type == "person" {
@@ -477,7 +515,7 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
             .events
             .into_iter()
             .filter_map(|e| owner.details(&e.id))
-            .map(event_view)
+            .map(|d| event_view(d, &series))
             .collect()
     } else {
         // A place, an organization…: the events that link to it, oldest first.
@@ -485,7 +523,7 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
             .into_iter()
             .take(PERSON_EVENTS)
             .filter_map(|b| owner.details(b.from.id.as_deref()?))
-            .map(event_view)
+            .map(|d| event_view(d, &series))
             .collect();
         events.reverse();
         events
@@ -536,9 +574,10 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
     })))
 }
 
-fn event_view(details: Details) -> EventView {
+fn event_view(details: Details, series: &HashMap<String, ipse_core::search::Series>) -> EventView {
     let entry = details.entry;
     EventView {
+        series: series.get(&entry.id).cloned().map(Into::into),
         id: entry.id,
         title: entry.name.unwrap_or_default(),
         start: entry.start.unwrap_or_default(),

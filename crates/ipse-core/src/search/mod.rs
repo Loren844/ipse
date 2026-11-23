@@ -15,6 +15,7 @@ mod document;
 mod fold;
 mod graph;
 mod places;
+mod series;
 mod timeline;
 
 use std::borrow::Cow;
@@ -34,6 +35,7 @@ use document::{Document, Field, Stored};
 pub use fold::{fold, stem, words};
 pub use graph::{GraphEdge, GraphNode, Neighbourhood};
 pub use places::{Met, Visited};
+pub use series::Series;
 pub use timeline::{Mark, MonthLine, Seen, Timeline, YearLine};
 
 /// Results returned when no limit is given.
@@ -50,7 +52,7 @@ const SUMMARIES: &str = "summaries";
 const SUMMARY_PERIODS: [&str; 3] = ["day", "week", "month"];
 
 /// Version of the saved index; another version is read again from the files.
-const INDEX_FORMAT: u32 = 1;
+const INDEX_FORMAT: u32 = 2;
 
 /// Longest excerpt, in characters.
 const EXCERPT_CHARS: usize = 160;
