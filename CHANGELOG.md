@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Added
+
+- **Accept automatically**, per connected AI: its summaries and its event kinds, each a switch in **IA connectées**, off until you turn it on. Ipse offers it in **À revoir** once you have accepted three in a row, never before. What is accepted this way is recorded in the history like any accepted proposal, does not wait in the inbox, is counted on the home screen, and is undone in one click. Facts, people, relations and anything else from the same AI still wait for you (decision 0017, [#173](https://github.com/Loren844/ipse/issues/173)).
+
 ### Changed
 
 - A repeating event (yoga every Tuesday, a weekly meeting) shows once on the home screen, in the agenda's list and on a person's or a place's page: "chaque mardi, 19:00", at its next occurrence, and unfolds to show them all. A series is the occurrences of one calendar event, or the same title at the same weekday and time three weeks in a row. The week and month views keep every occurrence, and series still count among the people seen most ([#175](https://github.com/Loren844/ipse/issues/175)).

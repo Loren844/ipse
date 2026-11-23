@@ -22,12 +22,17 @@ pub use change::{Change, NewRelation};
 pub(crate) use key::get as key_value;
 pub use person::{Created, Draft, DraftFact, version};
 
-use crate::tasks::Tasks;
+use crate::rights::Standing;
+use crate::tasks::{TaskKind, Tasks};
 use crate::vault::{DateTime, Id, Source, Vault, write_atomic};
 use crate::{Error, Result};
 
 /// Version of the proposal format.
 pub const FORMAT: u32 = 1;
+
+/// Proposals of one kind accepted in a row, one by one, before Ipse offers to accept
+/// the next ones automatically (decision 0017).
+pub const OFFER_AFTER: usize = 3;
 
 /// Where proposals are kept, relative to the vault.
 pub const FOLDER: &str = ".ipse/proposals";
@@ -54,6 +59,10 @@ pub struct Proposal {
     pub changes: Vec<Change>,
     /// Where it stands.
     pub status: Status,
+    /// Accepted by the person's standing consent for this AI and this kind of change
+    /// (decision 0017), not one by one.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub automatic: bool,
 }
 
 /// Who made a proposal.
@@ -321,6 +330,7 @@ impl<'v> Proposals<'v> {
             categories,
             changes,
             status: Status::Waiting,
+            automatic: false,
         };
         // Checked without looking for the links a merge redirects: they are found
         // when the person opens it and when it is applied.
@@ -460,6 +470,115 @@ impl<'v> Proposals<'v> {
             Tasks::new(self.vault).done(task, &proposal.id)?;
         }
         Ok(Accepted::Applied(change))
+    }
+
+    /// The kind of standing consent that may accept `proposal` (decision 0017): a
+    /// proposal by an AI, for a task Ipse gave it, made only of summaries for a
+    /// `summary` task or only of event kinds for a `classify` task. `None` for anything
+    /// else: a fact, a person, a relation, a change made without a task.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Io`] or [`Error::Invalid`] when its task cannot be read.
+    pub fn standing(&self, proposal: &Proposal) -> Result<Option<Standing>> {
+        if !matches!(proposal.by, Author::Client(_)) {
+            return Ok(None);
+        }
+        let Some(task) = &proposal.task else {
+            return Ok(None);
+        };
+        let kind = match Tasks::new(self.vault).get(task) {
+            Ok(task) => task.kind,
+            Err(Error::Refused(_)) => return Ok(None),
+            Err(e) => return Err(e),
+        };
+        let only = |f: &dyn Fn(&Change) -> bool| proposal.changes.iter().all(f);
+        Ok(match kind {
+            TaskKind::Summary if only(&|c| matches!(c, Change::WriteSummary { .. })) => {
+                Some(Standing::Summaries)
+            }
+            TaskKind::Classify
+                if only(&|c| {
+                    matches!(c, Change::SetKey { file, key, .. }
+                        if key == "kind" && file.starts_with("events/"))
+                }) =>
+            {
+                Some(Standing::EventKinds)
+            }
+            _ => None,
+        })
+    }
+
+    /// Accepts the waiting proposal `id` because the person accepts its kind of change
+    /// from its AI in advance (`consents`, decision 0017): the same path as
+    /// [`Proposals::accept`], marked as automatic. Returns `None`, and leaves it
+    /// waiting, when its kind is not one of `consents`.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Proposals::accept`].
+    pub fn accept_by_consent(&self, id: &str, consents: &[Standing]) -> Result<Option<Accepted>> {
+        let proposal = self.get(id)?;
+        let Some(standing) = self.standing(&proposal)? else {
+            return Ok(None);
+        };
+        if !consents.contains(&standing) {
+            return Ok(None);
+        }
+        let accepted = self.accept(id)?;
+        if matches!(accepted, Accepted::Applied(_)) {
+            let mut proposal = self.get(id)?;
+            proposal.automatic = true;
+            self.save(&proposal)?;
+        }
+        Ok(Some(accepted))
+    }
+
+    /// The standing consents worth offering for the AI `client` (decision 0017): a kind
+    /// whose last [`OFFER_AFTER`] decided proposals by it were all accepted by the
+    /// person, one by one, and none refused or undone. Kinds in `skip` (already on, or
+    /// declined) are left out.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Proposals::list`].
+    pub fn offers(&self, client: &str, skip: &[Standing]) -> Result<Vec<Standing>> {
+        let by = Author::Client(client.to_owned());
+        let mut streaks: Vec<(Standing, usize, bool)> = Standing::ALL
+            .into_iter()
+            .filter(|s| !skip.contains(s))
+            .map(|s| (s, 0, false))
+            .collect();
+        if streaks.is_empty() {
+            return Ok(Vec::new());
+        }
+        // Newest first.
+        for proposal in self.list()?.iter().filter(|p| p.by == by) {
+            if matches!(proposal.status, Status::Waiting | Status::Stale { .. }) {
+                continue;
+            }
+            let Some(standing) = self.standing(proposal)? else {
+                continue;
+            };
+            let Some(streak) = streaks.iter_mut().find(|(s, _, _)| *s == standing) else {
+                continue;
+            };
+            if streak.2 {
+                continue;
+            }
+            if matches!(proposal.status, Status::Accepted { .. }) && !proposal.automatic {
+                streak.1 += 1;
+                streak.2 = streak.1 >= OFFER_AFTER;
+            } else {
+                // A refusal or an undo breaks the streak for good.
+                streak.2 = true;
+            }
+        }
+        Ok(streaks
+            .into_iter()
+            .filter(|(_, n, _)| *n >= OFFER_AFTER)
+            .map(|(s, _, _)| s)
+            .collect())
     }
 
     /// Refuses the proposal `id`, waiting or stale, with what the person said.

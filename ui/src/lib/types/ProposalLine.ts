@@ -34,4 +34,8 @@ decided: string | null,
  * It merges files that may be the same (decision 0011): accepting merges them,
  * refusing says they are different, and is remembered.
  */
-merge: boolean, };
+merge: boolean, 
+/**
+ * Accepted by the person's standing consent for its AI (decision 0017).
+ */
+automatic: boolean, };

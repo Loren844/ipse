@@ -875,3 +875,77 @@ async fn an_ai_tidies_up_through_tasks_and_proposals() {
     );
     nobody.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn a_summary_the_person_accepts_in_advance_is_accepted_at_once() {
+    let f = fixture();
+    // A dinner yesterday: a day to summarize.
+    let yesterday = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date()
+        .yesterday()
+        .unwrap();
+    event(
+        &f.root,
+        "agenda",
+        "Dîner chez Paul",
+        &format!("{yesterday}T20:00:00+01:00"),
+        &["[[paul-durand]]"],
+    );
+    let mut clients = Clients::load(&f.root).unwrap();
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["summaries".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+    clients
+        .set_auto_accept("claude", ipse_core::rights::Standing::Summaries, true)
+        .unwrap();
+
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    let tasks = read(&ai, "tasks", json!({ "kind": "summary" })).await;
+    let id = tasks["tasks"][0]["id"].as_str().unwrap().to_owned();
+    let proposed = read(
+        &ai,
+        "propose",
+        json!({
+            "task": id,
+            "reason": "Résumé de la journée.",
+            "changes": [{"kind": "write_summary", "period": "day", "start": yesterday.to_string(), "text": "Dîner chez Paul."}]
+        }),
+    )
+    .await;
+    assert_eq!(proposed["status"], "accepted", "{proposed}");
+    let proposal = proposed["proposal"].as_str().unwrap().to_owned();
+    let status = read(&ai, "proposal", json!({ "id": proposal })).await;
+    assert_eq!(status["proposal"]["status"], "accepted");
+    assert!(
+        f.root
+            .join(format!("summaries/day/{}/{yesterday}.md", yesterday.year()))
+            .is_file()
+    );
+
+    // A fact from the same AI still waits.
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["summaries".into(), "people".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+    let fact = read(
+        &ai,
+        "propose",
+        json!({
+            "reason": "Dit pendant le dîner.",
+            "changes": [{"kind": "add_fact", "file": "people/paul-durand.md", "text": "Part au Japon en mars."}]
+        }),
+    )
+    .await;
+    assert_eq!(fact["status"], "waiting");
+    ai.cancel().await.unwrap();
+}

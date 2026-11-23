@@ -1295,3 +1295,96 @@ fn the_graph_through_the_api() {
         404
     );
 }
+
+#[test]
+fn what_is_accepted_in_advance_through_the_api() {
+    let now = jiff::Zoned::now()
+        .with_time_zone(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .strftime("%Y-%m-%dT%H:%M:%S%:z")
+        .to_string();
+    let ui = start_with(|vault| {
+        let json = format!(
+            r#"{{"format": 1, "id": "01jd3k8m2p4q6r8t0v2w4y6z8b", "by": "client:claude", "created": "{now}",
+            "reason": "Résumé de samedi.", "categories": ["summaries"], "task": "01jd3k8m2p4q6r8t0v2w4y6z8c",
+            "changes": [{{"kind": "write_summary", "file": "summaries/day/2026/2026-11-14.md", "period": "day", "start": "2026-11-14", "text": "Dîner chez Julie."}}],
+            "status": {{"state": "accepted", "at": "{now}"}}, "automatic": true}}"#
+        );
+        std::fs::create_dir_all(vault.join(".ipse/proposals")).unwrap();
+        std::fs::write(
+            vault.join(".ipse/proposals/01jd3k8m2p4q6r8t0v2w4y6z8b.json"),
+            json,
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+
+    let (_, home) = api(&ui, &cookie, "/api/home");
+    assert_eq!(
+        home["automatic"],
+        serde_json::json!([{"standing": "summaries", "count": 1}])
+    );
+    assert_eq!(home["waiting"], 0, "the inbox does not wait on it");
+    let (_, inbox) = api(&ui, &cookie, "/api/proposals");
+    assert_eq!(inbox["waiting"], serde_json::json!([]));
+    assert_eq!(inbox["decided"][0]["automatic"], true);
+    assert_eq!(inbox["offers"], serde_json::json!([]));
+    // Undone in one click.
+    assert_eq!(
+        post(
+            &ui,
+            &cookie,
+            "/api/proposals/01jd3k8m2p4q6r8t0v2w4y6z8b/undo",
+            ""
+        )
+        .0,
+        200
+    );
+    assert_eq!(
+        api(&ui, &cookie, "/api/home").1["automatic"],
+        serde_json::json!([])
+    );
+
+    // Turned on and off by the person, per AI; only the two kinds.
+    let (status, connected) = post(&ui, &cookie, "/api/ais", r#"{"name": "Claude"}"#);
+    assert_eq!(status, 200);
+    let id = connected["ai"]["id"].as_str().unwrap().to_owned();
+    assert_eq!(
+        connected["ai"]["auto_accept"],
+        serde_json::json!([]),
+        "off by default"
+    );
+    let (status, view) = post(
+        &ui,
+        &cookie,
+        &format!("/api/ais/{id}/auto"),
+        r#"{"standing": "summaries", "on": true}"#,
+    );
+    assert_eq!(status, 200);
+    assert_eq!(
+        view["ais"][0]["auto_accept"],
+        serde_json::json!(["summaries"])
+    );
+    let (status, _) = post(
+        &ui,
+        &cookie,
+        &format!("/api/ais/{id}/auto"),
+        r#"{"standing": "facts", "on": true}"#,
+    );
+    assert_eq!(status, 409, "facts are never accepted in advance");
+    let (_, view) = post(
+        &ui,
+        &cookie,
+        &format!("/api/ais/{id}/decline"),
+        r#"{"standing": "event_kinds"}"#,
+    );
+    assert_eq!(view["ais"][0]["offers"], serde_json::json!([]));
+    let clients = std::fs::read_to_string(ui.vault.join(".ipse/clients.toml")).unwrap();
+    assert!(
+        clients.contains("auto_accept = [\"summaries\"]"),
+        "{clients}"
+    );
+    assert!(
+        clients.contains("declined = [\"event_kinds\"]"),
+        "{clients}"
+    );
+}
