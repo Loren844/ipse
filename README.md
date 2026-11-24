@@ -1,45 +1,92 @@
 # Ipse
 
-**Your memory, on your machine, for any AI.**
+**The memory of your whole life, as files you own. Your AI reads what you allow and suggests changes. Nothing is written until you say yes.**
 
-Ipse (Latin for *oneself*) gathers what makes up a person's memory — facts, memories, habits, and the data already sitting in their services — into a local graph they can see, correct and control. Any AI, local or online, can then plug into it with the rights the person chooses, and act as a truly personal assistant without being told everything again.
+Your AI forgets who your friends are, what you did last summer and what is on next week, so you tell it again and again. The memory built into AI apps lives on their servers, holds what you happened to type, and changes without asking you.
 
-> **Status: early, not released yet.** Today you can import your contacts and your calendar, connect your AI app, and ask it about the people you know and your week ([Getting started](docs/guide/getting-started.md)). Your AI can tidy up your memory: it proposes facts from your notes, merges of duplicates, the full names of people saved under a nickname, and summaries of your days; you review its proposals in `ipse ui`, in your browser ([Review what it proposes](docs/guide/review.md)). Installation still needs Rust; ready-made binaries come next, then the desktop app.
+Ipse is a desktop app for Windows, macOS and Linux. It builds that memory from your contacts, calendars and location history, in a folder of Markdown files on your computer. Any AI app that speaks [MCP](https://modelcontextprotocol.io) (Claude Desktop, Claude Code, LM Studio…) reads it with the rights you give it. When the AI wants to change something, it sends a proposal, and you review it like a pull request:
 
-## What it will do
+![An AI's proposal in Ipse's review inbox: accepted, then undone](docs/images/review.gif)
 
-- **Local storage.** Your memory lives in a folder you pick, on your machine.
-- **Open files.** Everything is Markdown, readable in Obsidian or any editor.
-- **Connectors.** Calendar, contacts, location history and more fill your memory on their own.
-- **Graph view.** Your whole memory in one graph: you at the center, people, places, projects and events each in their region, and how they relate; moved and zoomed freely, filtered by kind and category, and each file's links readable as a list.
-- **You stay in charge.** The AI proposes, you accept or refuse. Every change is visible and can be undone.
-- **Per-AI rights.** Each AI you connect gets read and write access category by category, enforced by the software.
-- **Any model.** Works with a local model or an online one, through the open [Model Context Protocol](https://modelcontextprotocol.io).
+*Filmed in the desktop app on the invented demo memory: a proposal from Claude, accepted, then undone.*
+
+## Start
+
+[Download the app](https://github.com/Loren844/ipse/releases/latest) for your system and open it ([Install Ipse](docs/guide/install.md) shows each step). Its first screen offers to create your memory or to try an invented one.
+
+Or with the `ipse` command, on macOS or Linux:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/Loren844/ipse/releases/latest/download/ipse-installer.sh | sh
+ipse init ~/Ipse-demo --demo
+ipse client add Claude --install claude-desktop --vault ~/Ipse-demo
+```
+
+Restart Claude Desktop and ask it *"Who did I see most this year?"*. [Getting started](docs/guide/getting-started.md) goes from there to your own contacts and calendar, and covers Windows.
+
+## What it does
+
+| | |
+| --- | --- |
+| ![Home: what is coming up, and what waits for your decision](docs/images/home.png) | ![The review inbox](docs/images/review.png) |
+| ![Connected AIs and what each may read and propose](docs/images/ais.png) | ![History: every change, by whom, undone in one click](docs/images/history.png) |
+
+- **Your whole life, not chat snippets.** People, places, organizations, projects, books and series, and every event, linked together. The agenda shows them by list, week, month and kind. A timeline covers your years, a map shows the places you go, and a graph holds the whole memory.
+- **Filled from what you already have.** Contacts (vCard), calendars (`.ics` files, subscription links, CalDAV and CardDAV accounts such as iCloud or Fastmail), and Google Maps location history. Calendars keep syncing in the background.
+- **Your AI does the tidying, you decide.** It reads your notes and proposes facts. It finds the same person saved twice, asks who "Mike" is, and writes the summary of your days, months and years. Each proposal shows what would change; you accept, refuse with a comment, or undo later.
+- **Rights per AI and per category,** enforced by Ipse, not by a line in a prompt. Health, location, home and private notes stay closed until you open them to one AI.
+- **Plain files.** Markdown with a YAML header, readable in Obsidian or any editor. Change a file by hand and Ipse picks it up.
+
+## How it's different
+
+Other projects give AI a memory too. In short, from their own pages in November 2026:
+
+| | Ipse | [Basic Memory](https://github.com/basicmachines-co/basic-memory) | [OpenMemory](https://mem0.ai/blog/introducing-openmemory-mcp) (Mem0) | [Timelinize](https://github.com/timelinize/timelinize) |
+| --- | --- | --- | --- | --- |
+| What it remembers | Your life: people, places, events, works, summaries | Notes and knowledge you and your AI write | Memories your AI apps add as you chat | Your data from everywhere, on a timeline |
+| Stored as | Markdown files, plus a local index | Markdown files, plus a local SQLite index | A vector database, in Docker | Files by date, indexed in SQLite |
+| Fills itself from | Contacts, calendars (files, links, CalDAV/CardDAV), location history | Claude and ChatGPT conversations | What your AI apps add | Google Takeout, photos, messages, location, social media |
+| How AI changes it | Proposals you accept, refuse or undo | Writes and edits directly | Adds directly | It doesn't: no AI connection |
+| Who sees what | Per AI and per category | No rights per AI | Per AI app, from its dashboard | Not made for AI apps |
+| To run it | A desktop app, or one command | A Python package; Obsidian to browse | Docker and an OpenAI key | An app to download |
+
+Basic Memory is the closest: Markdown files and MCP, built for knowledge you write with your AI. Timelinize is the best for archiving everything you ever posted or photographed. Ipse is for the memory of a life that your AI uses every day, where the person keeps the last word on what it holds.
+
+## Fast on a real memory
+
+Measured with `cargo bench` on a 4-core Intel Xeon at 2.1 GHz (a cloud virtual machine), on 24 November 2026:
+
+| What | Median |
+| --- | --- |
+| Read a file of 5 000 contacts (the contacts connector, in its own process) | 48 ms |
+| Read a calendar of 10 000 events (the calendar connector) | 134 ms |
+| Index a memory of 5 000 people for search | 58 ms |
+| Tell whether that memory changed, as the MCP server does on every request | 4.3 ms |
+| Search it | 8 µs |
+
+The graph of a whole memory of 22 000 files is laid out in under 20 ms and drawn in under half a second. Each pull request compiles the benchmarks (`crates/*/benches`), and the interface's tests check its frame times.
 
 ## Principles
 
 1. **Simple to pick up.** Install in one step, useful without any setup, no technical word in the interface.
-2. **Local first.** Nothing leaves your machine without an explicit action from you.
-3. **Open formats.** No proprietary format, ever.
-4. **The human keeps control.** Every AI change is a proposal: visible, reversible, historized.
+2. **Local first.** Nothing leaves your computer without an explicit action from you ([threat model](docs/guide/threat-model.md)).
+3. **Open formats.** Markdown and YAML, never a proprietary format.
+4. **The human keeps control.** Every AI change is a proposal: visible, reversible, recorded.
 5. **Rights enforced by the software**, never by a line in a prompt.
-6. **Model-independent.** Plug in any LLM, local or online.
+6. **Model-independent.** Any AI app that speaks MCP, with a local model or an online one.
 
 ## Roadmap
 
-✅ shipped · 🔜 planned
+✅ released · ☑️ done, in the next release · 🔜 planned
 
-1. ✅ **Core without interface** — vault format, raw journal, index, command line, read-only MCP server with per-category rights. First connectors: calendar and contacts.
-2. ✅ **Review and proposals** — the interface starts, in the browser (`ipse ui`): home, people, agenda, review inbox with diff and undo, history, connected AIs and their rights; tasks for your AI (facts from notes, duplicates, questions about nicknames, day to year summaries).
-- ✅ **First version, [0.1.0](https://github.com/Loren844/ipse/releases/tag/v0.1.0)** ([decision 0016](docs/decisions/0016-a-first-version-shows-the-whole-memory.md)) — settings and themes; the whole memory, not only people (places, organizations, projects, works, what is going on right now); editing and creating files yourself; a graph view; kinds of events (trips, meals, appointments…), proposed by your AI; a compact menu on phones. Binaries for Windows, macOS and Linux, and a demo memory; imported data is treated as untrusted.
-- 🔜 **Launch readiness** ([decision 0015](docs/decisions/0015-launch-with-the-desktop-app.md)) — an AI app connected in one command, location history (Google Maps Timeline).
-3. 🔜 **Desktop app** — Ipse as an app for Windows, macOS and Linux, to see your memory without a terminal or a browser: installer, updates, sync in the background, connector management. Synchronized calendars and contacts (CalDAV, CardDAV). Then views of events: by month and week, by kind, on a timeline of your life and on a map. Then the public launch.
-4. 🔜 **Widening** — more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…); a kit for anyone to write one; semantic search with a local model, as an option.
-5. 🔜 **Mobile** — sync, quick capture.
+- ✅ **Core** ([0.1.0](https://github.com/Loren844/ipse/releases/tag/v0.1.0)): memory format, journal, index, command line, MCP server with rights per category; contacts and calendar; the review inbox with diff and undo, history, connected AIs; tasks for your AI (facts from notes, duplicates, nicknames, summaries); the whole memory in the interface, editing by hand, kinds of events; binaries for every system and a demo memory.
+- ✅ **The desktop app** ([0.2.0](https://github.com/Loren844/ipse/releases/tag/v0.2.0)): installers for Windows, macOS and Linux; the agenda by week and month, the timeline, the map; location history; an AI app connected in one command.
+- ☑️ **Living in the background**: calendars and contacts accounts (CalDAV, CardDAV), sync while the app runs, notifications, updates checked and signed; views by kind of event; the whole memory as a graph; standing consent for summaries.
+- 🔜 **Launch**, once the app is checked on every system ([#157](https://github.com/Loren844/ipse/issues/157)).
+- 🔜 **Widening**: more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…), and a kit for anyone to write one; semantic search with a local model, as an option.
+- 🔜 **Mobile**: sync and quick capture.
 
-## Install
-
-Ready-made binaries for Windows, macOS and Linux come with each [release](https://github.com/Loren844/ipse/releases); [Getting started](docs/guide/getting-started.md) shows how to install one and go from there.
+[CHANGELOG.md](CHANGELOG.md) lists every change; [docs/decisions](docs/decisions) explains why.
 
 ## Contributing
 
