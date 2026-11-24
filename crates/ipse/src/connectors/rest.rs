@@ -1,5 +1,6 @@
-//! Requests to a self-hosted service's REST API (Home Assistant, Jellyfin): `GET` with
-//! the person's token in a header, no redirect followed.
+//! Requests to a self-hosted service's REST API (Home Assistant, Jellyfin, Immich):
+//! `GET`, and `POST` for searches that only read, with the person's token in a header,
+//! no redirect followed.
 //!
 //! The address and the token never appear in a message or a log.
 
@@ -7,7 +8,7 @@ use std::net::IpAddr;
 use std::time::Duration;
 
 use ipse_protocol::ErrorCode;
-use ureq::http::{Request, Uri, header};
+use ureq::http::{Method, Request, Uri, header};
 
 /// The largest answer read: a page of a server's items is far below it.
 const MAX_BYTES: u64 = 16 * 1024 * 1024;
@@ -201,18 +202,44 @@ impl Client {
     /// A [`Failure`] for the person: the server unreachable, the token refused, an
     /// answer that is not the service's.
     pub(crate) fn get(&self, path: &str) -> Result<serde_json::Value, Failure> {
+        self.send(Method::GET, path, None)
+    }
+
+    /// `POST <base><path>` with a JSON `body`, for a search that only reads, and its JSON
+    /// answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Client::get`].
+    pub(crate) fn post(
+        &self,
+        path: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value, Failure> {
+        self.send(Method::POST, path, Some(body))
+    }
+
+    fn send(
+        &self,
+        method: Method,
+        path: &str,
+        body: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value, Failure> {
         let service = &self.service;
-        let request = Request::get(format!("{}{path}", self.base))
+        let request = Request::builder()
+            .method(method)
+            .uri(format!("{}{path}", self.base))
             .header(self.token.0, &self.token.1)
             .header(header::ACCEPT, "application/json")
-            .body(())
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(body.map(ToString::to_string).unwrap_or_default())
             .map_err(|_| Failure::not_found(service))?;
         let response = self.agent.run(request).map_err(|e| match e {
             ureq::Error::RequireHttpsOnly(_) => Failure::not_secure(),
             _ => Failure::unreachable(service),
         })?;
         match response.status().as_u16() {
-            200 => {}
+            200 | 201 => {}
             401 | 403 => return Err(Failure::refused(service)),
             429 => {
                 return Err(Failure {

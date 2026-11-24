@@ -13,8 +13,9 @@ use crate::connector::{
 };
 use crate::journal::Journal;
 use crate::materialize::{
-    EventsSummary, HomeSummary, PRESENCE, PeopleSummary, WATCHED, WatchingSummary,
-    calendar_to_events, contacts_to_people, home_to_vault, watching_to_vault,
+    EventsSummary, HomeSummary, PHOTOS, PRESENCE, PeopleSummary, PhotosSummary, WATCHED,
+    WatchingSummary, calendar_to_events, contacts_to_people, home_to_vault, photos_to_vault,
+    watching_to_vault,
 };
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Source, Vault};
@@ -31,7 +32,7 @@ pub struct Syncable {
 }
 
 /// The connectors that sync, built into Ipse.
-pub const SYNCABLE: [Syncable; 4] = [
+pub const SYNCABLE: [Syncable; 5] = [
     Syncable {
         connector: "calendar",
         kinds: &["calendar.event"],
@@ -56,6 +57,12 @@ pub const SYNCABLE: [Syncable; 4] = [
     Syncable {
         connector: "jellyfin",
         kinds: &[WATCHED],
+        secrets: &["key"],
+    },
+    // The person's own Immich: who is on their photos (`docs/connectors/immich.md`).
+    Syncable {
+        connector: "immich",
+        kinds: &[PHOTOS],
         secrets: &["key"],
     },
 ];
@@ -83,6 +90,8 @@ pub struct Synced {
     pub home: Option<HomeSummary>,
     /// The films and episodes watched, for Jellyfin.
     pub watching: Option<WatchingSummary>,
+    /// The people of the photos, for Immich.
+    pub photos: Option<PhotosSummary>,
     /// Tasks made for the person's AI from what the sync brought.
     pub tasks: usize,
     /// Possible duplicates proposed to the person after the sync.
@@ -108,6 +117,40 @@ pub struct SyncOptions {
     pub full: bool,
     /// The time of the sync.
     pub now: Timestamp,
+}
+
+/// What the records of the servers followed for one of their people became: the
+/// `home`, `watching` and `photos` state logs.
+type StateLogs = (
+    Option<HomeSummary>,
+    Option<WatchingSummary>,
+    Option<PhotosSummary>,
+);
+
+/// Turns the records of `kinds` that make state logs into them.
+fn to_state_logs(
+    vault: &Vault,
+    journal: &Journal,
+    instance: &str,
+    kinds: &[&str],
+    change: &mut crate::vault::Change<'_>,
+) -> Result<StateLogs> {
+    let home = if kinds.contains(&PRESENCE) {
+        Some(home_to_vault(vault, journal, instance, change)?)
+    } else {
+        None
+    };
+    let watching = if kinds.contains(&WATCHED) {
+        Some(watching_to_vault(vault, journal, instance, change)?)
+    } else {
+        None
+    };
+    let photos = if kinds.contains(&PHOTOS) {
+        Some(photos_to_vault(vault, journal, instance, change)?)
+    } else {
+        None
+    };
+    Ok((home, watching, photos))
 }
 
 /// Syncs `instance` of the vault: runs its connector, writes what it sent to the
@@ -185,21 +228,8 @@ pub fn sync_instance(
     } else {
         None
     };
-    let home = if kinds.contains(&PRESENCE) {
-        Some(home_to_vault(vault, &journal, &instance.id, &mut change)?)
-    } else {
-        None
-    };
-    let watching = if kinds.contains(&WATCHED) {
-        Some(watching_to_vault(
-            vault,
-            &journal,
-            &instance.id,
-            &mut change,
-        )?)
-    } else {
-        None
-    };
+    let (home, watching, photos) =
+        to_state_logs(vault, &journal, &instance.id, kinds, &mut change)?;
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
     let tasks = Tasks::new(vault).extract_from(&touched)?;
@@ -230,6 +260,7 @@ pub fn sync_instance(
         people,
         home,
         watching,
+        photos,
         tasks,
     };
     SyncState::load(root)?.record(&instance.id, options.now, synced.succeeded())?;

@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Added
 
+- **Immich**: connect your own Immich from **Sources**, or with `ipse immich add`, and Ipse knows who is on your photos, how many photos you have together and when the last was taken. Someone is linked to a person of your memory only when Ipse is sure; otherwise it asks you, in **À revoir**. It never downloads a photo, and keeps the API key in your system's keychain.
 - **Jellyfin**: connect your own Jellyfin from **Sources**, or with `ipse jellyfin add`, and Ipse knows the films and series you watch: one row per series or film in what you are watching, linked to its file when you have one. It reads only the user you choose, and keeps the API key in your system's keychain.
 - **Home Assistant**: connect your own Home Assistant from **Sources**, or with `ipse homeassistant add`, and Ipse knows when you are at home and in which zones. It reads only the person you choose, stays in the `home` category, closed to AIs until you open it, and keeps the token in your system's keychain. Plain `http://` is accepted only on your home network, and Ipse says so.
 

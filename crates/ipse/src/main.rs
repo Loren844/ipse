@@ -71,6 +71,11 @@ enum Command {
         #[command(subcommand)]
         action: JellyfinAction,
     },
+    /// Connect your Immich, to know who is on your photos; list or remove it
+    Immich {
+        #[command(subcommand)]
+        action: ImmichAction,
+    },
     /// Sync the calendars and accounts you follow
     Sync {
         /// Only those whose interval has passed: for a job the system runs every few minutes
@@ -291,6 +296,38 @@ enum JellyfinAction {
 }
 
 #[derive(Debug, Subcommand)]
+enum ImmichAction {
+    /// Connect Immich and read the people of your photos; asks an API key
+    Add {
+        /// Its address, like nas.local:2283 or photos.example.org
+        address: String,
+        /// A name for this source, like "Photos"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 6h or 1d (default: 6h)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Immichs you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Immich; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse immich list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum ProposalsAction {
     /// List the proposals waiting for you (all of them with --all)
     List {
@@ -437,17 +474,8 @@ fn main() -> ExitCode {
         },
         Command::HomeAssistant { action } => home_assistant(action),
         Command::Jellyfin { action } => jellyfin(action),
-        Command::Dav { action } => match action {
-            DavAction::Add {
-                address,
-                user,
-                name,
-                every,
-                vault,
-            } => cmd::dav::add(&address, &user, name.as_deref(), every.as_deref(), vault),
-            DavAction::List { vault } => cmd::dav::list(vault),
-            DavAction::Remove { id, vault } => cmd::dav::remove(&id, vault),
-        },
+        Command::Immich { action } => immich(action),
+        Command::Dav { action } => dav(action),
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),
         Command::Duplicates { vault } => cmd::duplicates::run(vault),
@@ -512,6 +540,21 @@ fn main() -> ExitCode {
     }
 }
 
+/// `ipse dav`.
+fn dav(action: DavAction) -> ipse_core::Result<()> {
+    match action {
+        DavAction::Add {
+            address,
+            user,
+            name,
+            every,
+            vault,
+        } => cmd::dav::add(&address, &user, name.as_deref(), every.as_deref(), vault),
+        DavAction::List { vault } => cmd::dav::list(vault),
+        DavAction::Remove { id, vault } => cmd::dav::remove(&id, vault),
+    }
+}
+
 /// `ipse homeassistant`.
 fn home_assistant(action: HomeAssistantAction) -> ipse_core::Result<()> {
     match action {
@@ -556,6 +599,28 @@ fn jellyfin(action: JellyfinAction) -> ipse_core::Result<()> {
         ),
         JellyfinAction::List { vault } => cmd::server::list(kind, vault),
         JellyfinAction::Remove { id, vault } => cmd::server::remove(kind, &id, vault),
+    }
+}
+
+/// `ipse immich`.
+fn immich(action: ImmichAction) -> ipse_core::Result<()> {
+    let kind = &cmd::immich::KIND;
+    match action {
+        ImmichAction::Add {
+            address,
+            name,
+            every,
+            vault,
+        } => cmd::server::add(
+            kind,
+            &address,
+            None,
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        ImmichAction::List { vault } => cmd::server::list(kind, vault),
+        ImmichAction::Remove { id, vault } => cmd::server::remove(kind, &id, vault),
     }
 }
 

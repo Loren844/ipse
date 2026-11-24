@@ -50,7 +50,11 @@ pub(crate) struct Kind {
 }
 
 /// The servers Ipse follows this way.
-static KINDS: [&Kind; 2] = [&super::homeassistant::KIND, &super::jellyfin::KIND];
+static KINDS: [&Kind; 3] = [
+    &super::homeassistant::KIND,
+    &super::jellyfin::KIND,
+    &super::immich::KIND,
+];
 
 /// The server behind `connector`, when it is one.
 #[must_use]

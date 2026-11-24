@@ -1,7 +1,8 @@
 <script lang="ts">
 	// What feeds the memory (issue #152): files imported, calendars followed by link,
 	// calendars and contacts accounts (CalDAV, CardDAV: issue #154), servers followed for
-	// one of their people: Home Assistant (issue #225), Jellyfin (issue #227).
+	// one of their people: Home Assistant (issue #225), Jellyfin (issue #227), Immich (issue
+	// #226).
 	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { api, SessionEnded, type SourcesChange, type SourcesView, type SourceView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
@@ -34,12 +35,13 @@
 	let address = $state('');
 	let user = $state('');
 	let password = $state('');
-	type Server = 'homeassistant' | 'jellyfin';
-	const SERVERS: Server[] = ['homeassistant', 'jellyfin'];
+	type Server = 'homeassistant' | 'jellyfin' | 'immich';
+	const SERVERS: Server[] = ['homeassistant', 'jellyfin', 'immich'];
 	/** What is typed in each server's form. */
 	let forms: Record<Server, { name: string; address: string; token: string }> = $state({
 		homeassistant: { name: '', address: '', token: '' },
-		jellyfin: { name: '', address: '', token: '' }
+		jellyfin: { name: '', address: '', token: '' },
+		immich: { name: '', address: '', token: '' }
 	});
 	/** Whom is picked on each server, before it is sent. */
 	let persons: Record<string, string> = $state({});
