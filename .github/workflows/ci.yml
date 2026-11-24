@@ -56,6 +56,12 @@ jobs:
   bench:
     name: Benchmarks compile
     runs-on: ubuntu-latest
+    # Only that they compile: without the release profile's fat LTO, which took 7 to 9
+    # minutes here (issue #204). `cargo bench` by hand still measures with it.
+    env:
+      CARGO_PROFILE_BENCH_LTO: "off"
+      CARGO_PROFILE_BENCH_CODEGEN_UNITS: 16
+      CARGO_PROFILE_BENCH_DEBUG: 0
     steps:
       - uses: actions/checkout@v5
       - uses: Swatinem/rust-cache@v2
