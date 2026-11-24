@@ -2,7 +2,9 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.3.0 - 2026-11-24
+
+The desktop app lives in the background: calendars and contacts accounts sync on their own while it runs, it tells you what your AI proposes, and it keeps itself up to date once you agree. It brings the end of milestone 3: views by kind of event, the whole memory as a graph, consent that stands for summaries. The memory's format does not change: a 0.2.0 memory opens as it is. 0.2.0 does not update itself: install 0.3.0 from its file once; later versions are offered in the app.
 
 ### Added
 

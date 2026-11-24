@@ -128,11 +128,11 @@ The graph of a whole memory of 22 000 files is laid out in under 20 ms and drawn
 
 ## 🗺️ Roadmap
 
-✅ released · ☑️ done, in the next release · 🔜 planned
+✅ released · 🔜 planned
 
 - ✅ **Core** ([0.1.0](https://github.com/Loren844/ipse/releases/tag/v0.1.0)): memory format, journal, index, command line, MCP server with rights per category; contacts and calendar; the review inbox with diff and undo, history, connected AIs; tasks for your AI (facts from notes, duplicates, nicknames, summaries); the whole memory in the interface, editing by hand, kinds of events; binaries for every system and a demo memory.
 - ✅ **The desktop app** ([0.2.0](https://github.com/Loren844/ipse/releases/tag/v0.2.0)): installers for Windows, macOS and Linux; the agenda by week and month, the timeline, the map; location history; an AI app connected in one command.
-- ☑️ **Living in the background**: calendars and contacts accounts (CalDAV, CardDAV), sync while the app runs, notifications, signed updates; views by kind of event; the whole memory as a graph; standing consent for summaries.
+- ✅ **Living in the background** ([0.3.0](https://github.com/Loren844/ipse/releases/tag/v0.3.0)): calendars and contacts accounts (CalDAV, CardDAV), sync while the app runs, notifications, signed updates; views by kind of event; the whole memory as a graph; standing consent for summaries.
 - 🔜 **Launch**, once the app is checked on every system ([#157](https://github.com/Loren844/ipse/issues/157)).
 - 🔜 **Widening**: more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…), and a kit for anyone to write one; semantic search with a local model, as an option.
 - 🔜 **Mobile**: sync and quick capture.
