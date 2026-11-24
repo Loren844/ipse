@@ -24,11 +24,17 @@ test('offered after summaries accepted in a row, then a switch per AI', async ({
 	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'IA connectées' }).click();
 	const claude = page.getByTestId('ai').filter({ hasText: 'Claude' });
 	await expect(claude.getByRole('heading', { name: 'Accepter automatiquement' })).toBeVisible();
-	await expect(claude).toContainText('Jamais pour les personnes, les faits ou les liens.');
+	await expect(claude).toContainText('Jamais pour les personnes, les lieux, les événements ni les fiches que Claude n’a pas créées.');
 	const summaries = claude.getByRole('switch', { name: 'Accepter automatiquement les résumés de Claude' });
 	const kinds = claude.getByRole('switch', { name: 'Accepter automatiquement les types d’événements de Claude' });
 	await expect(summaries).toBeChecked();
 	await expect(kinds).not.toBeChecked();
+	// "Remember this about me" (issue #207, decision 0018): off until the person says so.
+	const creations = claude.getByRole('switch', { name: 'Accepter automatiquement les ajouts de Claude' });
+	await expect(creations).not.toBeChecked();
+	await creations.click();
+	await expect(page.getByRole('status')).toContainText('Les ajouts de Claude sont maintenant acceptés automatiquement.');
+	await expect(creations).toBeChecked();
 	await kinds.click();
 	await expect(kinds).toBeChecked();
 	await summaries.click();

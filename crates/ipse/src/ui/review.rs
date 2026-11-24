@@ -85,7 +85,7 @@ pub(crate) struct OfferView {
     ai: String,
     /// Its name.
     name: String,
-    /// `summaries` or `event_kinds`.
+    /// `summaries`, `event_kinds` or `creations`.
     standing: String,
     /// How many the person accepted in a row.
     accepted: u32,

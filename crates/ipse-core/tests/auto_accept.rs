@@ -337,3 +337,124 @@ fn offered_after_three_summaries_accepted_in_a_row_never_before() {
     proposals.refuse(&id, None).unwrap();
     assert!(proposals.offers(&f.client, &[]).unwrap().is_empty());
 }
+
+fn create(file_type: &str, name: &str, category: Option<&str>, facts: &[&str]) -> Change {
+    Change::Create {
+        file: None,
+        file_type: file_type.into(),
+        category: category.map(str::to_owned),
+        keys: [("name".to_owned(), json!(name))].into_iter().collect(),
+        facts: facts.iter().map(|f| (*f).to_owned()).collect(),
+        relations: Vec::new(),
+        notes: None,
+    }
+}
+
+/// The path the first `create` of the proposal `id` got.
+fn created(proposals: &Proposals, id: &str) -> String {
+    proposals
+        .get(id)
+        .unwrap()
+        .changes
+        .iter()
+        .find_map(|c| match c {
+            Change::Create { file, .. } => file.clone(),
+            _ => None,
+        })
+        .unwrap()
+}
+
+#[test]
+fn creations_pass_for_things_and_their_facts_never_people_or_sensitive_ones() {
+    // "Remember my PC setup" (issue #207, decision 0018).
+    let f = fixture();
+    let categories = Categories::of(Vault::open(&f.root).unwrap().settings());
+    let all = vec![
+        "summaries".into(),
+        "people".into(),
+        "agenda".into(),
+        "things".into(),
+        "media".into(),
+        "health".into(),
+    ];
+    Clients::load(&f.root)
+        .unwrap()
+        .set_rights(&f.client, Some(all.clone()), Some(all), &categories)
+        .unwrap();
+    let mut gateway = Gateway::open(&f.root).unwrap();
+    let vault = Vault::open(&f.root).unwrap();
+    let proposals = Proposals::new(&vault);
+    let pc = || create("thing", "Mon PC", None, &["32 Go de mémoire."]);
+
+    // Off by default: it waits.
+    let (first, status) = propose(&mut gateway, &f.token, None, vec![pc()]);
+    assert_eq!(status, "waiting");
+    proposals.refuse(&first, None).unwrap();
+
+    set(&f.root, &f.client, Standing::Creations, true);
+    let (id, status) = propose(
+        &mut gateway,
+        &f.token,
+        None,
+        vec![pc(), create("topic", "Environnements de dev", None, &[])],
+    );
+    assert_eq!(status, "accepted");
+    assert!(proposals.get(&id).unwrap().automatic);
+    let file = created(&proposals, &id);
+    assert!(file.starts_with("things/"), "{file}");
+    assert!(
+        std::fs::read_to_string(f.root.join(&file))
+            .unwrap()
+            .contains("32 Go de mémoire.")
+    );
+
+    // A fact on the file it created passes too; on someone's file, it waits.
+    let fact = |file: &str, text: &str| Change::AddFact {
+        file: file.to_owned(),
+        text: text.to_owned(),
+    };
+    let (_, status) = propose(
+        &mut gateway,
+        &f.token,
+        None,
+        vec![
+            fact(&file, "64 Go de mémoire depuis novembre."),
+            Change::AddRelation {
+                file: file.clone(),
+                word: "acheté avec".into(),
+                target: "julie-dupont".into(),
+                display: None,
+            },
+        ],
+    );
+    assert_eq!(status, "accepted");
+    let (_, status) = propose(
+        &mut gateway,
+        &f.token,
+        None,
+        vec![fact("people/julie-dupont.md", "Aime les PC.")],
+    );
+    assert_eq!(status, "waiting", "a person's file always waits");
+    // Renaming its own file still waits.
+    let (_, status) = propose(
+        &mut gateway,
+        &f.token,
+        None,
+        vec![Change::SetKey {
+            file: file.clone(),
+            key: "name".into(),
+            from: json!("Mon PC"),
+            to: json!("PC fixe"),
+        }],
+    );
+    assert_eq!(status, "waiting");
+
+    // People, events and sensitive categories always wait, even mixed with a thing.
+    for change in [
+        create("person", "Paul Martin", None, &[]),
+        create("thing", "Tensiomètre", Some("health"), &[]),
+    ] {
+        let (_, status) = propose(&mut gateway, &f.token, None, vec![pc(), change]);
+        assert_eq!(status, "waiting");
+    }
+}

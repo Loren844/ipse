@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Added
+
+- **"Remember this about me"**: tell your AI *"remember my PC setup"* and it makes a real file of your memory, such as a thing "My PC" with its facts, or adds a fact to the one it finds. In **Connected AIs**, a new switch, **New files**, lets one AI create things, topics, projects, organizations and works in a category that is not sensitive, and add facts to the files it created, without waiting for you. Off until you turn it on, offered after you accepted three of them; each one stays in the history and is undone in one click, and the home screen says how many files it created. People, places, events and files it did not create always wait ([#207](https://github.com/Loren844/ipse/issues/207), decision 0018).
+
 ### Fixed
 
 - **The app keeps your theme and language on Windows more often**: the desktop app's window tries several fixed ports for a memory instead of one, so a port set aside by Windows no longer sends it to a new address, where the window's choices are not found.
