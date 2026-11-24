@@ -2,7 +2,9 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.3.1 - 2026-11-24
+
+A first look that is easier to pick up: first steps on the home screen, a page on how Ipse works, and a short note the first time each screen opens. The timeline joins the agenda as its Years view, the map is smoother and readable in dark mode, the graph starts from one file with its strongest links, and a file can be edited as Markdown. The memory's format does not change. 0.3.0 offers this version in the app.
 
 ### Changed
 
