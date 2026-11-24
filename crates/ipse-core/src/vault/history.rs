@@ -26,9 +26,9 @@ use crate::{Error, Result};
 const TRAILER: &str = "Ipse-Source:";
 
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
-/// indexes, the connected AIs and what they read, the connectors' runs and
+/// indexes, the connected AIs and what they read, the interface's access code, the connectors' runs and
 /// diagnostics) and editors' scratch files.
-const IGNORED: [&str; 14] = [
+const IGNORED: [&str; 15] = [
     "journal/",
     ".ipse/connectors/",
     ".ipse/materialized.toml",
@@ -39,6 +39,7 @@ const IGNORED: [&str; 14] = [
     ".ipse/tasks/",
     ".ipse/access/",
     ".ipse/clients.toml",
+    ".ipse/interface.toml",
     ".ipse/guide.json",
     ".obsidian/workspace*",
     ".trash/",

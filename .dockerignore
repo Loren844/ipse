@@ -1,0 +1,9 @@
+# Only what building `ipse` needs (Dockerfile): the Rust workspace and the built
+# interface, which is committed.
+*
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!crates/
+!ui/build/
+crates/*/target

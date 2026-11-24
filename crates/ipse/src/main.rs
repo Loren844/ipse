@@ -137,6 +137,23 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Serve the memory on a home server: the interface, AI apps over MCP and the sync
+    /// of the followed sources, in one process (see docs/guide/self-hosting.md)
+    Serve {
+        /// Where to listen: a port on this computer (default: 7420), or an address, like
+        /// 0.0.0.0:7420 to be reached from your network
+        #[arg(long, value_name = "ADDRESS")]
+        listen: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Make a new access code for the interface of `ipse serve`, replacing the old one
+    AccessCode {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// Open your memory in your browser, on this computer only
     Ui {
         /// Print the address instead of opening the browser
@@ -529,6 +546,8 @@ fn main() -> ExitCode {
                 ui::Start::Browser
             },
         ),
+        Command::Serve { listen, vault } => ui::serve::run(vault, listen.as_deref()),
+        Command::AccessCode { vault } => cmd::access::run(vault),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {

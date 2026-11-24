@@ -1,5 +1,6 @@
 //! One module per command.
 
+pub(crate) mod access;
 pub(crate) mod calendar;
 pub(crate) mod check;
 pub(crate) mod client;

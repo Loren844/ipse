@@ -31,7 +31,7 @@ use rmcp::transport::streamable_http_server::{StreamableHttpServerConfig, Stream
 use super::{Server, Token, stopped};
 
 /// The path MCP is served at.
-const PATH: &str = "/mcp";
+pub(crate) const PATH: &str = "/mcp";
 
 /// The port used when none is given.
 pub(crate) const DEFAULT_PORT: u16 = 7420;
@@ -42,7 +42,7 @@ const HOSTS: [&str; 2] = ["127.0.0.1", "localhost"];
 /// The browser origins allowed: pages served by this computer.
 const ORIGINS: [&str; 2] = ["http://127.0.0.1:*", "http://localhost:*"];
 
-type Body = BoxBody<Bytes, Infallible>;
+pub(crate) type Body = BoxBody<Bytes, Infallible>;
 
 /// The address to listen on: a port (`7420`, `0` for any free one), or
 /// `127.0.0.1:<port>` or `localhost:<port>`. Any other address is refused.
@@ -106,17 +106,7 @@ pub(crate) fn serve(gateway: Gateway, address: SocketAddr) -> Result<()> {
         );
 
         let gateway = Arc::new(Mutex::new(gateway));
-        let config = StreamableHttpServerConfig::default()
-            .with_allowed_hosts(HOSTS)
-            .with_allowed_origins(ORIGINS)
-            .with_legacy_session_mode(false)
-            .with_json_response(true);
-        let for_tools = Arc::clone(&gateway);
-        let mcp = StreamableHttpService::new(
-            move || Ok(Server::new(Arc::clone(&for_tools), Token::PerRequest)),
-            Arc::new(NeverSessionManager::default()),
-            config,
-        );
+        let mcp = service(&gateway, false);
 
         loop {
             let Ok((stream, _)) = listener.accept().await else {
@@ -137,8 +127,33 @@ pub(crate) fn serve(gateway: Gateway, address: SocketAddr) -> Result<()> {
     })
 }
 
+/// The MCP service for the memory behind `gateway`. On this computer only, `Host` must
+/// name it and a browser's `Origin` be one of its pages; `from_the_network` (`ipse
+/// serve`, decision 0019), any `Host`, and no browser at all.
+pub(crate) fn service(
+    gateway: &Arc<Mutex<Gateway>>,
+    from_the_network: bool,
+) -> StreamableHttpService<Server, NeverSessionManager> {
+    let config = StreamableHttpServerConfig::default()
+        .with_legacy_session_mode(false)
+        .with_json_response(true);
+    let config = if from_the_network {
+        config.disable_allowed_hosts().enforce_origin_validation()
+    } else {
+        config
+            .with_allowed_hosts(HOSTS)
+            .with_allowed_origins(ORIGINS)
+    };
+    let for_tools = Arc::clone(gateway);
+    StreamableHttpService::new(
+        move || Ok(Server::new(Arc::clone(&for_tools), Token::PerRequest)),
+        Arc::new(NeverSessionManager::default()),
+        config,
+    )
+}
+
 /// One request: the path, then the access code, then MCP.
-async fn answer(
+pub(crate) async fn answer(
     request: Request<Incoming>,
     mcp: StreamableHttpService<Server, NeverSessionManager>,
     gateway: Arc<Mutex<Gateway>>,

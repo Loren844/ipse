@@ -28,7 +28,7 @@ quick-xml = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-tokio = { workspace = true, features = ["fs", "io-util", "net"] }
+tokio = { workspace = true, features = ["fs", "io-util", "net", "rt-multi-thread", "time"] }
 ureq = { workspace = true }
 
 [dev-dependencies]

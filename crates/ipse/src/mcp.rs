@@ -8,7 +8,7 @@
 //! before anything is read, so that removing an AI or changing its rights applies from
 //! its next request.
 
-mod http;
+pub(crate) mod http;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -110,7 +110,7 @@ enum Token {
 }
 
 /// The MCP server: the vault's gateway and where the access code comes from.
-struct Server {
+pub(crate) struct Server {
     gateway: Arc<Mutex<Gateway>>,
     token: Token,
     tool_router: ToolRouter<Self>,
