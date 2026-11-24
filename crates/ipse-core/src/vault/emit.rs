@@ -59,6 +59,9 @@ pub(crate) fn canonical(keys: &Keys) -> Vec<(&'static str, Option<Out>)> {
                 "located_in",
                 e.located_in.as_ref().map(|l| Out::Text(l.to_string())),
             ),
+            ("at", e.at.map(|t| Out::Plain(t.to_string()))),
+            ("every", e.every.map(|v| Out::Plain(v.as_str().to_owned()))),
+            ("done", e.done.map(|d| Out::Plain(d.to_string()))),
         ]);
     }
     if let Some(e) = &keys.event {

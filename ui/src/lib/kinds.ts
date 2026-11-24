@@ -2,7 +2,7 @@
 // addresses use the folder (`/memory/places/<id>`).
 import { icons } from './icons.ts';
 
-export type Kind = 'person' | 'place' | 'organization' | 'project' | 'work' | 'thing' | 'topic';
+export type Kind = 'person' | 'place' | 'organization' | 'project' | 'work' | 'thing' | 'topic' | 'reminder';
 
 export const KINDS: { kind: Kind; folder: string; icon: string }[] = [
 	{ kind: 'person', folder: 'people', icon: icons.people },
@@ -11,7 +11,8 @@ export const KINDS: { kind: Kind; folder: string; icon: string }[] = [
 	{ kind: 'project', folder: 'projects', icon: icons.project },
 	{ kind: 'work', folder: 'works', icon: icons.work },
 	{ kind: 'thing', folder: 'things', icon: icons.thing },
-	{ kind: 'topic', folder: 'topics', icon: icons.topic }
+	{ kind: 'topic', folder: 'topics', icon: icons.topic },
+	{ kind: 'reminder', folder: 'reminders', icon: icons.reminder }
 ];
 
 /** The folder of a kind of entity; `null` for anything else (an event, a summary). */

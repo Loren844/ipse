@@ -176,6 +176,12 @@ pub(crate) struct EntityView {
     aliases: Vec<String>,
     /// `YYYY-MM-DD`, or `--MM-DD` without the year.
     birthday: Option<String>,
+    /// For a reminder: when it is due, a day or a date and time with its offset.
+    at: Option<String>,
+    /// For a reminder: `day`, `week`, `month` or `year`.
+    every: Option<String>,
+    /// For a reminder: the day it was last done.
+    done: Option<String>,
     emails: Vec<String>,
     phones: Vec<String>,
     address: Option<String>,
@@ -640,6 +646,9 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         name: entry.name.unwrap_or_default(),
         aliases: entry.aliases,
         birthday: entry.birthday,
+        at: entry.at,
+        every: entry.every,
+        done: entry.done,
         emails: entry.emails,
         phones: entry.phones,
         address: entry.address,

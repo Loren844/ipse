@@ -20,7 +20,8 @@ test('every kind of file, a place with its events, what links to an organization
 		/Projets\s*2/,
 		/Œuvres\s*3/,
 		/Objets\s*2/,
-		/Sujets\s*2/
+		/Sujets\s*2/,
+		/Rappels\s*0/
 	]);
 	await expect(page.getByTestId('now')).toContainText('Les Jours de sel');
 

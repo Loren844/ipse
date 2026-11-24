@@ -52,7 +52,7 @@ pub struct LinkOut {
 }
 
 /// The kinds of entity a memory holds, in the order the interface lists them.
-pub const ENTITY_KINDS: [FileType; 7] = [
+pub const ENTITY_KINDS: [FileType; 8] = [
     FileType::Person,
     FileType::Place,
     FileType::Organization,
@@ -60,6 +60,7 @@ pub const ENTITY_KINDS: [FileType; 7] = [
     FileType::Work,
     FileType::Thing,
     FileType::Topic,
+    FileType::Reminder,
 ];
 
 /// Something that links to a file.

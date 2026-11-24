@@ -12,6 +12,7 @@ pub mod error;
 pub mod journal;
 pub mod materialize;
 pub mod proposals;
+pub mod reminders;
 pub mod rights;
 pub mod search;
 pub mod slug;

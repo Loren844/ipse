@@ -9,7 +9,7 @@
 	import Events from '#lib/Events.svelte';
 	import Notice from '#lib/Notice.svelte';
 	import Face from '#lib/Face.svelte';
-	import { birthday, dayOf, phone as formatPhone, fromSources } from '#lib/format.ts';
+	import { birthday, dayOf, isDay, longDay, phone as formatPhone, fromSources, when } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { folderOf, iconOf } from '#lib/kinds.ts';
 	import Mention from '#lib/Mention.svelte';
@@ -149,8 +149,10 @@
 
 		{#if entity.sensitive}<Sensitive category={entity.category} />{/if}
 
-		{#if entity.phones.length || entity.emails.length || entity.birthday || entity.address}
+		{#if entity.phones.length || entity.emails.length || entity.birthday || entity.address || entity.at}
 			<dl class="props">
+				{#if entity.at}<dt>{i18n.t.reminderAt}</dt><dd data-testid="reminder-at">{isDay(entity.at) ? longDay(entity.at) : when(entity.at)}{#if entity.every} · {i18n.t.reminderEvery[entity.every] ?? entity.every}{/if}</dd>{/if}
+				{#if entity.done}<dt>{i18n.t.reminderDone}</dt><dd>{longDay(entity.done)}</dd>{/if}
 				{#each entity.phones as phone, i (i)}<dt>{i18n.t.phone}</dt><dd><a href="tel:{phone}">{formatPhone(phone)}</a></dd>{/each}
 				{#each entity.emails as email, i (i)}<dt>{i18n.t.email}</dt><dd><a href="mailto:{email}">{email}</a></dd>{/each}
 				{#if entity.birthday}<dt>{i18n.t.birthday}</dt><dd>{birthday(entity.birthday)}</dd>{/if}

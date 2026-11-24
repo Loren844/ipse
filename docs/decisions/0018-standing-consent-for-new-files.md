@@ -17,6 +17,7 @@ Decision 0014 is still the risk: text from outside (an invitation, a contact's n
 - **It covers a proposal made only of:**
   - `create` of a `thing`, `topic`, `project`, `organization` or `work`;
   - `add_fact` and `add_relation` on a file of those types that this same AI created, by a proposal still accepted (not undone).
+- **Reminders too** (issue #206): `create` of a `reminder`, and `set_key` of `done` or `at` on any reminder, as "remind me" and "done" are the person's own words to their AI.
 - **Only in a known category that is not sensitive.** A sensitive category, or one the vault does not declare, waits for the person. The AI still needs the `propose` right on the category, as for any proposal.
 - **Never without the person:** people, places, events; facts on a file the AI did not create; any other change to its own files (a key, an edited or removed fact, notes); merges (decision 0011), deletions, renames, summaries outside their task. A proposal mixing an allowed change with any other waits as before.
 - **The same path as 0017:** saved, then accepted at once by the code that accepts the person's choice; one change of the history, marked `automatic`, undone in one click. The home screen says how many files the AI created in the last days, with a link.

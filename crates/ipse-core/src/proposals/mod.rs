@@ -37,13 +37,18 @@ pub const OFFER_AFTER: usize = 3;
 /// The kinds of file an AI may create without the person waiting, once they allow it
 /// (decision 0018): none says who the person knows, where they go or when. People,
 /// places and events always wait, as text from outside could invent them (decision 0014).
-pub const CREATED_TYPES: [FileType; 5] = [
+pub const CREATED_TYPES: [FileType; 6] = [
     FileType::Thing,
     FileType::Topic,
     FileType::Project,
     FileType::Organization,
     FileType::Work,
+    FileType::Reminder,
 ];
+
+/// The keys of a reminder an AI may set without the person waiting, once they allow
+/// new files from it: marking it done, or moving it later (issue #206).
+pub const REMINDER_KEYS_BY_CONSENT: [&str; 2] = ["done", "at"];
 
 /// Where proposals are kept, relative to the vault.
 pub const FOLDER: &str = ".ipse/proposals";
@@ -528,7 +533,8 @@ impl<'v> Proposals<'v> {
     /// True when `proposal` is made only of what decision 0018 lets the person accept
     /// in advance from the AI `client`: new files of [`CREATED_TYPES`] in a known
     /// category that is not sensitive, and facts or relations added to files of those
-    /// types that `client` created, still in such a category. A change to a person, a
+    /// types that `client` created, still in such a category, and a reminder marked done
+    /// or moved later ([`REMINDER_KEYS_BY_CONSENT`]). A change to a person, a
     /// place or an event, to a file it did not create, a merge, a deletion or any other
     /// change is not.
     fn creations(&self, proposal: &Proposal, client: &str) -> Result<bool> {
@@ -550,6 +556,9 @@ impl<'v> Proposals<'v> {
                         return Ok(false);
                     }
                 }
+                Change::SetKey { file, key, .. }
+                    if REMINDER_KEYS_BY_CONSENT.contains(&key.as_str())
+                        && file.starts_with("reminders/") => {}
                 Change::AddFact { file, .. } | Change::AddRelation { file, .. } => {
                     let created = match &mut created {
                         Some(list) => list,

@@ -32,6 +32,7 @@ const words = {
 			work: 'Œuvres',
 			thing: 'Objets',
 			topic: 'Sujets',
+			reminder: 'Rappels',
 			event: 'Événements',
 			summary: 'Résumés'
 		} as Record<string, string>,
@@ -43,6 +44,7 @@ const words = {
 			work: 'Œuvre',
 			thing: 'Objet',
 			topic: 'Sujet',
+			reminder: 'Rappel',
 			event: 'Événement',
 			summary: 'Résumé'
 		} as Record<string, string>,
@@ -55,8 +57,12 @@ const words = {
 			project: 'Ce que vous menez sur la durée : votre IA les note quand vous lui en parlez.',
 			work: 'Les livres, films, séries et albums : avec vos sources de musique et de vidéo, ou par votre IA.',
 			thing: 'Les objets qui comptent : votre IA les note quand vous lui en parlez.',
-			topic: 'Les sujets qui vous occupent : votre IA les note quand vous lui en parlez.'
+			topic: 'Les sujets qui vous occupent : votre IA les note quand vous lui en parlez.',
+			reminder: 'Dites à votre IA « rappelle-moi… » : elle note le rappel ici, et vous le redit quand c’est le moment.'
 		} as Record<string, string>,
+		reminderAt: 'Quand',
+		reminderDone: 'Fait le',
+		reminderEvery: { day: 'tous les jours', week: 'toutes les semaines', month: 'tous les mois', year: 'tous les ans' } as Record<string, string>,
 		nowTitle: 'En ce moment',
 		topics: {
 			music: 'Musique',
@@ -760,6 +766,7 @@ const words = {
 			work: 'Ajouter une œuvre',
 			thing: 'Ajouter un objet',
 			topic: 'Ajouter un sujet',
+			reminder: 'Ajouter un rappel',
 			event: 'Ajouter un événement'
 		} as Record<string, string>,
 		kindOfFile: 'C’est…',
@@ -888,6 +895,7 @@ const words = {
 			work: 'Works',
 			thing: 'Things',
 			topic: 'Topics',
+			reminder: 'Reminders',
 			event: 'Events',
 			summary: 'Summaries'
 		} as Record<string, string>,
@@ -899,6 +907,7 @@ const words = {
 			work: 'Work',
 			thing: 'Thing',
 			topic: 'Topic',
+			reminder: 'Reminder',
 			event: 'Event',
 			summary: 'Summary'
 		} as Record<string, string>,
@@ -911,8 +920,12 @@ const words = {
 			project: 'What you pursue over time: your AI notes them when you tell it.',
 			work: 'Books, films, series and albums: with your music and video sources, or through your AI.',
 			thing: 'Things that matter: your AI notes them when you tell it.',
-			topic: 'Topics on your mind: your AI notes them when you tell it.'
+			topic: 'Topics on your mind: your AI notes them when you tell it.',
+			reminder: 'Tell your AI "remind me…": it notes the reminder here, and tells you again when it is time.'
 		} as Record<string, string>,
+		reminderAt: 'When',
+		reminderDone: 'Done on',
+		reminderEvery: { day: 'every day', week: 'every week', month: 'every month', year: 'every year' } as Record<string, string>,
 		nowTitle: 'Right now',
 		topics: {
 			music: 'Music',
@@ -1609,6 +1622,7 @@ const words = {
 			work: 'Add a work',
 			thing: 'Add a thing',
 			topic: 'Add a topic',
+			reminder: 'Add a reminder',
 			event: 'Add an event'
 		} as Record<string, string>,
 		kindOfFile: 'It is…',
