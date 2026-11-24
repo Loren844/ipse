@@ -22,7 +22,7 @@ mod yaml;
 
 pub use atomic::{sync_files, write_atomic, write_atomic_unsynced};
 pub use body::{Body, Fact, FactId, Relation, RelationKind, Section};
-pub use check::{Problem, Report, check};
+pub use check::{CopiedFile, Problem, Report, check, copies, copies_among};
 pub use event::{EventFields, EventKind, EventStatus, EventTime};
 pub use fields::{
     Birthday, Category, Common, DateTime, EntityFields, Every, FileType, Geo, Id, LinkOrText,

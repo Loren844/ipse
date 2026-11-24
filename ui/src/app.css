@@ -2112,6 +2112,32 @@ dialog[open]::backdrop {
 }
 
 /* The kinds of the memory: an index, read like the contents of a book, not a grid of tiles. */
+.copies {
+	margin: 1.5rem 0 0;
+	padding: 1rem 1.25rem;
+	background: var(--warn-soft);
+	border-radius: 0.5rem;
+}
+.copies h2 {
+	margin: 0 0 0.25rem;
+	font-size: var(--step-0);
+	color: var(--warn);
+}
+.copies ul {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+}
+.copies li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	padding: 0.4rem 0;
+	overflow-wrap: anywhere;
+}
+
 .kinds {
 	list-style: none;
 	margin: 1.75rem 0 0;

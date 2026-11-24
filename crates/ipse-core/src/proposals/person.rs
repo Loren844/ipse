@@ -197,6 +197,41 @@ impl Proposals<'_> {
         Ok(record.commit("Edit a file as Markdown")?.map(|e| e.id))
     }
 
+    /// Gives the file `file`, a copy that holds another file's `id` (issue #230), an id
+    /// of its own, as the person's change in one change of the history. Returns the new
+    /// id.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when `file` is not a memory file, or not such a copy (its id
+    /// is its own, or it is the file kept as the one with that id); errors writing the
+    /// file or the history.
+    pub fn own_id(&self, file: &str) -> Result<String> {
+        let path = memory_path(self.vault.root(), file)?;
+        let is_copy = crate::vault::copies(self.vault.root())?
+            .iter()
+            .any(|c| c.path.to_string_lossy().replace('\\', "/") == file);
+        if !is_copy {
+            return Err(Error::Refused(format!(
+                "{file} has an id of its own already."
+            )));
+        }
+        let mut copy = MemoryFile::read(&path)?;
+        let id = crate::vault::Id::generate();
+        let now = crate::vault::DateTime::now(self.vault.settings().time_zone());
+        let common = copy.common_mut();
+        common.id = id.clone();
+        common.created = now;
+        common.updated = now;
+        let history = self.vault.history()?;
+        let mut record = history.change(Source::Person);
+        if copy.write()? {
+            record.touched(&path);
+        }
+        record.commit("Give a copied file an id of its own")?;
+        Ok(id.to_string())
+    }
+
     /// Creates the file `change` describes (a [`Change::Create`]) as the person's, in
     /// one change of the history. With `stem`, the file is named so when that name is
     /// free: to create the file a link already points to.

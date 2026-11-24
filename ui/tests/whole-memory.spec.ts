@@ -1,3 +1,5 @@
+import { copyFileSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { startDemo, type Running } from './ipse.ts';
 
@@ -102,4 +104,18 @@ test('a kind with nothing yet says how it arrives', async ({ page }) => {
 	await expect(page.getByText('Rien ne correspond.')).toBeVisible();
 	await page.goto(`${ipse.origin}/memory/nowhere`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Cette fiche n’existe pas, ou plus.');
+});
+
+test('a file copied by hand gets an id of its own', async ({ page }) => {
+	// Obsidian's "Make a copy" keeps the id of the original (issue #230).
+	copyFileSync(join(ipse.vault, 'things/appareil-photo-argentique.md'), join(ipse.vault, 'things/appareil-photo-argentique 1.md'));
+	await page.goto(`${ipse.url}`);
+	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Mémoire' }).click();
+	const copies = page.getByTestId('copies');
+	await expect(copies.getByRole('heading')).toHaveText('Une fiche semble copiée');
+	await expect(copies).toContainText('things/appareil-photo-argentique 1.md a le même identifiant que things/appareil-photo-argentique.md');
+	await copies.getByRole('button', { name: 'Lui donner son propre identifiant' }).click();
+	await expect(copies).toHaveCount(0);
+	const id = (file: string) => /\nid: (\w+)\n/.exec(readFileSync(join(ipse.vault, file), 'utf8'))?.[1];
+	expect(id('things/appareil-photo-argentique 1.md')).not.toEqual(id('things/appareil-photo-argentique.md'));
 });
