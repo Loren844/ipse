@@ -3509,7 +3509,7 @@ nav.crumbs:empty {
 	gap: 2.75rem;
 }
 
-.year-row h2 {
+.year-row h3 {
 	font-size: clamp(2.2rem, 5vw, 3rem);
 	font-weight: 800;
 	letter-spacing: -0.035em;
@@ -3517,14 +3517,14 @@ nav.crumbs:empty {
 	margin: 0 0 0.35rem;
 }
 
-.year-row h2 a,
-.month-card h2 a {
+.year-row h3 a,
+.month-card h3 a {
 	color: var(--text);
 	text-decoration: none;
 }
 
-.year-row h2 a:hover,
-.month-card h2 a:hover {
+.year-row h3 a:hover,
+.month-card h3 a:hover {
 	color: var(--thread);
 }
 
@@ -3643,7 +3643,7 @@ nav.crumbs:empty {
 	border-top: 2px solid var(--line-strong);
 }
 
-.month-card h2 {
+.month-card h3 {
 	margin: 0;
 	font-size: var(--step-2);
 }
@@ -4324,4 +4324,22 @@ p.automatic a {
 .how-folder code {
 	font-size: var(--step--1);
 	word-break: break-all;
+}
+
+/* The timeline as the agenda's Years view (issue #211). */
+.timeline-head {
+	margin: 1rem 0 1.5rem;
+}
+
+.timeline-head .period {
+	margin: 0.25rem 0 0;
+}
+
+.timeline-head .quiet {
+	margin: 0.4rem 0 0;
+}
+
+.period-link {
+	margin: 0.35rem 0 0;
+	font-size: var(--step--1);
 }

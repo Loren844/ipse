@@ -13,9 +13,11 @@
 	import KindFilter from '#lib/KindFilter.svelte';
 	import Mention from '#lib/Mention.svelte';
 	import { rows, type Row } from '#lib/series.ts';
+	import Timeline from '#lib/Timeline.svelte';
 
-	type View = 'list' | 'week' | 'month';
-	const VIEWS: View[] = ['list', 'week', 'month'];
+	// The timeline is the Years view (issue #211).
+	type View = 'list' | 'week' | 'month' | 'years';
+	const VIEWS: View[] = ['list', 'week', 'month', 'years'];
 
 	let events: EventView[] = $state([]);
 	let summaries: Record<string, string> = $state({});
@@ -59,7 +61,7 @@
 	});
 
 	$effect(() => {
-		if (view === 'list') return;
+		if (view === 'list' || view === 'years') return;
 		const key = `${range.from}/${range.to}`;
 		if (period?.key === key) return;
 		api
@@ -81,8 +83,16 @@
 			if (next.kind) url.searchParams.set('kind', next.kind);
 			else url.searchParams.delete('kind');
 		}
+		// The timeline's year and month stay with it.
+		if (v !== 'years') {
+			url.searchParams.delete('year');
+			url.searchParams.delete('month');
+		}
 		if (v === 'list') {
 			url.searchParams.delete('view');
+			url.searchParams.delete('day');
+		} else if (v === 'years') {
+			url.searchParams.set('view', v);
 			url.searchParams.delete('day');
 		} else {
 			url.searchParams.set('view', v);
@@ -129,7 +139,9 @@
 	});
 </script>
 
-<div class="screen" class:wide={view !== 'list'}>
+<svelte:head><title>{view === 'years' ? i18n.t.timeline : i18n.t.agenda} · Ipse</title></svelte:head>
+
+<div class="screen" class:wide={view === 'week' || view === 'month'}>
 	<header class="page-head head-row">
 		<h1>{i18n.t.agenda}</h1>
 		<a class="button small" href="/memory/new?kind=event">+ {i18n.t.addKind.event}</a>
@@ -141,7 +153,7 @@
 				<button type="button" aria-pressed={view === v} onclick={() => show({ view: v })}>{i18n.t.agendaView[v]}</button>
 			{/each}
 		</div>
-		{#if view !== 'list'}
+		{#if view === 'week' || view === 'month'}
 			<div class="period-nav">
 				<button type="button" class="button small" aria-label={view === 'week' ? i18n.t.previousWeek : i18n.t.previousMonth} onclick={() => step(-1)}
 					>‹</button
@@ -152,7 +164,7 @@
 		{/if}
 	</div>
 
-	{#if kinds.length}
+	{#if kinds.length && view !== 'years'}
 		<div class="kind-bar">
 			<KindFilter {kinds} bind:kind={() => kind, (k) => show({ kind: k })} />
 			{#if kind}
@@ -161,8 +173,15 @@
 		</div>
 	{/if}
 
-	{#if view !== 'list'}
+	{#if view === 'years'}
+		<Timeline />
+	{:else if view !== 'list'}
 		<h2 class="period" aria-live="polite">{title}</h2>
+		{#if view === 'month'}
+			<p class="period-link">
+				<a href="/agenda?view=years&year={monthStart(day).slice(0, 4)}&month={monthStart(day).slice(5, 7)}">{i18n.t.monthInTimeline}</a>
+			</p>
+		{/if}
 		{#if period}
 			{#key `${view} ${day} ${kind}`}
 				<div class="appear">

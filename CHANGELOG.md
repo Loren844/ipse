@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Changed
+
+- **The timeline is now the agenda's Years view**: one Agenda tab with List, Week, Month and Years. A month of the timeline opens its calendar, and the Month view links back to what marked that month. Old timeline links still work ([#211](https://github.com/Loren844/ipse/issues/211)).
+
 ### Added
 
 - **First steps** on the home screen: add your contacts or your calendar, connect your AI, ask it a first question, answer its first proposal. Each step is ticked when Ipse sees it done, and the list goes away once all are done or when you hide it. An invented memory says so, and how to create your own ([#172](https://github.com/Loren844/ipse/issues/172)).

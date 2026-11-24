@@ -37,7 +37,6 @@
 			{ href: '/', label: i18n.t.home, icon: icons.home },
 			{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
 			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
-			{ href: '/timeline', label: i18n.t.timeline, icon: icons.timeline },
 			{ href: '/map', label: i18n.t.map, icon: icons.place },
 			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
 		],
