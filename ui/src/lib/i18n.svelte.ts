@@ -126,6 +126,7 @@ const words = {
 			dav: 'Compte d’agendas et de contacts',
 			homeassistant: 'Home Assistant',
 			jellyfin: 'Jellyfin',
+			immich: 'Immich',
 			'google-timeline': 'Historique des positions'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -284,6 +285,44 @@ const words = {
 					bad_input: 'Aucun Jellyfin n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :8096.',
 					unavailable: 'Jellyfin n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
 					rate_limited: 'Jellyfin demande de ralentir : réessayez dans quelques minutes.'
+				} as Record<string, string>
+			},
+			immich: {
+				title: 'Connecter Immich',
+				hint: 'Votre propre Immich dit à Ipse qui est sur vos photos, et quand vous en avez pris une ensemble pour la dernière fois. Ipse ne lie une personne de vos photos à une fiche que s’il en est sûr, et vous demande sinon. Ipse ne fait que lire, et garde la clé dans le trousseau de votre système.',
+				name: 'Nom de la source',
+				address: 'Adresse d’Immich',
+				token: 'Clé d’API',
+				go: 'Connecter Immich',
+				connecting: 'Connexion à Immich…',
+				help: 'Où trouver l’adresse et créer une clé',
+				steps: [
+					{
+						title: 'L’adresse',
+						lines: [
+							'Celle que vous ouvrez dans votre navigateur, souvent nas.local:2283, ou votre adresse https:// depuis l’extérieur.',
+							'En http://, Ipse se connecte seulement à une adresse de votre réseau local, et le dit.'
+						]
+					},
+					{
+						title: 'La clé',
+						lines: [
+							'Dans Immich : votre photo (en haut à droite) → Paramètres du compte → Clés API → Nouvelle clé API, avec le nom « Ipse ».',
+							'Ipse lit seulement les personnes que vous avez nommées dans Immich.'
+						]
+					}
+				],
+				chooseHint: 'Ipse lit seulement la photothèque de l’utilisateur à qui appartient la clé.',
+				follow: 'Suivre cet utilisateur',
+				nobody: 'Cette clé n’appartient à aucun utilisateur d’Immich.',
+				plain: 'Cette adresse est en http:// : la clé circule sans chiffrement sur votre réseau local. Utilisez https:// si votre Immich le propose.',
+				unfollowBody: 'Ipse ne le synchronisera plus et oubliera sa clé. Ce qu’il a apporté reste dans votre mémoire.',
+				badAddress: 'Immich ne peut pas être connecté : il faut son adresse (https://, ou http:// sur votre réseau local) et une clé d’API.',
+				problems: {
+					auth: 'Immich a refusé la clé d’API. Créez-en une nouvelle dans Paramètres du compte → Clés API.',
+					bad_input: 'Aucun Immich n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :2283.',
+					unavailable: 'Immich n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+					rate_limited: 'Immich demande de ralentir : réessayez dans quelques minutes.'
 				} as Record<string, string>
 			}
 		},
@@ -1072,6 +1111,7 @@ const words = {
 			dav: 'Calendars and contacts account',
 			homeassistant: 'Home Assistant',
 			jellyfin: 'Jellyfin',
+			immich: 'Immich',
 			'google-timeline': 'Location history'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -1225,6 +1265,44 @@ const words = {
 					bad_input: 'No Jellyfin was found at this address: check it, it often ends with :8096.',
 					unavailable: 'Jellyfin could not be reached. Check its address and your connection.',
 					rate_limited: 'Jellyfin asks to slow down: try again in a few minutes.'
+				} as Record<string, string>
+			},
+			immich: {
+				title: 'Connect Immich',
+				hint: 'Your own Immich tells Ipse who is on your photos, and when you last took one together. Ipse links someone of your photos to a file only when it is sure, and asks you otherwise. Ipse only reads, and keeps the key in your system’s keychain.',
+				name: 'Name of the source',
+				address: 'Immich’s address',
+				token: 'API key',
+				go: 'Connect Immich',
+				connecting: 'Connecting to Immich…',
+				help: 'Where to find the address and create a key',
+				steps: [
+					{
+						title: 'The address',
+						lines: [
+							'The one you open in your browser, often nas.local:2283, or your https:// address from outside.',
+							'With http://, Ipse connects only to an address of your home network, and says so.'
+						]
+					},
+					{
+						title: 'The key',
+						lines: [
+							'In Immich: your picture (top right) → Account Settings → API Keys → New API Key, named “Ipse”.',
+							'Ipse only reads the people you named in Immich.'
+						]
+					}
+				],
+				chooseHint: 'Ipse only reads the library of the user the key belongs to.',
+				follow: 'Follow this user',
+				nobody: 'This key belongs to no user of Immich.',
+				plain: 'This address uses http://: the key goes unencrypted over your home network. Use https:// if your Immich offers it.',
+				unfollowBody: 'Ipse will no longer sync it and forgets its key. What it brought stays in your memory.',
+				badAddress: 'Immich cannot be connected: it needs its address (https://, or http:// on your home network) and an API key.',
+				problems: {
+					auth: 'Immich refused the API key. Create a new one in Account Settings → API Keys.',
+					bad_input: 'No Immich was found at this address: check it, it often ends with :2283.',
+					unavailable: 'Immich could not be reached. Check its address and your connection.',
+					rate_limited: 'Immich asks to slow down: try again in a few minutes.'
 				} as Record<string, string>
 			}
 		},

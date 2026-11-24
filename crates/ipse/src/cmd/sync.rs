@@ -108,6 +108,14 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
     {
         lines.push(watching_line(s.plays));
     }
+    if let Some(s) = synced.photos {
+        if s.logs > 0 {
+            lines.push(photos_line(s.people, s.linked));
+        }
+        if s.proposals > 0 {
+            lines.push(aliases_line(s.proposals));
+        }
+    }
     if synced.tasks > 0 {
         lines.push(tasks_line(synced.tasks));
     }
@@ -129,6 +137,27 @@ fn nothing_changed(synced: &Synced) -> bool {
             .is_none_or(|s| s.added + s.updated + s.conflicts + s.relations == 0 && !s.owner)
         && synced.home.is_none_or(|s| s.logs == 0)
         && synced.watching.is_none_or(|s| s.logs == 0)
+        && synced
+            .photos
+            .is_none_or(|s| s.logs == 0 && s.proposals == 0)
+}
+
+fn photos_line(people: u64, linked: u64) -> String {
+    let people = match people {
+        1 => "1 person".to_owned(),
+        n => format!("{n} people"),
+    };
+    format!("Updated who is on your photos: {people}, {linked} found in your memory.")
+}
+
+fn aliases_line(proposals: u64) -> String {
+    match proposals {
+        1 => "1 person of the photos may be someone of your memory: see `ipse proposals list`."
+            .to_owned(),
+        n => format!(
+            "{n} people of the photos may be someone of your memory: see `ipse proposals list`."
+        ),
+    }
 }
 
 fn watching_line(plays: u64) -> String {

@@ -205,7 +205,7 @@ A state is true only while it is recent: listening to an artist, watching a seri
 
 ### 5.1 Files
 
-Path: `states/<topic>/<YYYY>.md`, one file per topic and year. Topics in format version 1: `music`, `watching`, `reading`, `home`, `location`. Connectors may add topics; a topic name matches `[a-z0-9-]+`.
+Path: `states/<topic>/<YYYY>.md`, one file per topic and year. Topics in format version 1: `music`, `watching`, `reading`, `home`, `location`, `photos`. Connectors may add topics; a topic name matches `[a-z0-9-]+`.
 
 ```markdown
 ---
@@ -228,6 +228,7 @@ year: 2026
 - One row per subject. A subject is a wikilink when an entity exists (an artist under `people/` or `organizations/`, a series under `works/`), plain text otherwise.
 - `First seen` and `Last seen` are dates in the vault's time zone (or datetimes for topics whose window is under a day, such as `home`).
 - `Count` is how many raw observations support the row.
+- In the `photos` topic, a subject is a person of the photos, linked to their file of `people/` only when Ipse is sure (`docs/connectors/immich.md`); `First seen` and `Last seen` are the days of the first and the last photo, and `Count` is how many photos.
 - In the `watching` topic from Jellyfin, a subject is a series or a film, linked to its file of `works/` when one has its name; `First seen` and `Last seen` are days, and `Count` is how many plays (`docs/connectors/jellyfin.md`).
 - In the `home` topic, a subject is the person's home (`Domicile`, `Home`) or a zone of their Home Assistant, as text; `First seen` and `Last seen` are moments, and `Count` is how many stays; the log is rewritten from every stay of the year (`docs/connectors/homeassistant.md`).
 - In the `location` topic, a subject is a place (`places/`), `First seen` and `Last seen` are days, and `Count` is how many stays; the log is rewritten from every visit of the year (`docs/connectors/location.md`).
@@ -254,6 +255,7 @@ Default windows, which the person may change in `.ipse/vault.toml`:
 | `music` | 21 days |
 | `watching` | 30 days |
 | `reading` | 30 days |
+| `photos` | 30 days |
 | `location` | 1 day |
 | `home` | 15 minutes |
 

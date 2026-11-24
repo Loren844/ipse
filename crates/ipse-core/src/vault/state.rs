@@ -40,7 +40,7 @@ impl Topic {
     pub fn default_window(&self) -> Option<SignedDuration> {
         let hours = match self.0.as_str() {
             "music" => 21 * 24,
-            "watching" | "reading" => 30 * 24,
+            "watching" | "reading" | "photos" => 30 * 24,
             "location" => 24,
             "home" => return Some(SignedDuration::from_mins(15)),
             _ => return None,
@@ -384,6 +384,7 @@ mod tests {
         assert_eq!(window("music"), Some(SignedDuration::from_hours(504)));
         assert_eq!(window("home"), Some(SignedDuration::from_mins(15)));
         assert_eq!(window("location"), Some(SignedDuration::from_hours(24)));
+        assert_eq!(window("photos"), Some(SignedDuration::from_hours(720)));
         assert_eq!(window("podcasts"), None);
         assert!(Topic::new("Music").is_none() && Topic::new("-x").is_none());
     }
