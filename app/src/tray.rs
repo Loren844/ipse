@@ -2,6 +2,7 @@
 //! memory up to date while the window is closed (issue #153): open the window, sync
 //! now, quit.
 
+use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager as _, Runtime};
@@ -15,6 +16,10 @@ const OPEN: &str = "tray-open";
 const SYNC: &str = "tray-sync";
 /// The menu item that quits.
 const QUIT: &str = "tray-quit";
+
+/// The mark alone, black on transparent, 22 points at twice the density: the shape
+/// macOS tints for its menu bar (drawn from `icons/tray-template.svg`).
+const MENU_BAR_ICON: &[u8] = include_bytes!("../icons/tray-template.png");
 
 /// Puts the icon in the menu bar or the tray.
 ///
@@ -49,7 +54,13 @@ pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: &Words) -> tauri::Res
                 show(tray.app_handle());
             }
         });
-    if let Some(icon) = app.default_window_icon() {
+    if cfg!(target_os = "macos") {
+        // A menu bar icon is a template: macOS draws its shape in the bar's own
+        // colour, white or black, like the icons beside it.
+        tray = tray
+            .icon(Image::from_bytes(MENU_BAR_ICON)?)
+            .icon_as_template(true);
+    } else if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
     }
     tray.build(app)
