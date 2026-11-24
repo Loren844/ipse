@@ -5,7 +5,7 @@
 	import { api, SessionEnded, type Draft, type EditView, type EventView, type FileView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Confirm, { type Question } from '#lib/Confirm.svelte';
-	import Editor from '#lib/Editor.svelte';
+	import FileEditor from '#lib/FileEditor.svelte';
 	import { fromSources, when } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
@@ -30,7 +30,7 @@
 		try {
 			form = await api.editForm(page.params.id ?? '');
 			await tick();
-			document.getElementById('edit-title')?.focus();
+			document.querySelector<HTMLElement>('#edit-title, #edit-markdown')?.focus();
 		} catch (error) {
 			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
 			outcome = { tone: 'warn', text: i18n.t.actionFailed };
@@ -47,6 +47,13 @@
 	async function save(draft: Draft) {
 		if (!form) return;
 		const view = await api.saveFile(form.id, form.version, draft);
+		await file.load(async () => view, true);
+		await close(i18n.t.fileSaved);
+	}
+
+	async function saveText(version: string, text: string) {
+		if (!form) return;
+		const view = await api.saveText(form.id, version, text);
 		await file.load(async () => view, true);
 		await close(i18n.t.fileSaved);
 	}
@@ -102,7 +109,7 @@
 
 		{#if form}
 			<section aria-label={i18n.t.editTitle(event.title)}>
-				<Editor {form} {save} cancel={() => close(null)} />
+				<FileEditor {form} {save} {saveText} cancel={() => close(null)} bind:question />
 				<button type="button" class="link-button danger" onclick={remove}>{i18n.t.deleteFile}</button>
 			</section>
 			<Confirm bind:question />

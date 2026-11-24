@@ -88,6 +88,27 @@ struct EditBody {
     draft: Draft,
 }
 
+/// What `GET /api/file/<id>/text` answers: the file as written, to edit as Markdown.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct TextView {
+    /// The file as it was read: saving is refused if it changed since.
+    version: String,
+    /// Its whole text, front matter included.
+    text: String,
+}
+
+/// `POST /api/file/<id>/text`.
+#[derive(Debug, Deserialize)]
+struct TextBody {
+    version: String,
+    text: String,
+}
+
 /// `POST /api/file/<id>/delete`.
 #[derive(Debug, Deserialize)]
 struct DeleteBody {
@@ -243,7 +264,36 @@ pub(crate) fn view(gateway: &mut Gateway, id: &str) -> Result<Option<EditView>> 
     Ok(Some(view))
 }
 
-/// `POST /api/file/<id>/edit`, `POST /api/file/<id>/delete` and `POST /api/files`.
+/// What `GET /api/file/<id>/text` answers (issue #142); `None` when there is no such
+/// file, or it is not one the person edits here.
+///
+/// # Errors
+///
+/// Errors reading the vault or the file.
+pub(crate) fn text(gateway: &mut Gateway, id: &str) -> Result<Option<TextView>> {
+    let root = gateway.vault().root().to_owned();
+    let owner = gateway.fresh_owner()?;
+    let Some((file, read)) = find(&owner, &root, id) else {
+        return Ok(None);
+    };
+    let kind = read.common().file_type;
+    if !kind.is_entity() && kind != ipse_core::vault::FileType::Event {
+        return Ok(None);
+    }
+    let path = root.join(&file);
+    let text = std::fs::read_to_string(&path).map_err(|source| Error::Io {
+        action: "read",
+        path: path.clone(),
+        source,
+    })?;
+    Ok(Some(TextView {
+        version: version(&path)?,
+        text,
+    }))
+}
+
+/// `POST /api/file/<id>/edit`, `POST /api/file/<id>/text`, `POST /api/file/<id>/delete`
+/// and `POST /api/files`.
 ///
 /// # Errors
 ///
@@ -289,6 +339,13 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
             let mut body: EditBody = read_body(body)?;
             with_offsets(&mut body.draft.keys, gateway.settings().time_zone());
             proposals.edit(&file, &body.version, &body.draft)?;
+            gateway.refresh()?;
+            let view: Option<FileView> = api::file(gateway, id)?;
+            Ok(view.map(|v| super::to_json(&v)))
+        }
+        "text" => {
+            let body: TextBody = read_body(body)?;
+            proposals.edit_text(&file, &body.version, &body.text)?;
             gateway.refresh()?;
             let view: Option<FileView> = api::file(gateway, id)?;
             Ok(view.map(|v| super::to_json(&v)))
