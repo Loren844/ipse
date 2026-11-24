@@ -1,6 +1,7 @@
 <script lang="ts">
 	// What feeds the memory (issue #152): files imported, calendars followed by link,
-	// calendars and contacts accounts (CalDAV, CardDAV: issue #154).
+	// calendars and contacts accounts (CalDAV, CardDAV: issue #154), Home Assistant
+	// (issue #225).
 	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { api, SessionEnded, type SourcesChange, type SourcesView, type SourceView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
@@ -21,6 +22,7 @@
 		| { kind: 'import'; name: string }
 		| { kind: 'follow' }
 		| { kind: 'connect' }
+		| { kind: 'connect-home' }
 		| { kind: 'sync'; instance: string }
 		| { kind: 'choose'; instance: string }
 		| null = $state(null);
@@ -32,10 +34,16 @@
 	let address = $state('');
 	let user = $state('');
 	let password = $state('');
+	let homeName = $state('');
+	let homeAddress = $state('');
+	let token = $state('');
+	/** The person picked on each Home Assistant, before it is sent. */
+	let persons: Record<string, string> = $state({});
 	/** The collections ticked on each account, before they are sent. */
 	let picks: Record<string, string[]> = $state({});
 
 	const isAccount = (source: SourceView) => source.connector === 'dav';
+	const isHome = (source: SourceView) => source.connector === 'homeassistant';
 	const picked = (source: SourceView) =>
 		picks[source.instance] ?? source.account?.collections.filter((c) => c.followed).map((c) => c.url) ?? [];
 
@@ -47,7 +55,8 @@
 	/** Why a source failed, in the words that fit it. */
 	function problem(source: SourceView, code: string | null): string {
 		const t = i18n.t;
-		return (isAccount(source) ? t.accountProblems[code ?? ''] : undefined) ?? t.runProblems[code ?? ''] ?? t.runFailed;
+		const own = isAccount(source) ? t.accountProblems : isHome(source) ? t.homeProblems : {};
+		return own[code ?? ''] ?? t.runProblems[code ?? ''] ?? t.runFailed;
 	}
 
 	const title = (source: SourceView) => source.name ?? i18n.t.sourceKinds[source.connector] ?? source.connector;
@@ -68,12 +77,17 @@
 			case 'already':
 				return {
 					tone: 'warn',
-					text: working?.kind === 'connect' ? t.alreadyConnected(change.detail ?? '') : t.alreadyFollowed(change.detail ?? '')
+					text:
+						working?.kind === 'connect' || working?.kind === 'connect-home'
+							? t.alreadyConnected(change.detail ?? '')
+							: t.alreadyFollowed(change.detail ?? '')
 				};
 			case 'connected':
-				return { tone: 'done', text: t.connectedNow(name) };
+				return { tone: 'done', text: working?.kind === 'connect-home' ? t.homeConnectedNow(name) : t.connectedNow(name) };
+			case 'bad_address':
+				return { tone: 'warn', text: working?.kind === 'connect-home' ? t.homeBadAddress : t.sourceOutcomes.bad_address };
 			case 'not_connected': {
-				const why = t.accountProblems[change.detail ?? ''];
+				const why = (working?.kind === 'connect-home' ? t.homeProblems : t.accountProblems)[change.detail ?? ''];
 				return { tone: 'warn', text: why ?? t.sourceOutcomes.not_connected };
 			}
 			case 'imported':
@@ -81,7 +95,7 @@
 				return { tone: 'done', text: t.sourceOutcomes[change.outcome] };
 			case 'failed': {
 				const source = change.sources.sources.find((s) => s.instance === change.source);
-				const why = source && isAccount(source) ? problem(source, change.detail) : t.runProblems[change.detail ?? ''];
+				const why = source && (isAccount(source) || isHome(source)) ? problem(source, change.detail) : t.runProblems[change.detail ?? ''];
 				return { tone: 'warn', text: why ? `${t.sourceOutcomes.failed} ${why}` : t.sourceOutcomes.failed };
 			}
 			default:
@@ -143,6 +157,25 @@
 		}
 	}
 
+	async function connectHome(event: SubmitEvent) {
+		event.preventDefault();
+		const change = await run({ kind: 'connect-home' }, () => api.connectHome(homeAddress.trim(), token, homeName.trim()));
+		// The token leaves the page once it is kept.
+		if (change?.source) {
+			token = '';
+			homeAddress = '';
+			homeName = '';
+		}
+	}
+
+	async function choosePerson(event: SubmitEvent, source: SourceView) {
+		event.preventDefault();
+		const person = persons[source.instance];
+		if (!person) return;
+		const change = await run({ kind: 'choose', instance: source.instance }, () => api.choosePerson(source.instance, person));
+		if (change) delete persons[source.instance];
+	}
+
 	async function choose(event: SubmitEvent, source: SourceView) {
 		event.preventDefault();
 		const change = await run({ kind: 'choose', instance: source.instance }, () =>
@@ -153,7 +186,7 @@
 
 	function ask(source: SourceView): Promise<boolean> {
 		const t = i18n.t;
-		const body = isAccount(source) ? t.unfollowAccountBody : t.unfollowBody;
+		const body = isAccount(source) ? t.unfollowAccountBody : isHome(source) ? t.unfollowHomeBody : t.unfollowBody;
 		return new Promise(
 			(resolve) => (question = { title: t.unfollowTitle(title(source)), body, yes: t.unfollow, no: t.keepFollowing, resolve })
 		);
@@ -189,6 +222,8 @@
 			<p class="quiet">{i18n.t.importing(working.name)}</p>
 		{:else if working?.kind === 'connect'}
 			<p class="quiet">{i18n.t.connecting}</p>
+		{:else if working?.kind === 'connect-home'}
+			<p class="quiet">{i18n.t.homeConnecting}</p>
 		{:else if outcome}
 			<Notice tone={outcome.tone}>{outcome.text}</Notice>
 		{/if}
@@ -312,6 +347,48 @@
 				{/each}
 			</details>
 		</section>
+
+		<section aria-labelledby="home-assistant">
+			<h2 id="home-assistant">{i18n.t.homeTitle}</h2>
+			<p class="quiet" id="home-hint">{i18n.t.homeHint}</p>
+			<form class="setting-form" onsubmit={connectHome}>
+				<div class="form-field">
+					<label for="home-name">{i18n.t.homeName}</label>
+					<input id="home-name" type="text" bind:value={homeName} autocomplete="off" />
+				</div>
+				<div class="form-field">
+					<label for="home-address">{i18n.t.homeAddress}</label>
+					<input
+						id="home-address"
+						type="text"
+						inputmode="url"
+						bind:value={homeAddress}
+						required
+						autocomplete="off"
+						spellcheck="false"
+						aria-describedby="home-hint"
+					/>
+				</div>
+				<div class="form-field">
+					<label for="home-token">{i18n.t.homeToken}</label>
+					<input id="home-token" type="password" bind:value={token} required autocomplete="off" />
+				</div>
+				<div class="actions">
+					<button type="submit" class="button primary" disabled={working !== null || !homeAddress.trim() || !token}>
+						{working?.kind === 'connect-home' ? i18n.t.homeConnecting : i18n.t.homeGo}
+					</button>
+				</div>
+			</form>
+			<details class="exports">
+				<summary>{i18n.t.homeTokenHelp}</summary>
+				{#each i18n.t.homeTokenSteps as step (step.title)}
+					<h3>{step.title}</h3>
+					<ul>
+						{#each step.lines as line (line)}<li>{line}</li>{/each}
+					</ul>
+				{/each}
+			</details>
+		</section>
 	</div>
 
 	<section aria-labelledby="yours">
@@ -332,6 +409,43 @@
 							{/if}
 							{#if source.followed && source.failures > 1}
 								<p class="quiet">{i18n.t.failingSince(source.failures)}</p>
+							{/if}
+							{#if source.home}
+								{@const home = source.home}
+								{#if home.plain}
+									<p class="quiet">{i18n.t.homePlain}</p>
+								{/if}
+								{#if home.chosen}
+									<p class="quiet">
+										{i18n.t.followedPerson(home.people.find((p) => p.entity === home.chosen)?.name ?? home.chosen)}
+									</p>
+								{:else if home.people.length}
+									<h4>{i18n.t.choosePerson}</h4>
+									<p class="quiet">{i18n.t.choosePersonHint}</p>
+									<form class="collections" onsubmit={(e) => choosePerson(e, source)}>
+										<ul>
+											{#each home.people as person (person.entity)}
+												<li>
+													<label>
+														<input
+															type="radio"
+															name={`person-${source.instance}`}
+															value={person.entity}
+															checked={persons[source.instance] === person.entity}
+															onchange={() => (persons[source.instance] = person.entity)}
+														/>
+														{person.name}
+													</label>
+												</li>
+											{/each}
+										</ul>
+										<button type="submit" class="button small primary" disabled={working !== null || !persons[source.instance]}>
+											{working?.kind === 'choose' && working.instance === source.instance ? i18n.t.syncing : i18n.t.followPerson}
+										</button>
+									</form>
+								{:else}
+									<p class="quiet">{i18n.t.noPersonFound}</p>
+								{/if}
 							{/if}
 							{#if source.account}
 								{@const account = source.account}
