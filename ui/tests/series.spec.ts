@@ -50,6 +50,7 @@ test('a person and a place show a series once; it still counts among who one see
 	await expect(page.locator('ol.thread').getByRole('link', { name: 'Point d’équipe' })).toHaveCount(1);
 	await expect(page.locator('ol.thread')).toContainText('chaque lundi, 09:30');
 
-	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Frise' }).click();
+	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
+	await page.getByRole('button', { name: 'Années' }).click();
 	await expect(page.locator('.seen').first().getByRole('link', { name: /Elsa Girard/ })).toBeVisible();
 });
