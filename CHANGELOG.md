@@ -7,11 +7,8 @@ What changed in each version of Ipse, for the people who use it. The format foll
 ### Changed
 
 - **The timeline is now the agenda's Years view**: one Agenda tab with List, Week, Month and Years. A month of the timeline opens its calendar, and the Month view links back to what marked that month. Old timeline links still work ([#211](https://github.com/Loren844/ipse/issues/211)).
-<<<<<<< HEAD
-- **The graph starts from one file**, you by default, with its strongest links nearest and at most 30 at first ("Show more" adds the next ones). Events are no longer drawn: two files seen at the same events are linked by a line as thick as they are often together, and the list beside the drawing says each link in words, such as "47 events with you over 12 months" or a relation written in a file. Click a name to put it in the middle; a trail above leads back. Filters by kind, and events counted over 12 months or since always. **Graph** is back in the side bar, and **See its links**, on a file, opens it there ([#213](https://github.com/Loren844/ipse/issues/213)).
-=======
 - **A smoother map, light and dark**: moving and zooming glide, with a trackpad or a finger too, and close places gather in groups that open with a click. The base map, still off until you turn it on, now comes from OpenFreeMap and is drawn in Ipse's colours, dark when the interface is ([#212](https://github.com/Loren844/ipse/issues/212)).
->>>>>>> origin/main
+- **The graph starts from one file**, you by default, with its strongest links nearest and at most 30 at first ("Show more" adds the next ones). Events are no longer drawn: two files seen at the same events are linked by a line as thick as they are often together, and the list beside the drawing says each link in words, such as "47 events with you over 12 months" or a relation written in a file. Click a name to put it in the middle; a trail above leads back. Filters by kind, and events counted over 12 months or since always. **Graph** is back in the side bar, and **See its links**, on a file, opens it there ([#213](https://github.com/Loren844/ipse/issues/213)).
 
 ### Added
 
