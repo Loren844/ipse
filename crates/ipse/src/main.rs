@@ -261,6 +261,18 @@ enum HomeAssistantAction {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Also read where your phone has been, from the Home Assistant app on it; kept
+    /// in the location category, closed to AIs until you open it
+    Positions {
+        /// The source's id, as `ipse homeassistant list` shows it
+        id: String,
+        /// Stop reading them; the places and visits already read stay
+        #[arg(long)]
+        off: bool,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
     /// List the Home Assistants you connected
     List {
         /// Folder of the memory (default: the current folder)
@@ -591,6 +603,9 @@ fn home_assistant(action: HomeAssistantAction) -> ipse_core::Result<()> {
             every.as_deref(),
             vault,
         ),
+        HomeAssistantAction::Positions { id, off, vault } => {
+            cmd::homeassistant::positions(&id, !off, vault)
+        }
         HomeAssistantAction::List { vault } => cmd::server::list(&cmd::homeassistant::KIND, vault),
         HomeAssistantAction::Remove { id, vault } => {
             cmd::server::remove(&cmd::homeassistant::KIND, &id, vault)

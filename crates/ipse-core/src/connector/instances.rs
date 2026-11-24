@@ -39,8 +39,8 @@ pub struct Instance {
     pub name: String,
     /// How often it syncs.
     pub every: SignedDuration,
-    /// Its settings, given to the connector in `hello` (`config`): strings and lists of
-    /// strings only, never a secret.
+    /// Its settings, given to the connector in `hello` (`config`): strings, booleans and
+    /// lists of strings only, never a secret.
     pub config: serde_json::Map<String, serde_json::Value>,
 }
 
@@ -419,7 +419,8 @@ fn format_duration(d: SignedDuration) -> String {
 }
 
 /// A TOML basic string. JSON's string escapes are all valid in TOML.
-/// `config` as a TOML inline table: strings and lists of strings, the rest left out.
+/// `config` as a TOML inline table: strings, booleans and lists of strings, the rest
+/// left out.
 fn inline_table(config: &serde_json::Map<String, serde_json::Value>) -> String {
     use serde_json::Value;
     let entries: Vec<String> = config
@@ -427,6 +428,7 @@ fn inline_table(config: &serde_json::Map<String, serde_json::Value>) -> String {
         .filter_map(|(key, value)| {
             let value = match value {
                 Value::String(text) => quote(text),
+                Value::Bool(on) => on.to_string(),
                 Value::Array(items) => {
                     let items: Vec<String> =
                         items.iter().filter_map(Value::as_str).map(quote).collect();
@@ -507,6 +509,7 @@ mod tests {
             "url": "https://cloud.example.org",
             "user": "inès \"r\"",
             "collections": ["/dav/cal/perso/", "/dav/card/contacts/"],
+            "positions": true,
             "ignored": 3,
         });
         let serde_json::Value::Object(config) = config else {
@@ -527,9 +530,10 @@ mod tests {
             kept["collections"],
             serde_json::json!(["/dav/cal/perso/", "/dav/card/contacts/"])
         );
+        assert_eq!(kept["positions"], true);
         assert!(
             !kept.contains_key("ignored"),
-            "only strings and lists of them"
+            "only strings, booleans and lists of strings"
         );
         let text = std::fs::read_to_string(dir.path().join(INSTANCES_FILE)).unwrap();
         assert!(

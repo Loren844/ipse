@@ -12,4 +12,8 @@ chosen: string | null, choices: Array<ChoiceView>,
 /**
  * Its address is `http://`, on the home network: the token goes unencrypted there.
  */
-plain: boolean, };
+plain: boolean, 
+/**
+ * For Home Assistant: whether it also reads the phone's positions (issue #208).
+ */
+positions: boolean | null, };

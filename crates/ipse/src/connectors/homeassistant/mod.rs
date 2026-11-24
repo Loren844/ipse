@@ -3,7 +3,10 @@
 //!
 //! Decision 0008, rung 1: Home Assistant's REST API, with a long-lived access token the
 //! person creates. The presence of one `person.*` entity, the one the person chose, is
-//! sent as one `home.presence` record per stay.
+//! sent as one `home.presence` record per stay. When the person also asked for their
+//! positions (`positions` in the config, issue #208), the GPS positions the Home
+//! Assistant app of their phone sent are turned into stays, sent as `location.visit`
+//! records.
 
 use std::io::{BufRead, Write};
 
@@ -17,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use super::rest::{self, Client, Failure, Service};
+use super::stays::{self, Position};
 
 pub(crate) use super::rest::Found;
 
@@ -84,7 +88,7 @@ pub(crate) fn manifest() -> Manifest {
         command: vec!["ipse".into(), "connector".into(), ID.into()],
         modes: vec![Mode::Sync],
         rung: 1,
-        kinds: vec![KIND.to_owned()],
+        kinds: vec![KIND.to_owned(), stays::VISIT.to_owned()],
         category: "home".to_owned(),
         access: Access {
             // Only the server the person gives.
@@ -114,6 +118,10 @@ pub(crate) struct Cursor {
     /// The chosen person's stay going on, read again at the next session.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     current: Option<Stay>,
+    /// When positions are read: where the positions of the place the person is at
+    /// start, read again at the next session.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    positions_from: Option<Timestamp>,
 }
 
 /// Runs one session.
@@ -166,7 +174,8 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
         .and_then(|c| serde_json::from_value::<Cursor>(c).ok())
         .unwrap_or_default();
     let person = Some(text("person")).filter(|p| !p.is_empty());
-    match sync(&client, person, cursor, full, Timestamp::now()) {
+    let positions = hello.config.get("positions").and_then(Value::as_bool) == Some(true);
+    match sync(&client, person, positions, cursor, full, Timestamp::now()) {
         Ok((records, cursor)) => {
             let upserts = records.len() as u64;
             session.push(records, serde_json::to_value(&cursor).ok())?;
@@ -186,6 +195,7 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
 fn sync(
     client: &Client,
     person: Option<&str>,
+    positions: bool,
     mut cursor: Cursor,
     full: bool,
     now: Timestamp,
@@ -206,9 +216,60 @@ fn sync(
         now.round(jiff::Unit::Second).unwrap_or(now),
     );
     let stays = stays(&client.get(&path)?, previous.as_ref());
-    let records = records(person, &stays, now);
+    let mut records = records(person, &stays, now);
     cursor.current = stays.last().cloned();
+    if positions {
+        let from = cursor
+            .positions_from
+            .take()
+            .filter(|_| !full)
+            .unwrap_or(now - FIRST_READ);
+        // Every change of the person's position, not only of their zone.
+        let path = format!(
+            "/api/history/period/{}?filter_entity_id={}&end_time={}&significant_changes_only=0",
+            from.round(jiff::Unit::Second).unwrap_or(from),
+            rest::encode(person),
+            now.round(jiff::Unit::Second).unwrap_or(now),
+        );
+        let (visits, open) = stays::stays(&positions_in(&client.get(&path)?));
+        records.extend(stays::records(&visits));
+        cursor.positions_from = Some(open.unwrap_or(now));
+    } else {
+        cursor.positions_from = None;
+    }
     Ok((records, cursor))
+}
+
+/// The GPS positions in an answer of `/api/history/period` with attributes: those
+/// that carry `latitude` and `longitude`, with the zone the person was in.
+fn positions_in(history: &Value) -> Vec<Position> {
+    history
+        .get(0)
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| {
+            let attributes = item.get("attributes")?;
+            let at = item
+                .get("last_updated")
+                .or_else(|| item.get("last_changed"))?
+                .as_str()?
+                .parse()
+                .ok()?;
+            let zone = item
+                .get("state")
+                .and_then(Value::as_str)
+                .filter(|s| !matches!(*s, "not_home" | "unknown" | "unavailable"))
+                .map(str::to_owned);
+            Some(Position {
+                at,
+                lat: attributes.get("latitude")?.as_f64()?,
+                lon: attributes.get("longitude")?.as_f64()?,
+                accuracy: attributes.get("gps_accuracy").and_then(Value::as_f64),
+                zone,
+            })
+        })
+        .collect()
 }
 
 /// The `person.*` entities of `/api/states`, with their names.
@@ -326,7 +387,7 @@ mod tests {
         assert_eq!((m.id.as_str(), m.rung), ("homeassistant", 1));
         assert_eq!(m.modes, [Mode::Sync]);
         assert_eq!(m.access.secrets, ["token"]);
-        assert_eq!(m.kinds, ["home.presence"]);
+        assert_eq!(m.kinds, ["home.presence", "location.visit"]);
         assert_eq!(m.category, "home");
     }
 
@@ -380,5 +441,22 @@ mod tests {
         let last = sent[2].data.as_ref().unwrap();
         assert_eq!(last["seen"], "2026-11-21T09:00:00Z");
         assert!(last.get("end").is_none());
+    }
+
+    #[test]
+    fn positions_come_with_their_zone() {
+        let history = json!([[
+            {"state": "home", "attributes": {"latitude": 48.8566, "longitude": 2.3522, "gps_accuracy": 12},
+             "last_changed": "2026-11-21T06:00:00+00:00", "last_updated": "2026-11-21T07:00:00+00:00"},
+            {"state": "not_home", "attributes": {"latitude": 48.86, "longitude": 2.33},
+             "last_updated": "2026-11-21T08:10:00+00:00"},
+            {"state": "unavailable", "attributes": {}, "last_updated": "2026-11-21T08:20:00+00:00"},
+        ]]);
+        let found = positions_in(&history);
+        assert_eq!(found.len(), 2);
+        assert_eq!(found[0].at, at("2026-11-21T07:00:00Z"));
+        assert_eq!(found[0].zone.as_deref(), Some("home"));
+        assert_eq!(found[0].accuracy, Some(12.0));
+        assert_eq!(found[1].zone, None);
     }
 }

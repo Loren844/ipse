@@ -22,6 +22,8 @@ struct Home {
     people: Vec<(&'static str, &'static str)>,
     /// Each change: when, and the new state.
     changes: Vec<(Timestamp, String)>,
+    /// The GPS positions the phone sent: when, where, and the zone it was in.
+    positions: Vec<(Timestamp, (f64, f64), &'static str)>,
     /// Each request's path.
     seen: Vec<String>,
 }
@@ -96,6 +98,23 @@ fn answer(home: &mut Home, path: &str) -> (u16, String) {
     }
     if let Some(rest) = path.strip_prefix("/api/history/period/") {
         let from: Timestamp = rest.split('?').next().unwrap().parse().unwrap();
+        if path.contains("significant_changes_only=0") {
+            assert!(!path.contains("no_attributes"), "positions are attributes");
+            let items: Vec<serde_json::Value> = home
+                .positions
+                .iter()
+                .filter(|(at, _, _)| *at >= from)
+                .map(|(at, (lat, lon), zone)| {
+                    serde_json::json!({
+                        "state": zone,
+                        "attributes": {"latitude": lat, "longitude": lon, "gps_accuracy": 15},
+                        "last_changed": at.to_string(),
+                        "last_updated": at.to_string(),
+                    })
+                })
+                .collect();
+            return (200, serde_json::json!([items]).to_string());
+        }
         // The state at the start of the period, then each change after it.
         let mut items = Vec::new();
         if let Some((_, state)) = home.changes.iter().rev().find(|(at, _)| *at <= from) {
@@ -318,4 +337,100 @@ fn with_several_people_ipse_asks_whom_to_follow() {
     let (ok, said) = memory.add(&server, &["--person", "person.ines"], TOKEN);
     assert!(ok, "{said}");
     assert!(memory.home_log().contains("| Domicile "));
+}
+
+#[test]
+fn the_phone_s_positions_become_places_and_visits_when_asked() {
+    const HOME: (f64, f64) = (48.8566, 2.3522);
+    const WORKSHOP: (f64, f64) = (48.8738, 2.2950);
+    let server = Server::start();
+    server.with(|h| {
+        h.people.push(("person.ines", "Inès"));
+        h.changes = vec![(hours_ago(30), "home".to_owned())];
+        h.positions = vec![
+            (hours_ago(30), HOME, "home"),
+            (hours_ago(29), HOME, "home"),
+            (hours_ago(20), (48.8650, 2.3200), "not_home"),
+            (hours_ago(19), WORKSHOP, "Atelier"),
+            (hours_ago(17), WORKSHOP, "Atelier"),
+            (hours_ago(16), (48.8600, 2.3400), "not_home"),
+            (hours_ago(15), HOME, "home"),
+        ];
+    });
+    let memory = Memory::new();
+    let (ok, said) = memory.add(&server, &["--name", "Maison"], TOKEN);
+    assert!(ok, "{said}");
+    assert!(
+        !memory.vault.join("states/location").exists(),
+        "positions are read only when the person asks"
+    );
+    assert!(
+        server.with(|h| h
+            .seen
+            .iter()
+            .all(|p| !p.contains("significant_changes_only=0"))),
+        "positions are not even fetched"
+    );
+
+    let vault = memory.vault_arg();
+    let (_, listed) = memory.ipse(&["homeassistant", "list", "--vault", &vault], "");
+    let id = listed.split_whitespace().next().unwrap().to_owned();
+    let (ok, said) = memory.ipse(&["homeassistant", "positions", &id, "--vault", &vault], "");
+    assert!(ok, "{said}");
+    assert!(said.contains("2 stays read"), "{said}");
+
+    // The workshop is a place, named after its zone, and the stay there an event; the
+    // stays at home only count in the state log. All of it is in `location`.
+    let workshop = files(&memory.vault.join("places"))
+        .into_iter()
+        .map(|p| std::fs::read_to_string(p).unwrap())
+        .find(|t| t.contains("Atelier"))
+        .expect("a place for the workshop");
+    assert!(workshop.contains("category: location"), "{workshop}");
+    let events: Vec<String> = files(&memory.vault.join("events"))
+        .into_iter()
+        .map(|p| std::fs::read_to_string(p).unwrap())
+        .filter(|t| t.contains("category: location"))
+        .collect();
+    assert_eq!(events.len(), 1, "{events:?}");
+    assert!(events[0].contains("Atelier"), "{}", events[0]);
+    let log_dir = memory.vault.join("states/location");
+    let log = std::fs::read_to_string(files(&log_dir).pop().unwrap()).unwrap();
+    assert!(log.contains("| [[atelier]] |"), "{log}");
+    memory.assert_no_token();
+
+    // Syncing again reads from the stay going on, and adds nothing twice.
+    memory.sync();
+    let again: usize = files(&memory.vault.join("events"))
+        .into_iter()
+        .filter(|p| {
+            std::fs::read_to_string(p)
+                .unwrap()
+                .contains("category: location")
+        })
+        .count();
+    assert_eq!(again, 1);
+
+    let (ok, said) = memory.ipse(
+        &[
+            "homeassistant",
+            "positions",
+            &id,
+            "--off",
+            "--vault",
+            &vault,
+        ],
+        "",
+    );
+    assert!(ok && said.contains("no longer reads"), "{said}");
+    server.with(|h| h.seen.clear());
+    memory.sync();
+    assert!(
+        server.with(|h| h
+            .seen
+            .iter()
+            .all(|p| !p.contains("significant_changes_only=0"))),
+        "off means not fetched"
+    );
+    assert!(log_dir.exists(), "what was read stays");
 }

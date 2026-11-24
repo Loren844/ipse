@@ -72,6 +72,8 @@ pub(crate) struct ServerView {
     choices: Vec<ChoiceView>,
     /// Its address is `http://`, on the home network: the token goes unencrypted there.
     plain: bool,
+    /// For Home Assistant: whether it also reads the phone's positions (issue #208).
+    positions: Option<bool>,
 }
 
 /// Someone of a server: a person of Home Assistant, a user of Jellyfin.
@@ -185,6 +187,13 @@ struct ConnectServerBody {
 struct ChooseOneBody {
     instance: String,
     choice: String,
+}
+
+/// `POST /api/sources/positions`.
+#[derive(Debug, Deserialize)]
+struct PositionsBody {
+    instance: String,
+    on: bool,
 }
 
 /// `POST /api/sources/choose`.
@@ -312,6 +321,8 @@ fn server_view(
         chosen: server::chosen(kind, instance),
         choices,
         plain,
+        positions: (instance.connector == crate::connectors::homeassistant::ID)
+            .then(|| server::reads_positions(instance)),
     })
 }
 
@@ -354,6 +365,21 @@ pub(crate) fn change(
                 "failed"
             };
             let code = failed_code(gateway, synced.succeeded())?;
+            answer(gateway, outcome, code, Some(body.instance)).map(Some)
+        }
+        "positions" => {
+            let body: PositionsBody = read(body)?;
+            let synced =
+                server::set_positions(gateway.vault(), &body.instance, body.on, &*secrets())?;
+            let succeeded = synced
+                .as_ref()
+                .is_none_or(ipse_core::sync::Synced::succeeded);
+            let outcome = match (body.on, succeeded) {
+                (_, false) => "failed",
+                (true, true) => "positions",
+                (false, true) => "noPositions",
+            };
+            let code = failed_code(gateway, succeeded)?;
             answer(gateway, outcome, code, Some(body.instance)).map(Some)
         }
         "choose" => {

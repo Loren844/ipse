@@ -173,6 +173,7 @@ export const api = {
 	connectServer: (connector: string, url: string, token: string, name: string) =>
 		post<SourcesChange>('/api/sources/connect-server', { connector, url, token, name }),
 	chooseOne: (instance: string, choice: string) => post<SourcesChange>('/api/sources/choose-one', { instance, choice }),
+	setPositions: (instance: string, on: boolean) => post<SourcesChange>('/api/sources/positions', { instance, on }),
 	chooseCollections: (instance: string, collections: string[]) =>
 		post<SourcesChange>('/api/sources/choose', { instance, collections }),
 	syncSource: (instance: string) => post<SourcesChange>('/api/sources/sync', { instance }),

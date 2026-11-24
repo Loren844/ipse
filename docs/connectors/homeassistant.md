@@ -8,10 +8,10 @@ Reads, from your own Home Assistant, when you are at home and in which zones, so
 | Rung (decision 0008) | 1: Home Assistant's REST API, the interface it offers other apps, with an access token you create. |
 | Modes | `sync` |
 | Access | the network, only to the Home Assistant you give (`network = ["*"]`); one secret, `token` (a long-lived access token), kept in the system keychain |
-| Config | `url` (its address), `person` (the person followed, like `person.ines`) |
+| Config | `url` (its address), `person` (the person followed, like `person.ines`), `positions` (`true` when the person asked for their phone's positions too) |
 | Sync | every 5 minutes by default: being at home is "current" for 15 minutes (`docs/spec/vault.md`, section 5.2) |
-| Category | `home`, **closed to AIs by default** (`docs/spec/rights.md`) |
-| Kinds | `home.presence` |
+| Category | `home`, and `location` for the positions; both **closed to AIs by default** (`docs/spec/rights.md`) |
+| Kinds | `home.presence`; `location.visit` when the positions are read |
 
 Read only: Ipse never writes to Home Assistant and never controls a device.
 
@@ -45,7 +45,19 @@ The person's state is `home`, `not_home`, or the name of a zone of Home Assistan
 
 The stay going on is sent again at each session with a new `seen`, so that the memory knows it still holds; a stay that ended does not change, and the journal skips it when it is sent again. The first state of an answer is the one at `<from>`: when it goes on the stay of the last session, that stay keeps its own start.
 
-The cursor holds the people found, with their names, and the state and start of the stay going on. Nothing else.
+The cursor holds the people found, with their names, the state and start of the stay going on, and, when positions are read, where the positions of the place the person is at start. Nothing else.
+
+### The phone's positions, when the person asks
+
+Off until the person turns it on: **Lire aussi où va mon téléphone** (**Also read where my phone goes**) on the source in **Sources**, or `ipse homeassistant positions <id>` (`--off` to stop). It needs the Home Assistant app on the phone, with its location sent to Home Assistant: the `person.*` entity then carries the phone's GPS position. It replaces the export of the Google Timeline (issue #208), and the positions go nowhere but the person's own Home Assistant and Ipse.
+
+3. `GET /api/history/period/<from>?filter_entity_id=<person>&end_time=<now>&significant_changes_only=0` gives every update of the person, with its attributes: `latitude`, `longitude`, `gps_accuracy`, at `last_updated`, and the zone the person was in as the state. `<from>` is where the positions of the place the person is at start, or 10 days back the first time.
+
+The positions become stays (`connectors/stays.rs`): positions within 100 meters of their middle, for at least 10 minutes, are one stay. A stay ends at the first position away from it, when that one comes within 12 hours, else at its last position. A lone position counts only in a zone of Home Assistant, as a phone on the way can be silent for a while. Positions less precise than 250 meters are left out. The stay going on is not sent: it is read again at the next session, from its first position.
+
+Each stay that ended is one `upsert` of **`location.visit`**, with the fields of the location history connector (`docs/connectors/location.md`): `start`, `end`, `lat`, `lon`, `semantic` = `home` for a stay in the zone `home`, `name` = the zone's name for a stay in another zone. `external_id`: `visit:<start, Unix seconds>:<lat>,<lon>`. Positions themselves are not kept.
+
+The stays then become places, visit events and the `location` state log, as the Google Timeline's do, in the `location` category: a place found within 75 meters is the same place, a new one is named after its zone, or "Lieu près de …" outside zones; a stay at home only counts in the state log.
 
 ## In the vault
 

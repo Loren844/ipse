@@ -156,8 +156,13 @@ const words = {
 			failed: 'L’agenda n’a pas pu être lu.',
 			keychain:
 				'Ipse n’a pas pu utiliser le trousseau de votre système pour garder le lien. Sur Linux, un trousseau comme GNOME Keyring doit être installé et déverrouillé.',
-			synced: 'Synchronisé.'
+			synced: 'Synchronisé.',
+			positions: 'Ipse lit maintenant les positions de votre téléphone : les lieux et les visites arrivent dans la catégorie « position ».',
+			noPositions: 'Ipse ne lit plus les positions de votre téléphone. Les lieux et les visites déjà lus restent dans votre mémoire.'
 		} as Record<string, string>,
+		positionsLabel: 'Lire aussi où va mon téléphone',
+		positionsHint:
+			'Les positions GPS que l’application Home Assistant de votre téléphone envoie à votre serveur deviennent des lieux et des visites, dans la catégorie « position », fermée aux IA tant que vous ne l’ouvrez pas. Elles ne vont nulle part ailleurs.',
 		alreadyFollowed: (name: string) => `Cet agenda est déjà suivi, sous le nom « ${name} ».`,
 		followedNow: (name: string) => `« ${name} » est suivi.`,
 		keptNow: (name: string) => `« ${name} » est suivi, mais l’agenda n’a pas pu être joint pour l’instant : Ipse réessaiera.`,
@@ -1137,8 +1142,13 @@ const words = {
 			failed: 'The calendar could not be read.',
 			keychain:
 				'Ipse could not use your system’s keychain to keep the link. On Linux, a keyring such as GNOME Keyring must be installed and unlocked.',
-			synced: 'Synced.'
+			synced: 'Synced.',
+			positions: 'Ipse now reads your phone’s positions: places and visits come into the “location” category.',
+			noPositions: 'Ipse no longer reads your phone’s positions. The places and visits already read stay in your memory.'
 		} as Record<string, string>,
+		positionsLabel: 'Also read where my phone goes',
+		positionsHint:
+			'The GPS positions the Home Assistant app of your phone sends to your server become places and visits, in the “location” category, closed to AIs until you open it. They go nowhere else.',
 		alreadyFollowed: (name: string) => `This calendar is already followed, as “${name}”.`,
 		followedNow: (name: string) => `“${name}” is followed.`,
 		keptNow: (name: string) => `“${name}” is followed, but the calendar could not be reached for now: Ipse will try again.`,

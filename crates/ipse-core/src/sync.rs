@@ -13,9 +13,9 @@ use crate::connector::{
 };
 use crate::journal::Journal;
 use crate::materialize::{
-    EventsSummary, HomeSummary, PHOTOS, PRESENCE, PeopleSummary, PhotosSummary, WATCHED,
-    WatchingSummary, calendar_to_events, contacts_to_people, home_to_vault, photos_to_vault,
-    watching_to_vault,
+    EventsSummary, HomeSummary, LocationSummary, PHOTOS, PRESENCE, PeopleSummary, PhotosSummary,
+    VISIT, WATCHED, WatchingSummary, calendar_to_events, contacts_to_people, home_to_vault,
+    location_to_vault, photos_to_vault, watching_to_vault,
 };
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Source, Vault};
@@ -45,11 +45,12 @@ pub const SYNCABLE: [Syncable; 5] = [
         kinds: &["calendar.event", "contact.card"],
         secrets: &["password"],
     },
-    // The person's own Home Assistant: when they are at home, and in which zones
+    // The person's own Home Assistant: when they are at home, and in which zones, and,
+    // when they ask, the stays of their phone's positions
     // (`docs/connectors/homeassistant.md`).
     Syncable {
         connector: "homeassistant",
-        kinds: &[PRESENCE],
+        kinds: &[PRESENCE, VISIT],
         secrets: &["token"],
     },
     // The person's own Jellyfin: the films and series they watch
@@ -92,6 +93,8 @@ pub struct Synced {
     pub watching: Option<WatchingSummary>,
     /// The people of the photos, for Immich.
     pub photos: Option<PhotosSummary>,
+    /// The places and visits of the phone's positions, for Home Assistant.
+    pub location: Option<LocationSummary>,
     /// Tasks made for the person's AI from what the sync brought.
     pub tasks: usize,
     /// Possible duplicates proposed to the person after the sync.
@@ -230,6 +233,16 @@ pub fn sync_instance(
     };
     let (home, watching, photos) =
         to_state_logs(vault, &journal, &instance.id, kinds, &mut change)?;
+    let location = if kinds.contains(&VISIT) {
+        Some(location_to_vault(
+            vault,
+            &journal,
+            &instance.id,
+            &mut change,
+        )?)
+    } else {
+        None
+    };
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
     let tasks = Tasks::new(vault).extract_from(&touched)?;
@@ -261,6 +274,7 @@ pub fn sync_instance(
         home,
         watching,
         photos,
+        location,
         tasks,
     };
     SyncState::load(root)?.record(&instance.id, options.now, synced.succeeded())?;
