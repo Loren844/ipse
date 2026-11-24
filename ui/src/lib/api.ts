@@ -63,6 +63,7 @@ export type { EventView } from './types/EventView.ts';
 export type { EntityView } from './types/EntityView.ts';
 export type { LinkView } from './types/LinkView.ts';
 import type { EditView } from './types/EditView.ts';
+import type { TextView } from './types/TextView.ts';
 import type { SavedView } from './types/SavedView.ts';
 export type { EditView, SavedView };
 import type { GraphView } from './types/GraphView.ts';
@@ -187,6 +188,8 @@ export const api = {
 	search: (q: string) => get<SearchView>('/api/search', { q }),
 	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
+	fileText: (id: string) => get<TextView>(`/api/file/${encodeURIComponent(id)}/text`),
+	saveText: (id: string, version: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/text`, { version, text }),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),
 	deleteFile: (id: string, version: string) => post<SavedView>(`/api/file/${encodeURIComponent(id)}/delete`, { version }),

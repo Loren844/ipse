@@ -294,7 +294,8 @@ nav a[aria-current='page'] svg {
 	cursor: pointer;
 }
 
-.segmented button[aria-pressed='true'] {
+.segmented button[aria-pressed='true'],
+.segmented button[aria-selected='true'] {
 	background: var(--thread-soft);
 	color: var(--thread-ink);
 }
@@ -2272,6 +2273,29 @@ dialog[open]::backdrop {
 .person-head .head-actions {
 	margin-left: auto;
 	align-self: center;
+}
+
+/* Modifier: the form or the file as written (issue #142). */
+.editor-tabs {
+	margin-top: 1.5rem;
+}
+
+.editor-tabs + [role='tabpanel'] .editor {
+	margin-top: 1rem;
+}
+
+.markdown-editor {
+	max-width: 48rem;
+}
+
+.markdown-editor .form-field textarea {
+	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	font-size: var(--step--1);
+	line-height: 1.5;
+	tab-size: 2;
+	white-space: pre;
+	overflow-wrap: normal;
+	overflow-x: auto;
 }
 
 .editor {
