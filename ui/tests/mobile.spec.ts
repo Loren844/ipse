@@ -59,9 +59,12 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await panel.getByRole('button', { name: 'Fermer' }).click();
 	await expect(panel).toBeHidden();
 	await expect(more).toBeFocused();
+	// The browser gives focus back to More as the panel closes, then the panel's close
+	// event gives it again; aria-expanded turns false in that same handler. Waiting for it
+	// keeps that second focus from landing after the search is filled (#163).
+	await expect(more).toHaveAttribute('aria-expanded', 'false');
 
 	// The search, from the top bar of any screen.
-	// Enter on the search box itself: focus may still be coming back to More.
 	const search = page.getByRole('searchbox', { name: 'Chercher dans la mémoire' });
 	await search.fill('escalade');
 	await search.press('Enter');
