@@ -503,7 +503,8 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
         "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
-        "graph" => graph::view(gateway).map(|v| Some(to_json(&v))),
+        "graph" => graph::view(gateway, param("id").as_deref(), param("period").as_deref())
+            .map(|v| v.map(|v| to_json(&v))),
         "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
         "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
         "summaries" => {

@@ -287,79 +287,92 @@ fn an_ai_graph_holds_only_what_it_may_read() {
     );
 }
 
-/// The names of the two files of each link of the whole graph, in order.
-fn linked(graph: &ipse_core::rights::WholeGraphOut) -> Vec<(&str, &str)> {
+/// The neighbours of `graph`: name, words, words back, events together.
+fn around(graph: &ipse_core::rights::AroundOut) -> Vec<(&str, Vec<&str>, Vec<&str>, u32)> {
     graph
-        .edges
+        .neighbours
         .iter()
-        .map(|&(a, b)| {
+        .map(|n| {
             (
-                graph.nodes[a as usize].name.as_str(),
-                graph.nodes[b as usize].name.as_str(),
+                n.node.name.as_str(),
+                n.words.iter().map(String::as_str).collect(),
+                n.back.iter().map(String::as_str).collect(),
+                n.together,
             )
         })
         .collect()
 }
 
+fn always() -> (jiff::Timestamp, jiff::Timestamp) {
+    (jiff::Timestamp::MIN, jiff::Timestamp::MAX)
+}
+
 #[test]
-fn the_whole_memory_is_one_graph_around_its_owner() {
+fn a_file_and_its_neighbours_without_events_as_nodes() {
     let dir = tempfile::tempdir().unwrap();
     memory(dir.path());
     let mut gateway = Gateway::open(dir.path()).unwrap();
     let owner = gateway.fresh_owner().unwrap();
 
-    let all = owner.whole_graph(&[], None);
-    assert!(all.centered);
-    let names: Vec<(&str, u8)> = all
-        .nodes
+    // Marie: relations both ways, and the place of an event she was at.
+    let marie = owner.people(Some("Marie Durand"), 1, 0).items[0].id.clone();
+    let graph = owner.around(Some(&marie), always()).unwrap();
+    assert_eq!(graph.center.name, "Marie Durand");
+    assert!(!graph.mine);
+    assert_eq!(
+        around(&graph),
+        [
+            ("Atelier Nord", vec!["travaille chez"], vec![], 0),
+            ("Dr Morel", vec![], vec!["patiente"], 0),
+            ("Paul Roux", vec![], vec!["sœur"], 0),
+            ("Inès Roux", vec![], vec![], 2),
+            ("Chez Marie", vec![], vec![], 1),
+        ],
+        "written relations first, then by events together, the owner in each; no event"
+    );
+    assert_eq!(
+        graph.neighbours[4].last.as_deref(),
+        Some("2026-11-14T20:00:00+01:00")
+    );
+
+    // The owner by default: every event is theirs.
+    let mine = owner.around(None, always()).unwrap();
+    assert!(mine.mine);
+    assert_eq!(mine.center.name, "Inès Roux");
+    assert_eq!(
+        around(&mine)
+            .iter()
+            .map(|(n, _, _, t)| (*n, *t))
+            .collect::<Vec<_>>(),
+        [("Marie Durand", 2), ("Chez Marie", 1)]
+    );
+
+    // Only the events of the period count.
+    let october = (
+        "2026-09-01T00:00:00Z".parse().unwrap(),
+        "2026-10-31T00:00:00Z".parse().unwrap(),
+    );
+    let autumn = owner.around(None, october).unwrap();
+    assert_eq!(around(&autumn), [("Marie Durand", vec![], vec![], 1)]);
+
+    // An event at the center: its place and people.
+    let dinner = "01jcx8m2p4q6r8t0v2w4y6z807";
+    let dinner = owner.around(Some(dinner), always()).unwrap();
+    let names: Vec<&str> = dinner
+        .neighbours
         .iter()
-        .map(|n| (n.name.as_str(), n.depth))
+        .map(|n| n.node.name.as_str())
         .collect();
     assert_eq!(
         names,
-        [
-            ("Inès Roux", 0),
-            ("Atelier Nord", 1),
-            ("Chez Marie", 1),
-            ("Dr Morel", 1),
-            ("Les Jours de sel", 1),
-            ("Marie Durand", 1),
-            ("Paul Roux", 1),
-            ("Dîner", 1),
-            ("Café", 1),
-        ],
-        "the owner first, then entities by name, then events, the most recent first"
+        ["Chez Marie", "Marie Durand"],
+        "the owner only when named"
     );
-    assert!(all.nodes[3].sensitive, "health is marked");
-    let links = linked(&all);
-    for pair in [
-        ("Atelier Nord", "Marie Durand"),
-        ("Chez Marie", "Dîner"),
-        ("Dr Morel", "Marie Durand"),
-        ("Marie Durand", "Paul Roux"),
-        ("Marie Durand", "Dîner"),
-        ("Marie Durand", "Café"),
-    ] {
-        assert!(links.contains(&pair), "{pair:?} in {links:?}");
-    }
-    assert_eq!(links.len(), 6, "each link once, a missing file none");
-    assert!(all.edges.iter().all(|&(a, b)| a < b));
-
-    // Filters: the owner stays at the center.
-    let people = owner.whole_graph(&[FileType::Person], None);
-    let names: Vec<&str> = people.nodes.iter().map(|n| n.name.as_str()).collect();
-    assert_eq!(
-        names,
-        ["Inès Roux", "Dr Morel", "Marie Durand", "Paul Roux"]
-    );
-    assert_eq!(linked(&people).len(), 2);
-    let work = owner.whole_graph(&[], Some(&["work".to_owned()]));
-    let names: Vec<&str> = work.nodes.iter().map(|n| n.name.as_str()).collect();
-    assert_eq!(names, ["Inès Roux", "Atelier Nord"]);
+    assert!(owner.around(Some("nothing"), always()).is_none());
 }
 
 #[test]
-fn an_ai_whole_graph_holds_only_what_it_may_read() {
+fn an_ai_sees_only_the_neighbours_it_may_read() {
     let dir = tempfile::tempdir().unwrap();
     memory(dir.path());
     let vault = Vault::open(dir.path()).unwrap();
@@ -375,12 +388,11 @@ fn an_ai_whole_graph_holds_only_what_it_may_read() {
         .unwrap();
     let gateway = Gateway::open(dir.path()).unwrap();
     let ai = gateway.access(Some(token.expose())).unwrap();
-    let graph = ai.whole_graph(&[], None);
-    assert!(!graph.nodes.iter().any(|n| n.name == "Dr Morel"));
+    let marie = ai.people(Some("Marie Durand"), 1, 0).items[0].id.clone();
+    let graph = ai.around(Some(&marie), always()).unwrap();
+    assert!(!graph.neighbours.iter().any(|n| n.node.name == "Dr Morel"));
     assert!(
-        !linked(&graph)
-            .iter()
-            .any(|(a, b)| *a == "Dr Morel" || *b == "Dr Morel")
+        ai.around(Some("01jcx8m2p4q6r8t0v2w4y6z803"), always())
+            .is_none()
     );
-    assert!(graph.nodes.iter().any(|n| n.name == "Marie Durand"));
 }

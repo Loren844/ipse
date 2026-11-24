@@ -2550,16 +2550,9 @@ dialog[open]::backdrop {
 	color: var(--thread-ink);
 }
 
-/* The whole memory's graph (issue #174): quiet shapes and lines, the thread's red for
-   you, the chosen file and its links; a shape per kind and hollow shapes for what AIs
-   cannot see, never colour alone. Beside the list in Mémoire, instead of it when narrow. */
-.graph-filters-box summary {
-	cursor: pointer;
-	font-weight: 700;
-	font-size: var(--step--1);
-	width: fit-content;
-}
-
+/* The graph's filters and shapes: quiet shapes and lines, the thread's red for the file
+   at the center and the link pointed at; a shape per kind and hollow shapes for what
+   AIs cannot see, never colour alone. */
 .graph-filters {
 	display: flex;
 	flex-wrap: wrap;
@@ -2625,97 +2618,156 @@ dialog[open]::backdrop {
 	cursor: not-allowed;
 }
 
-.screen.with-graph {
-	max-width: none;
+/* The graph centred on one file (issue #213): the drawing, and beside it the same
+   neighbours as a list, each link said in words. */
+.graph-trail ol {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.2rem 0;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: var(--step--1);
 }
 
-.memory-split {
+.graph-trail a {
+	display: inline;
+	padding: 0;
+	color: var(--thread-ink);
+	text-decoration: underline;
+	font-size: inherit;
+}
+
+.graph-trail a:hover {
+	background: none;
+}
+
+.graph-trail li + li::before {
+	content: '›';
+	margin: 0 0.5rem;
+	color: var(--muted);
+}
+
+.graph-trail [aria-current] {
+	font-weight: 700;
+}
+
+.graph-layout {
 	display: grid;
-	grid-template-columns: minmax(17rem, 24rem) minmax(0, 1fr);
-	gap: 2rem;
+	grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+	gap: 1.5rem;
 	align-items: start;
-}
-
-.memory-split > .memory-list {
-	display: flex;
-	flex-direction: column;
-	gap: 2.5rem;
-	min-width: 0;
-}
-
-.memory-graph {
-	position: sticky;
-	top: 1rem;
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	min-width: 0;
+	margin-top: 1rem;
 }
 
 .graph-stage {
-	position: relative;
-	height: min(calc(100vh - 6rem), 52rem);
-	min-height: 22rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.ego-graph {
+	height: min(calc(100vh - 16rem), 40rem);
+	min-height: 24rem;
 	border: 1.5px solid var(--line);
 	border-radius: var(--radius-l);
 	background: var(--surface);
-	overflow: hidden;
+	overflow: hidden auto;
 }
 
-.memory-graph-canvas {
-	position: absolute;
-	inset: 0;
-}
-
-.memory-graph-canvas canvas {
+.ego-graph svg {
 	display: block;
-	touch-action: none;
-	cursor: grab;
 	font-family: var(--text-font);
-	border-radius: var(--radius-l);
+	font-size: 12.5px;
 }
 
-.memory-graph-canvas:focus-visible {
-	outline-offset: -3px;
-}
-
-.graph-zoom {
-	position: absolute;
-	top: 0.6rem;
-	right: 0.6rem;
-	display: flex;
-	flex-direction: column;
-	gap: 0.3rem;
-}
-
-.graph-zoom button {
-	display: grid;
-	place-items: center;
-	width: 2.1rem;
-	height: 2.1rem;
-	font: inherit;
-	font-weight: 700;
-	color: var(--text);
-	background: var(--surface);
-	border: 1.5px solid var(--line-strong);
-	border-radius: var(--radius-s);
-	cursor: pointer;
-}
-
-.graph-zoom svg {
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 1.8;
+.ego-link line {
+	stroke: var(--line-strong);
 	stroke-linecap: round;
+}
+
+.ego-link line.hit {
+	stroke: transparent;
+	stroke-width: 12;
+}
+
+.ego-link line.written {
+	stroke-dasharray: 5 4;
+}
+
+.ego-link.lit line:not(.hit) {
+	stroke: var(--thread);
+}
+
+.ego-word {
+	fill: var(--muted);
+	font-size: 11px;
+	font-style: italic;
+	paint-order: stroke;
+	stroke: var(--surface);
+	stroke-width: 4px;
 	stroke-linejoin: round;
 }
 
-.graph-loading {
-	position: absolute;
-	inset: 0;
-	display: grid;
-	place-items: center;
+.ego-node {
+	cursor: pointer;
+	fill: var(--muted);
+	stroke: var(--muted);
+	stroke-width: 1.5;
+}
+
+.ego-node .hit {
+	fill: transparent;
+	stroke: none;
+}
+
+.ego-node.hollow > :not(text):not(.hit) {
+	fill: var(--surface);
+}
+
+.ego-node text,
+.ego-center text {
+	fill: var(--text);
+	stroke: var(--surface);
+	stroke-width: 4px;
+	paint-order: stroke;
+	stroke-linejoin: round;
+}
+
+.ego-node.lit {
+	fill: var(--thread);
+	stroke: var(--thread);
+}
+
+.ego-node.lit text {
+	font-weight: 700;
+}
+
+.ego-center {
+	fill: var(--thread);
+	stroke: var(--thread);
+	stroke-width: 1.5;
+}
+
+.ego-center.hollow > :not(text) {
+	fill: var(--surface);
+}
+
+.ego-center text {
+	font-weight: 700;
+	font-size: 14px;
+}
+
+.graph-caption {
+	min-height: 1.5em;
+	margin: 0;
 	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.graph-caption strong {
+	color: var(--text);
 }
 
 .graph-panel {
@@ -2733,7 +2785,7 @@ dialog[open]::backdrop {
 	font-size: var(--step-2);
 }
 
-.graph-panel .facts {
+.graph-facts {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -2749,23 +2801,34 @@ dialog[open]::backdrop {
 	gap: 0.5rem;
 }
 
-.graph-panel ul {
+.graph-neighbours {
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-	gap: 0.2rem 1rem;
-	max-height: 16rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	max-height: 26rem;
 	overflow: auto;
 }
 
-.graph-panel li button {
+.graph-neighbours li {
+	display: flex;
+	flex-direction: column;
+	padding: 0.2rem 0.4rem;
+	border-left: 2px solid transparent;
+}
+
+.graph-neighbours li.lit {
+	border-left-color: var(--thread);
+	background: var(--thread-soft);
+}
+
+.graph-neighbours button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.45rem;
-	width: 100%;
-	padding: 0.15rem 0;
+	padding: 0;
 	font: inherit;
 	text-align: left;
 	color: var(--text);
@@ -2774,12 +2837,13 @@ dialog[open]::backdrop {
 	cursor: pointer;
 }
 
-.graph-panel li button:hover .name {
+.graph-neighbours button:hover .name {
 	text-decoration: underline;
 }
 
-.graph-panel li .quiet {
+.graph-neighbours .quiet {
 	font-size: var(--step--1);
+	padding-left: 1.2rem;
 }
 
 .graph-shape {
@@ -2810,30 +2874,14 @@ dialog[open]::backdrop {
 	gap: 0.35rem;
 }
 
-.graph-legend .you {
-	fill: var(--thread);
-	stroke: var(--thread);
-}
-
-.found a[aria-current='true'] {
-	background: var(--thread-soft);
-}
-
 @media (max-width: 64rem) {
-	.memory-split {
+	.graph-layout {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.with-graph .memory-overview {
-		display: none;
-	}
-
-	.memory-graph {
-		position: static;
-	}
-
-	.graph-stage {
-		height: 68vh;
+	.ego-graph {
+		height: 62vh;
+		min-height: 20rem;
 	}
 }
 
