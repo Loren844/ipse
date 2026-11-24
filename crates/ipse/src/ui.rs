@@ -109,9 +109,9 @@ pub(crate) enum Start {
 pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
     let gateway = Gateway::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
     let preferred = if start == Start::App {
-        app_port(gateway.vault().root())
+        app_ports(gateway.vault().root())
     } else {
-        0
+        Vec::new()
     };
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -119,16 +119,22 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
         .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?;
     runtime.block_on(async move {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
-        let listener =
-            match tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, preferred)).await {
-                Ok(listener) => Ok(listener),
-                Err(_) => tokio::net::TcpListener::bind(address).await,
+        let mut chosen = None;
+        for port in preferred {
+            if let Ok(listener) = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await {
+                chosen = Some(listener);
+                break;
             }
-            .map_err(|source| Error::Io {
-                action: "listen on",
-                path: PathBuf::from(address.to_string()),
-                source,
-            })?;
+        }
+        let listener = match chosen {
+            Some(listener) => Ok(listener),
+            None => tokio::net::TcpListener::bind(address).await,
+        }
+        .map_err(|source| Error::Io {
+            action: "listen on",
+            path: PathBuf::from(address.to_string()),
+            source,
+        })?;
         let port = listener
             .local_addr()
             .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?
@@ -202,15 +208,19 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
     })
 }
 
-/// The port the desktop app's server tries first for the memory in `root`: always the
-/// same one for a memory, so that what the window keeps for a site (the theme, the
-/// interface's language) is still there at the next start. Another is used when it is
-/// taken.
-fn app_port(root: &std::path::Path) -> u16 {
+/// The ports the desktop app's server tries, in order, for the memory in `root`: always
+/// the same ones for a memory, so that what the window keeps for a site (the theme, the
+/// interface's language) is still there at the next start. Several, because a port can be
+/// taken, or reserved by the system (Windows sets aside ranges of the dynamic ports);
+/// any free port when none of them is. The first is the one earlier versions used.
+fn app_ports(root: &std::path::Path) -> Vec<u16> {
     let hash = blake3::hash(root.as_os_str().as_encoded_bytes());
-    let [a, b, ..] = *hash.as_bytes();
-    // The dynamic range, 49152 to 65535.
-    49152 + u16::from_le_bytes([a, b]) % 16384
+    hash.as_bytes()
+        .chunks_exact(2)
+        .take(8)
+        // The dynamic range, 49152 to 65535.
+        .map(|pair| 49152 + u16::from_le_bytes([pair[0], pair[1]]) % 16384)
+        .collect()
 }
 
 /// Reads the desktop app's requests on the input, one per line: `sync` syncs every
@@ -774,6 +784,16 @@ mod tests {
             );
         }
         map
+    }
+
+    #[test]
+    fn a_memory_always_tries_the_same_ports() {
+        let root = std::path::Path::new("/home/ines/Ipse");
+        let ports = app_ports(root);
+        assert_eq!(ports, app_ports(root));
+        assert_eq!(ports.len(), 8);
+        assert!(ports.iter().all(|p| *p >= 49152));
+        assert_ne!(ports, app_ports(std::path::Path::new("/home/ines/Other")));
     }
 
     #[test]
