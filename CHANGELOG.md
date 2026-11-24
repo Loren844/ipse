@@ -2,7 +2,9 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.4.0 - 2026-11-24
+
+Your AI keeps what you tell it: *"remember my PC setup"* becomes a file of your memory, and *"remind me on Thursday"* a reminder it tells you about when the time comes. Once you allow it, one AI can write these without waiting for you, and each stays in the history, undone in one click. The memory's format gains one kind of file, reminders, in a new `reminders/` folder: a 0.3 memory opens as it is. 0.3.0 and 0.3.1 offer this version in the app.
 
 ### Added
 
