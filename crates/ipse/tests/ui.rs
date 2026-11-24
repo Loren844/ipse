@@ -167,7 +167,7 @@ fn the_one_time_code_opens_one_session() {
     assert!(me.as_str().is_some_and(|id| id.len() == 26), "{me}");
     assert_eq!(
         info,
-        serde_json::json!({"name": "Inès Roux", "me": null, "language": "fr", "time_zone": "Europe/Paris", "waiting": 0, "failing": 0})
+        serde_json::json!({"name": "Inès Roux", "me": null, "language": "fr", "time_zone": "Europe/Paris", "waiting": 0, "failing": 0, "seen": []})
     );
 
     // The code works once.
