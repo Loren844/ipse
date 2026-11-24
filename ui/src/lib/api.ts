@@ -63,11 +63,13 @@ export type { EventView } from './types/EventView.ts';
 export type { EntityView } from './types/EntityView.ts';
 export type { LinkView } from './types/LinkView.ts';
 import type { EditView } from './types/EditView.ts';
+import type { TextView } from './types/TextView.ts';
 import type { SavedView } from './types/SavedView.ts';
 export type { EditView, SavedView };
 import type { GraphView } from './types/GraphView.ts';
 export type { GraphView };
 export type { NodeView } from './types/NodeView.ts';
+export type { NeighbourView } from './types/NeighbourView.ts';
 export type { LinkField } from './types/LinkField.ts';
 export type { RelationField } from './types/RelationField.ts';
 
@@ -184,8 +186,10 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
-	graph: () => get<GraphView>('/api/graph'),
+	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
+	fileText: (id: string) => get<TextView>(`/api/file/${encodeURIComponent(id)}/text`),
+	saveText: (id: string, version: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/text`, { version, text }),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),
 	deleteFile: (id: string, version: string) => post<SavedView>(`/api/file/${encodeURIComponent(id)}/delete`, { version }),

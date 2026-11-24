@@ -1211,6 +1211,61 @@ fn editing_creating_and_deleting_through_the_api() {
 }
 
 #[test]
+fn editing_a_file_as_markdown_through_the_api() {
+    let ui = start_with(|vault| {
+        std::fs::write(
+            vault.join("people/marie-durand.md"),
+            "---\nid: 01jcx8m2p4q6r8t0v2w4y6z801\ntype: person\ncategory: people\nname: Marie Durand\ncreated: 2026-01-10T09:00:00+01:00\nupdated: 2026-01-10T09:00:00+01:00\n---\n\n## Faits\n\n- Aime le jazz ^f-ab12\n",
+        )
+        .unwrap();
+    });
+    let cookie = login(&ui);
+    let id = "01jcx8m2p4q6r8t0v2w4y6z801";
+
+    let (status, file) = api(&ui, &cookie, &format!("/api/file/{id}/text"));
+    assert_eq!(status, 200, "{file}");
+    let text = file["text"].as_str().unwrap().to_owned();
+    assert!(text.starts_with("---\nid: 01jcx8m2p4q6r8t0v2w4y6z801\n"));
+    assert!(text.contains("- Aime le jazz ^f-ab12"), "as written");
+    let version = file["version"].as_str().unwrap().to_owned();
+
+    // Not a memory file: refused in words, nothing written.
+    let body = serde_json::json!({"version": version, "text": "Marie"});
+    let (status, refused) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{id}/text"),
+        &body.to_string(),
+    );
+    assert_eq!(status, 409, "{refused}");
+    assert!(refused["error"].as_str().unwrap().contains("front matter"));
+
+    let typed = text.replace("## Faits\n", "## Voyages\n\nLisbonne.\n\n## Faits\n");
+    let body = serde_json::json!({"version": version, "text": typed});
+    let (status, saved) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{id}/text"),
+        &body.to_string(),
+    );
+    assert_eq!(status, 200, "{saved}");
+    assert_eq!(saved["value"]["name"], "Marie Durand");
+    let (_, history) = api(&ui, &cookie, "/api/history");
+    assert_eq!(history["changes"][0]["summary"], "Edit a file as Markdown");
+
+    // Read before that change: refused.
+    let (status, stale) = post(
+        &ui,
+        &cookie,
+        &format!("/api/file/{id}/text"),
+        &body.to_string(),
+    );
+    assert_eq!(status, 409);
+    assert!(stale["error"].as_str().unwrap().contains("changed since"));
+    assert_eq!(api(&ui, &cookie, "/api/file/nothing/text").0, 404);
+}
+
+#[test]
 fn the_graph_through_the_api() {
     let ui = start_with(|vault| {
         let write = |rel: &str, i: u8, front: &str, body: &str| {
@@ -1243,43 +1298,33 @@ fn the_graph_through_the_api() {
     });
     let cookie = login(&ui);
 
-    // The whole memory, the owner first.
-    let (status, graph) = api(&ui, &cookie, "/api/graph");
+    // Marie, by her id; her relations both ways, no event.
+    let (status, graph) = api(
+        &ui,
+        &cookie,
+        "/api/graph?id=01jcx8m2p4q6r8t0v2w4y6z802&period=year",
+    );
     assert_eq!(status, 200, "{graph}");
-    assert_eq!(graph["centered"], true);
-    let names: Vec<&str> = graph["nodes"]
+    assert_eq!(graph["center"]["name"], "Marie Durand");
+    assert_eq!(graph["mine"], false);
+    let names: Vec<&str> = graph["neighbours"]
         .as_array()
         .unwrap()
         .iter()
-        .map(|n| n["name"].as_str().unwrap())
+        .map(|n| n["file"]["name"].as_str().unwrap())
         .collect();
-    assert_eq!(
-        names,
-        ["Inès Roux", "Atelier Nord", "Dr Morel", "Marie Durand"]
-    );
-    assert_eq!(graph["nodes"][2]["sensitive"], true);
-    assert_eq!(graph["nodes"][2]["kind"], "person");
-    assert!(graph["nodes"][2].get("start").is_none(), "only for events");
-    let edges: Vec<u64> = graph["edges"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|e| e.as_u64().unwrap())
-        .collect();
-    let mut pairs: Vec<(u64, u64)> = edges.chunks(2).map(|p| (p[0], p[1])).collect();
-    pairs.sort_unstable();
-    assert_eq!(
-        pairs,
-        [(1, 3), (2, 3)],
-        "two numbers a link, the smaller first"
-    );
-    assert!(
-        graph["categories"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .any(|c| c["name"] == "health" && c["sensitive"] == true)
-    );
+    assert_eq!(names, ["Atelier Nord", "Dr Morel"]);
+    assert_eq!(graph["neighbours"][0]["words"][0], "travaille chez");
+    assert_eq!(graph["neighbours"][1]["back"][0], "patiente");
+    assert_eq!(graph["neighbours"][1]["file"]["sensitive"], true);
+    assert!(graph["neighbours"][1].get("last").is_none());
+
+    // The owner without an id; an unknown file is not found.
+    let (status, mine) = api(&ui, &cookie, "/api/graph");
+    assert_eq!(status, 200, "{mine}");
+    assert_eq!(mine["mine"], true);
+    assert_eq!(mine["center"]["name"], "Inès Roux");
+    assert_eq!(api(&ui, &cookie, "/api/graph?id=nothing").0, 404);
 }
 
 #[test]
