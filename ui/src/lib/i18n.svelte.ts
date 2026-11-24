@@ -124,6 +124,7 @@ const words = {
 			contacts: 'Contacts',
 			calendar: 'Agenda',
 			dav: 'Compte d’agendas et de contacts',
+			homeassistant: 'Home Assistant',
 			'google-timeline': 'Historique des positions'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -208,6 +209,48 @@ const words = {
 			unavailable: 'Le serveur n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
 			rate_limited: 'Le serveur demande de ralentir : réessayez dans quelques minutes.'
 		} as Record<string, string>,
+		homeTitle: 'Connecter Home Assistant',
+		homeHint:
+			'Votre propre Home Assistant dit à Ipse quand vous êtes à la maison et dans quelles zones. Cela reste dans la catégorie « maison », fermée aux IA tant que vous ne l’ouvrez pas. Ipse ne fait que lire, et garde le jeton dans le trousseau de votre système.',
+		homeName: 'Nom de la source',
+		homeAddress: 'Adresse de Home Assistant',
+		homeToken: 'Jeton d’accès longue durée',
+		homeGo: 'Connecter Home Assistant',
+		homeConnecting: 'Connexion à Home Assistant…',
+		homeTokenHelp: 'Où trouver l’adresse et créer un jeton',
+		homeTokenSteps: [
+			{
+				title: 'L’adresse',
+				lines: [
+					'Celle que vous ouvrez dans votre navigateur, souvent homeassistant.local:8123, ou votre adresse https:// depuis l’extérieur.',
+					'En http://, Ipse se connecte seulement à une adresse de votre réseau local, et le dit.'
+				]
+			},
+			{
+				title: 'Le jeton',
+				lines: [
+					'Dans Home Assistant : votre profil (en bas à gauche) → Sécurité → Jetons d’accès longue durée → Créer un jeton.',
+					'Copiez-le tout de suite : Home Assistant ne le montre qu’une fois.'
+				]
+			}
+		],
+		homeConnectedNow: (name: string) => `« ${name} » est connecté. Choisissez qui suivre.`,
+		choosePerson: 'Choisissez qui suivre',
+		choosePersonHint: 'Ipse lit seulement la présence de la personne choisie, en général vous-même.',
+		followedPerson: (name: string) => `Suit ${name}.`,
+		followPerson: 'Suivre cette personne',
+		noPersonFound: 'Aucune personne trouvée dans ce Home Assistant. Ajoutez-vous dans Paramètres → Personnes, puis synchronisez.',
+		homePlain:
+			'Cette adresse est en http:// : le jeton circule sans chiffrement sur votre réseau local. Utilisez https:// si votre Home Assistant le propose.',
+		unfollowHomeBody: 'Ipse ne le synchronisera plus et oubliera son jeton. Ce qu’il a apporté reste dans votre mémoire.',
+		homeProblems: {
+			auth: 'Home Assistant a refusé le jeton d’accès. Créez-en un nouveau dans votre profil Home Assistant.',
+			bad_input: 'Aucun Home Assistant n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :8123.',
+			unavailable: 'Home Assistant n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+			rate_limited: 'Home Assistant demande de ralentir : réessayez dans quelques minutes.'
+		} as Record<string, string>,
+		homeBadAddress:
+			'Home Assistant ne peut pas être connecté : il faut son adresse (https://, ou http:// sur votre réseau local) et un jeton d’accès longue durée.',
 		thisApp: 'Affichage',
 		thisAppHint: 'Ces choix restent sur cet ordinateur.',
 		inTheBackground: 'En arrière-plan',
@@ -988,6 +1031,7 @@ const words = {
 			contacts: 'Contacts',
 			calendar: 'Calendar',
 			dav: 'Calendars and contacts account',
+			homeassistant: 'Home Assistant',
 			'google-timeline': 'Location history'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -1068,6 +1112,48 @@ const words = {
 			unavailable: 'The server could not be reached. Check its address and your connection.',
 			rate_limited: 'The server asks to slow down: try again in a few minutes.'
 		} as Record<string, string>,
+		homeTitle: 'Connect Home Assistant',
+		homeHint:
+			'Your own Home Assistant tells Ipse when you are at home and in which zones. It stays in the “home” category, closed to AIs until you open it. Ipse only reads, and keeps the token in your system’s keychain.',
+		homeName: 'Name of the source',
+		homeAddress: 'Home Assistant’s address',
+		homeToken: 'Long-lived access token',
+		homeGo: 'Connect Home Assistant',
+		homeConnecting: 'Connecting to Home Assistant…',
+		homeTokenHelp: 'Where to find the address and create a token',
+		homeTokenSteps: [
+			{
+				title: 'The address',
+				lines: [
+					'The one you open in your browser, often homeassistant.local:8123, or your https:// address from outside.',
+					'With http://, Ipse connects only to an address of your home network, and says so.'
+				]
+			},
+			{
+				title: 'The token',
+				lines: [
+					'In Home Assistant: your profile (bottom left) → Security → Long-lived access tokens → Create token.',
+					'Copy it right away: Home Assistant shows it only once.'
+				]
+			}
+		],
+		homeConnectedNow: (name: string) => `“${name}” is connected. Choose whom to follow.`,
+		choosePerson: 'Choose whom to follow',
+		choosePersonHint: 'Ipse only reads the presence of the person you choose, usually yourself.',
+		followedPerson: (name: string) => `Follows ${name}.`,
+		followPerson: 'Follow this person',
+		noPersonFound: 'No person found in this Home Assistant. Add yourself in Settings → People, then sync.',
+		homePlain:
+			'This address uses http://: the token goes unencrypted over your home network. Use https:// if your Home Assistant offers it.',
+		unfollowHomeBody: 'Ipse will no longer sync it and forgets its token. What it brought stays in your memory.',
+		homeProblems: {
+			auth: 'Home Assistant refused the access token. Create a new one in your Home Assistant profile.',
+			bad_input: 'No Home Assistant was found at this address: check it, it often ends with :8123.',
+			unavailable: 'Home Assistant could not be reached. Check its address and your connection.',
+			rate_limited: 'Home Assistant asks to slow down: try again in a few minutes.'
+		} as Record<string, string>,
+		homeBadAddress:
+			'Home Assistant cannot be connected: it needs its address (https://, or http:// on your home network) and a long-lived access token.',
 		thisApp: 'Display',
 		thisAppHint: 'These choices stay on this computer.',
 		inTheBackground: 'In the background',

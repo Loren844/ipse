@@ -307,10 +307,16 @@ fn sync_once(
 
 /// Reads the password from the terminal without showing it, or from the input.
 fn ask_password() -> Result<String> {
+    ask_secret("App password", "the password")
+}
+
+/// Reads a secret from the terminal without showing it, or from the input: `prompt`
+/// is what the terminal shows, `what` names it in an error.
+pub(crate) fn ask_secret(prompt: &str, what: &str) -> Result<String> {
     let stdin = std::io::stdin();
     let terminal = stdin.is_terminal();
     if terminal {
-        eprint!("App password (not shown): ");
+        eprint!("{prompt} (not shown): ");
         let _ = std::io::stderr().flush();
     }
     let hidden = terminal && echo(false);
@@ -322,14 +328,17 @@ fn ask_password() -> Result<String> {
     }
     read.map_err(|source| Error::Io {
         action: "read",
-        path: PathBuf::from("the password"),
+        path: PathBuf::from(what),
         source,
     })?;
-    let password = line.trim_end_matches(['\r', '\n']).to_owned();
-    if password.is_empty() {
-        return Err(Error::Refused("No password given.".to_owned()));
+    let secret = line.trim_end_matches(['\r', '\n']).to_owned();
+    if secret.is_empty() {
+        return Err(Error::Refused(format!(
+            "No {} given.",
+            what.trim_start_matches("the ")
+        )));
     }
-    Ok(password)
+    Ok(secret)
 }
 
 /// Turns the terminal's echo on or off; `false` when it cannot.

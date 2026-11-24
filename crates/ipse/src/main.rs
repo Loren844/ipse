@@ -60,6 +60,12 @@ enum Command {
         #[command(subcommand)]
         action: DavAction,
     },
+    /// Connect your Home Assistant, to know when you are at home and in which zones; list or remove it
+    #[command(name = "homeassistant")]
+    HomeAssistant {
+        #[command(subcommand)]
+        action: HomeAssistantAction,
+    },
     /// Sync the calendars and accounts you follow
     Sync {
         /// Only those whose interval has passed: for a job the system runs every few minutes
@@ -202,6 +208,41 @@ enum DavAction {
     /// Stop syncing an account; its events and contacts stay in your memory
     Remove {
         /// The account's id, as `ipse dav list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum HomeAssistantAction {
+    /// Connect Home Assistant and follow a person's presence; asks a long-lived access token
+    Add {
+        /// Its address, like homeassistant.local:8123 or ha.example.org
+        address: String,
+        /// Whom to follow, like person.ines (default: the only person of Home Assistant)
+        #[arg(long)]
+        person: Option<String>,
+        /// A name for this source, like "Maison"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 5m or 15m (default: 5m)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Home Assistants you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Home Assistant; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse homeassistant list` shows it
         id: String,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
@@ -354,6 +395,7 @@ fn main() -> ExitCode {
             CalendarAction::List { vault } => cmd::calendar::list(vault),
             CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
         },
+        Command::HomeAssistant { action } => home_assistant(action),
         Command::Dav { action } => match action {
             DavAction::Add {
                 address,
@@ -426,6 +468,27 @@ fn main() -> ExitCode {
             eprintln!("{err}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// `ipse homeassistant`.
+fn home_assistant(action: HomeAssistantAction) -> ipse_core::Result<()> {
+    match action {
+        HomeAssistantAction::Add {
+            address,
+            person,
+            name,
+            every,
+            vault,
+        } => cmd::homeassistant::add(
+            &address,
+            person.as_deref(),
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        HomeAssistantAction::List { vault } => cmd::homeassistant::list(vault),
+        HomeAssistantAction::Remove { id, vault } => cmd::homeassistant::remove(&id, vault),
     }
 }
 

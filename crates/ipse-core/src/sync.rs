@@ -12,7 +12,10 @@ use crate::connector::{
     secret_key,
 };
 use crate::journal::Journal;
-use crate::materialize::{EventsSummary, PeopleSummary, calendar_to_events, contacts_to_people};
+use crate::materialize::{
+    EventsSummary, HomeSummary, PRESENCE, PeopleSummary, calendar_to_events, contacts_to_people,
+    home_to_vault,
+};
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Source, Vault};
 
@@ -28,7 +31,7 @@ pub struct Syncable {
 }
 
 /// The connectors that sync, built into Ipse.
-pub const SYNCABLE: [Syncable; 2] = [
+pub const SYNCABLE: [Syncable; 3] = [
     Syncable {
         connector: "calendar",
         kinds: &["calendar.event"],
@@ -40,6 +43,13 @@ pub const SYNCABLE: [Syncable; 2] = [
         connector: "dav",
         kinds: &["calendar.event", "contact.card"],
         secrets: &["password"],
+    },
+    // The person's own Home Assistant: when they are at home, and in which zones
+    // (`docs/connectors/homeassistant.md`).
+    Syncable {
+        connector: "homeassistant",
+        kinds: &[PRESENCE],
+        secrets: &["token"],
     },
 ];
 
@@ -62,6 +72,8 @@ pub struct Synced {
     pub events: Option<EventsSummary>,
     /// What changed in the people, for contacts.
     pub people: Option<PeopleSummary>,
+    /// The stays at home and in zones, for Home Assistant.
+    pub home: Option<HomeSummary>,
     /// Tasks made for the person's AI from what the sync brought.
     pub tasks: usize,
     /// Possible duplicates proposed to the person after the sync.
@@ -164,6 +176,11 @@ pub fn sync_instance(
     } else {
         None
     };
+    let home = if kinds.contains(&PRESENCE) {
+        Some(home_to_vault(vault, &journal, &instance.id, &mut change)?)
+    } else {
+        None
+    };
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
     let tasks = Tasks::new(vault).extract_from(&touched)?;
@@ -192,6 +209,7 @@ pub fn sync_instance(
         progress: report.progress,
         events,
         people,
+        home,
         tasks,
     };
     SyncState::load(root)?.record(&instance.id, options.now, synced.succeeded())?;

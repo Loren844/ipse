@@ -17,8 +17,10 @@ use serde::{Deserialize, Serialize};
 use super::history::{RunView, run_view};
 use crate::cmd::calendar::{DEFAULT_EVERY, NotFollowed, follow, unfollow};
 use crate::cmd::dav::{self as account, NotConnected};
+use crate::cmd::homeassistant as home;
 use crate::cmd::sync::connector_command;
 use crate::connectors::dav::{self, Kind};
+use crate::connectors::homeassistant;
 use crate::keychain::secrets;
 
 /// Runs read to list the sources and their last import.
@@ -53,6 +55,37 @@ pub(crate) struct SourceView {
     runs: u32,
     /// For a calendars and contacts account: what was found on it, and what is followed.
     account: Option<AccountView>,
+    /// For Home Assistant: its people, and whom Ipse follows.
+    home: Option<HomeAssistantView>,
+}
+
+/// The people of a Home Assistant (issue #225).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct HomeAssistantView {
+    /// The entity followed, like `person.ines`; `None` until the person chose.
+    chosen: Option<String>,
+    people: Vec<HomeAssistantPersonView>,
+    /// Its address is `http://`, on the home network: the token goes unencrypted there.
+    plain: bool,
+}
+
+/// One person of a Home Assistant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct HomeAssistantPersonView {
+    /// Its entity: what the screen sends back to follow it.
+    entity: String,
+    /// Its name in Home Assistant.
+    name: String,
 }
 
 /// The calendars and address books of an account.
@@ -137,6 +170,21 @@ struct ConnectBody {
     name: Option<String>,
 }
 
+/// `POST /api/sources/connect-home`.
+#[derive(Debug, Deserialize)]
+struct ConnectHomeBody {
+    url: String,
+    token: String,
+    name: Option<String>,
+}
+
+/// `POST /api/sources/choose-person`.
+#[derive(Debug, Deserialize)]
+struct ChoosePersonBody {
+    instance: String,
+    person: String,
+}
+
 /// `POST /api/sources/choose`.
 #[derive(Debug, Deserialize)]
 struct ChooseBody {
@@ -176,6 +224,9 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
                 account: (instance.connector == dav::ID)
                     .then(|| account_view(gateway, instance))
                     .transpose()?,
+                home: (instance.connector == homeassistant::ID)
+                    .then(|| home_view(gateway, instance))
+                    .transpose()?,
             })
         })
         .collect::<Result<_>>()?;
@@ -199,6 +250,7 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
                 last: None,
                 runs: 0,
                 account: None,
+                home: None,
             });
             let last = sources.len() - 1;
             &mut sources[last]
@@ -236,6 +288,30 @@ fn account_view(
     })
 }
 
+/// The people of the Home Assistant `instance`, and whom Ipse follows.
+fn home_view(
+    gateway: &Gateway,
+    instance: &ipse_core::connector::Instance,
+) -> Result<HomeAssistantView> {
+    let people = home::found(gateway.vault(), &instance.id)?
+        .into_iter()
+        .map(|found| HomeAssistantPersonView {
+            entity: found.entity,
+            name: found.name,
+        })
+        .collect();
+    let plain = instance
+        .config
+        .get("url")
+        .and_then(serde_json::Value::as_str)
+        .is_some_and(|url| url.starts_with("http://"));
+    Ok(HomeAssistantView {
+        chosen: home::chosen(instance),
+        people,
+        plain,
+    })
+}
+
 /// The connector of an instance: `calendar-2` is a `calendar`.
 fn connector_of(instance: &str) -> &str {
     match instance.rsplit_once('-') {
@@ -258,6 +334,18 @@ pub(crate) fn change(
     match action {
         "follow" => follow_calendar(gateway, body).map(Some),
         "connect" => connect_account(gateway, body).map(Some),
+        "connect-home" => connect_home(gateway, body).map(Some),
+        "choose-person" => {
+            let body: ChoosePersonBody = read(body)?;
+            let synced = home::choose(gateway.vault(), &body.instance, &body.person, &*secrets())?;
+            let outcome = if synced.succeeded() {
+                "synced"
+            } else {
+                "failed"
+            };
+            let code = failed_code(gateway, synced.succeeded())?;
+            answer(gateway, outcome, code, Some(body.instance)).map(Some)
+        }
         "choose" => {
             let body: ChooseBody = read(body)?;
             let synced = account::choose(
@@ -280,13 +368,15 @@ pub(crate) fn change(
         }
         "unfollow" => {
             let body: InstanceBody = read(body)?;
-            let is_account = Instances::load(gateway.vault().root())?
+            let connector = Instances::load(gateway.vault().root())?
                 .get(&body.instance)
-                .is_some_and(|i| i.connector == dav::ID);
-            let instance = if is_account {
-                account::disconnect(gateway.vault(), &body.instance, &*secrets())?
-            } else {
-                unfollow(gateway.vault(), &body.instance, &*secrets())?
+                .map(|i| i.connector.clone());
+            let instance = match connector.as_deref() {
+                Some(dav::ID) => account::disconnect(gateway.vault(), &body.instance, &*secrets())?,
+                Some(homeassistant::ID) => {
+                    home::disconnect(gateway.vault(), &body.instance, &*secrets())?
+                }
+                _ => unfollow(gateway.vault(), &body.instance, &*secrets())?,
             };
             answer(
                 gateway,
@@ -381,6 +471,54 @@ fn connect_account(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> 
         Err(NotConnected::Other(Error::Refused(_))) => answer(gateway, "keychain", None, None),
         Err(NotConnected::Other(error)) => Err(error),
     }
+}
+
+/// Connects Home Assistant, as `ipse homeassistant add`: follows its only person at
+/// once, or lets the person choose among several.
+fn connect_home(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> {
+    let body: ConnectHomeBody = read(body)?;
+    let name = body
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty());
+    let vault = gateway.vault();
+    let connected = match home::connect(
+        vault,
+        body.url.trim(),
+        &body.token,
+        name,
+        home::DEFAULT_EVERY,
+        &*secrets(),
+    ) {
+        Ok(connected) => connected,
+        Err(home::NotConnected::BadAddress(_)) => {
+            return answer(gateway, "bad_address", None, None);
+        }
+        Err(home::NotConnected::Already(name)) => {
+            return answer(gateway, "already", Some(name), None);
+        }
+        Err(home::NotConnected::Failed(_)) => {
+            let code = failed_code(gateway, false)?;
+            return answer(gateway, "not_connected", code, None);
+        }
+        Err(home::NotConnected::Other(Error::Refused(_))) => {
+            return answer(gateway, "keychain", None, None);
+        }
+        Err(home::NotConnected::Other(error)) => return Err(error),
+    };
+    let id = connected.instance.id.clone();
+    if let [only] = connected.found.as_slice() {
+        let synced = home::choose(vault, &id, &only.entity, &*secrets())?;
+        let outcome = if synced.succeeded() {
+            "synced"
+        } else {
+            "failed"
+        };
+        let code = failed_code(gateway, synced.succeeded())?;
+        return answer(gateway, outcome, code, Some(id));
+    }
+    answer(gateway, "connected", None, Some(id))
 }
 
 /// The error code of the last run, when it failed.

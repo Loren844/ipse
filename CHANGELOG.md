@@ -4,6 +4,10 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ## Unreleased
 
+### Added
+
+- **Home Assistant**: connect your own Home Assistant from **Sources**, or with `ipse homeassistant add`, and Ipse knows when you are at home and in which zones. It reads only the person you choose, stays in the `home` category, closed to AIs until you open it, and keeps the token in your system's keychain. Plain `http://` is accepted only on your home network, and Ipse says so.
+
 ### Fixed
 
 - **What changes in a new version** reads as text in the update window: headings and items, without Markdown marks, across the whole width of the window.

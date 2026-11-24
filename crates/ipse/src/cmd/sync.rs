@@ -98,6 +98,11 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
             lines.push(relations_line(s.relations));
         }
     }
+    if let Some(s) = synced.home
+        && s.logs > 0
+    {
+        lines.push(home_line(s.stays));
+    }
     if synced.tasks > 0 {
         lines.push(tasks_line(synced.tasks));
     }
@@ -117,6 +122,15 @@ fn nothing_changed(synced: &Synced) -> bool {
         && synced
             .people
             .is_none_or(|s| s.added + s.updated + s.conflicts + s.relations == 0 && !s.owner)
+        && synced.home.is_none_or(|s| s.logs == 0)
+}
+
+fn home_line(stays: u64) -> String {
+    let stays = match stays {
+        1 => "1 stay".to_owned(),
+        n => format!("{n} stays"),
+    };
+    format!("Updated when you were at home and in your zones: {stays} in all.")
 }
 
 fn stopped_line(reason: StopReason) -> String {
