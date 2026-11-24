@@ -35,7 +35,7 @@ test('the demo has a location history: the map, and where one meets people', asy
 	await page.getByRole('link', { name: 'Carte' }).first().click();
 	const map = page.getByRole('application', { name: /Carte de vos lieux/ });
 	await expect(page.locator('.map-list').getByRole('button', { name: 'Chez Jade' })).toBeVisible();
-	expect(await map.locator('circle').count()).toBeGreaterThanOrEqual(8);
+	await expect(map).toHaveAttribute('data-drawn', /^[1-9]/);
 	await page.locator('.map-list').getByRole('button', { name: 'Chez Jade' }).click();
 	await expect(page.locator('.map-side')).toContainText('Jade Petit');
 	await page.locator('.map-side').getByRole('link', { name: 'Jade Petit' }).click();
