@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The timeline (issue #133): a life by years, then months. A year's strip shows how
 	// full each month was; a month opens what marked it, then its calendar.
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api, type MonthView, type TimelineView, type YearView } from '#lib/api.ts';
@@ -94,6 +95,7 @@
 		<h1>{chosenMonth ? monthTitle(chosenMonth.month) : chosenYear ? chosenYear.year : i18n.t.timeline}</h1>
 		{#if !year}<p class="intro">{i18n.t.timelineLead}</p>{/if}
 	</header>
+	<FirstVisit screen="timeline" />
 
 	{#if remote.state.kind === 'failed'}
 		<p class="quiet">{i18n.t.failed}</p>

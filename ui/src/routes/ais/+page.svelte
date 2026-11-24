@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { tick } from 'svelte';
 	import AiRights from '#lib/AiRights.svelte';
 	import { api, Conflict, SessionEnded, type AisView, type AiView, type CategoryView, type ConnectedView } from '#lib/api.ts';
@@ -136,6 +137,7 @@
 				</div>
 			{/if}
 		</header>
+		<FirstVisit screen="ais" />
 
 		<div class="live" role="status" aria-live="polite">
 			{#if outcome}<Notice tone={outcome.tone}>{outcome.text}</Notice>{/if}

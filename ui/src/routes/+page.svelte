@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api, type HomeView } from '#lib/api.ts';
 	import Events from '#lib/Events.svelte';
+	import FirstSteps from '#lib/FirstSteps.svelte';
 	import { longDay } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
@@ -34,6 +35,10 @@
 				<a href="/review#decided">{i18n.t.see}</a>
 			</p>
 		{/each}
+
+		{#if view.guide}
+			<FirstSteps guide={view.guide} />
+		{/if}
 
 		<section aria-labelledby="coming">
 			<h2 id="coming" class="visually-hidden">{i18n.t.comingUp}</h2>

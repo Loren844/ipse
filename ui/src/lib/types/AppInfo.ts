@@ -28,4 +28,8 @@ waiting: number,
 /**
  * Followed sources whose last sync failed: the Sources screen says what to do.
  */
-failing: number, };
+failing: number, 
+/**
+ * The screens whose first-time note the person read (issue #172).
+ */
+seen: Array<string>, };
