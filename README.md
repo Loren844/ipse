@@ -26,6 +26,7 @@
   <a href="docs/guide/getting-started.md">Getting started</a> ·
   <a href="docs/guide/connecting.md">Connect your AI</a> ·
   <a href="docs/guide/obsidian.md">Obsidian</a> ·
+  <a href="docs/guide/self-hosting.md">Home server</a> ·
   <a href="docs/guide/threat-model.md">Privacy</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/Loren844/ipse/issues/new">Report a bug</a>

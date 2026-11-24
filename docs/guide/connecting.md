@@ -50,6 +50,8 @@ claude mcp add --transport http ipse http://127.0.0.1:7420/mcp --header "Authori
 
 A request without the code, or with a wrong one, is refused before anything is read.
 
+To reach your memory from other machines, run it on a home server instead: [Ipse on a home server](self-hosting.md) serves MCP at `/mcp` beside the interface, with the same codes.
+
 ## Changing what an AI sees
 
 The simplest way: `ipse ui --vault ~/Ipse`, then **IA connectées** (**Connected AIs**). Each AI has a switch per category, to read and to propose; a sensitive category asks before opening. You can also connect an AI there (its code is shown once, with what to paste in Claude Desktop or LM Studio), disconnect one, and add your own categories. From the command line:

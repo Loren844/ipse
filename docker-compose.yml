@@ -1,0 +1,24 @@
+# Ipse on a home server (docs/guide/self-hosting.md).
+#
+#   docker compose run --rm ipse init --name "Your Name" --language fr --time-zone Europe/Paris
+#   docker compose up -d
+#   docker compose exec ipse ipse access-code
+#
+# Then open http://<this server>:7420/ and enter the code. For HTTPS, put it behind your
+# reverse proxy (Caddy, Traefik): the guide shows how.
+services:
+  ipse:
+    image: ghcr.io/loren844/ipse:latest
+    restart: unless-stopped
+    # The owner of ./vault and ./secrets on this server (`id -u`, `id -g`), so that
+    # your memory's files stay yours.
+    user: "${UID:-1000}:${GID:-1000}"
+    ports:
+      # Reached from your network. Behind a reverse proxy on this same server, keep it
+      # to this server only: "127.0.0.1:7420:7420".
+      - "7420:7420"
+    volumes:
+      # Your memory: plain files, to back up like any folder.
+      - ./vault:/vault
+      # The sources' secrets (calendar links, app passwords, tokens), apart from it.
+      - ./secrets:/secrets
