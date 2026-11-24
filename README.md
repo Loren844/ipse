@@ -25,6 +25,7 @@
   <a href="docs/guide/install.md">Install</a> ·
   <a href="docs/guide/getting-started.md">Getting started</a> ·
   <a href="docs/guide/connecting.md">Connect your AI</a> ·
+  <a href="docs/guide/obsidian.md">Obsidian</a> ·
   <a href="docs/guide/threat-model.md">Privacy</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/Loren844/ipse/issues/new">Report a bug</a>
@@ -98,7 +99,7 @@ Restart Claude Desktop and ask it *"Who did I see most this year?"*. [Getting st
 ## 💡 Why Ipse
 
 - **Your whole life, not chat snippets.** A memory of people, places and events, filled from what you already have, rather than scraps of what you once typed to an AI.
-- **Files you own.** Markdown with a YAML header in a folder of yours, readable in Obsidian or any editor. Change a file by hand and Ipse picks it up. No account, no server, no cloud.
+- **Files you own.** Markdown with a YAML header in a folder of yours, readable in [Obsidian](docs/guide/obsidian.md) or any editor. Change a file by hand and Ipse picks it up. No account, no server, no cloud.
 - **Nothing is written behind your back.** Data your sources bring is imported as it is; anything an AI infers is a proposal you accept, refuse or undo, and the history says who changed what.
 - **You choose what each AI sees,** category by category, and Ipse enforces it in the code that answers.
 - **Any model.** Through the open [Model Context Protocol](https://modelcontextprotocol.io), with a local model or an online one.
