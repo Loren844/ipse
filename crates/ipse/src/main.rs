@@ -66,6 +66,11 @@ enum Command {
         #[command(subcommand)]
         action: HomeAssistantAction,
     },
+    /// Connect your Jellyfin, to know the films and series you watch; list or remove it
+    Jellyfin {
+        #[command(subcommand)]
+        action: JellyfinAction,
+    },
     /// Sync the calendars and accounts you follow
     Sync {
         /// Only those whose interval has passed: for a job the system runs every few minutes
@@ -251,6 +256,41 @@ enum HomeAssistantAction {
 }
 
 #[derive(Debug, Subcommand)]
+enum JellyfinAction {
+    /// Connect Jellyfin and follow a user's films and episodes; asks an API key
+    Add {
+        /// Its address, like nas.local:8096 or media.example.org
+        address: String,
+        /// Whom to follow, by user id (default: the only user of Jellyfin)
+        #[arg(long)]
+        user: Option<String>,
+        /// A name for this source, like "Films"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 1h or 30m (default: 1h)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Jellyfins you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Jellyfin; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse jellyfin list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 enum ProposalsAction {
     /// List the proposals waiting for you (all of them with --all)
     List {
@@ -396,6 +436,7 @@ fn main() -> ExitCode {
             CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
         },
         Command::HomeAssistant { action } => home_assistant(action),
+        Command::Jellyfin { action } => jellyfin(action),
         Command::Dav { action } => match action {
             DavAction::Add {
                 address,
@@ -480,15 +521,41 @@ fn home_assistant(action: HomeAssistantAction) -> ipse_core::Result<()> {
             name,
             every,
             vault,
-        } => cmd::homeassistant::add(
+        } => cmd::server::add(
+            &cmd::homeassistant::KIND,
             &address,
             person.as_deref(),
             name.as_deref(),
             every.as_deref(),
             vault,
         ),
-        HomeAssistantAction::List { vault } => cmd::homeassistant::list(vault),
-        HomeAssistantAction::Remove { id, vault } => cmd::homeassistant::remove(&id, vault),
+        HomeAssistantAction::List { vault } => cmd::server::list(&cmd::homeassistant::KIND, vault),
+        HomeAssistantAction::Remove { id, vault } => {
+            cmd::server::remove(&cmd::homeassistant::KIND, &id, vault)
+        }
+    }
+}
+
+/// `ipse jellyfin`.
+fn jellyfin(action: JellyfinAction) -> ipse_core::Result<()> {
+    let kind = &cmd::jellyfin::KIND;
+    match action {
+        JellyfinAction::Add {
+            address,
+            user,
+            name,
+            every,
+            vault,
+        } => cmd::server::add(
+            kind,
+            &address,
+            user.as_deref(),
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        JellyfinAction::List { vault } => cmd::server::list(kind, vault),
+        JellyfinAction::Remove { id, vault } => cmd::server::remove(kind, &id, vault),
     }
 }
 

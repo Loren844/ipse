@@ -5,9 +5,6 @@
 //! person creates. The presence of one `person.*` entity, the one the person chose, is
 //! sent as one `home.presence` record per stay.
 
-mod http;
-
-use std::fmt::Write as _;
 use std::io::{BufRead, Write};
 
 use ipse_protocol::connector::{Session, SessionResult};
@@ -19,9 +16,32 @@ use jiff::{SignedDuration, Timestamp};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use http::{Client, Failure};
+use super::rest::{self, Client, Failure, Service};
 
-pub(crate) use http::address;
+pub(crate) use super::rest::Found;
+
+/// What the messages say of Home Assistant.
+pub(crate) const SERVICE: Service = Service {
+    name: "Home Assistant",
+    refused: (
+        "Home Assistant refused the access token. Create a new long-lived access token in your Home Assistant profile, then connect again.",
+        "Home Assistant a refusé le jeton d'accès. Créez un nouveau jeton d'accès longue durée dans votre profil Home Assistant, puis connectez-vous à nouveau.",
+    ),
+    not_found: (
+        "No Home Assistant was found at this address. Check it: it usually ends with :8123.",
+        "Aucun Home Assistant n'a été trouvé à cette adresse. Vérifiez-la : elle finit souvent par :8123.",
+    ),
+};
+
+/// The address the person typed, as Ipse connects to it, and whether it is plain
+/// `http://` on the home network.
+///
+/// # Errors
+///
+/// A [`Failure`] for an address Ipse does not connect to.
+pub(crate) fn address(text: &str) -> Result<(String, bool), Failure> {
+    rest::address(text, &SERVICE)
+}
 
 /// The connector's identifier.
 pub(crate) const ID: &str = "homeassistant";
@@ -76,15 +96,6 @@ pub(crate) fn manifest() -> Manifest {
             default_every: "5m".to_owned(),
         }),
     }
-}
-
-/// A person of Home Assistant, to choose from.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub(crate) struct Found {
-    /// Its entity: what the person chooses, in the instance's `person`.
-    pub(crate) entity: String,
-    /// Its name in Home Assistant.
-    pub(crate) name: String,
 }
 
 /// The stay going on at the last session.
@@ -143,7 +154,12 @@ pub(crate) fn run(input: impl BufRead, output: impl Write) -> SessionResult<()> 
         )?;
         return session.finish();
     };
-    let client = Client::new(&url, plain, token.expose());
+    let client = Client::new(
+        SERVICE,
+        &url,
+        plain,
+        ("Authorization", format!("Bearer {}", token.expose())),
+    );
     let cursor = hello
         .cursor
         .clone()
@@ -186,7 +202,7 @@ fn sync(
     let path = format!(
         "/api/history/period/{}?filter_entity_id={}&end_time={}&minimal_response&no_attributes",
         from.round(jiff::Unit::Second).unwrap_or(from),
-        encode(person),
+        rest::encode(person),
         now.round(jiff::Unit::Second).unwrap_or(now),
     );
     let stays = stays(&client.get(&path)?, previous.as_ref());
@@ -197,7 +213,9 @@ fn sync(
 
 /// The `person.*` entities of `/api/states`, with their names.
 fn people(states: &Value) -> Result<Vec<Found>, Failure> {
-    let states = states.as_array().ok_or(http::NOT_HOME_ASSISTANT)?;
+    let states = states
+        .as_array()
+        .ok_or_else(|| Failure::not_found(&SERVICE))?;
     let mut found: Vec<Found> = states
         .iter()
         .filter_map(|state| {
@@ -210,7 +228,7 @@ fn people(states: &Value) -> Result<Vec<Found>, Failure> {
                 .and_then(Value::as_str)
                 .unwrap_or(entity);
             Some(Found {
-                entity: entity.to_owned(),
+                id: entity.to_owned(),
                 name: name.to_owned(),
             })
         })
@@ -277,20 +295,6 @@ fn records(person: &str, stays: &[Stay], now: Timestamp) -> Vec<Record> {
         .collect()
 }
 
-/// `text` for a query string: letters, digits and `._-` as they are, the rest
-/// percent-encoded.
-fn encode(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    for byte in text.bytes() {
-        if byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-') {
-            out.push(char::from(byte));
-        } else {
-            let _ = write!(out, "%{byte:02X}");
-        }
-    }
-    out
-}
-
 fn fail<R: BufRead, W: Write>(
     mut session: Session<R, W>,
     failure: &Failure,
@@ -335,13 +339,13 @@ mod tests {
         ]);
         let found = people(&states).unwrap();
         assert_eq!(
-            found.iter().map(|f| f.entity.as_str()).collect::<Vec<_>>(),
+            found.iter().map(|f| f.id.as_str()).collect::<Vec<_>>(),
             ["person.ines", "person.paul"]
         );
         assert_eq!(found[0].name, "Inès");
         assert_eq!(
             people(&json!({"message": "x"})),
-            Err(http::NOT_HOME_ASSISTANT)
+            Err(Failure::not_found(&SERVICE))
         );
     }
 
@@ -376,11 +380,5 @@ mod tests {
         let last = sent[2].data.as_ref().unwrap();
         assert_eq!(last["seen"], "2026-11-21T09:00:00Z");
         assert!(last.get("end").is_none());
-    }
-
-    #[test]
-    fn query_values_are_encoded() {
-        assert_eq!(encode("person.ines"), "person.ines");
-        assert_eq!(encode("a b&c"), "a%20b%26c");
     }
 }

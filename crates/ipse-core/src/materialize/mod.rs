@@ -14,6 +14,8 @@ mod events;
 mod home;
 mod location;
 mod relations;
+mod states;
+mod watching;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -26,6 +28,7 @@ pub use home::{HomeSummary, PRESENCE, home_to_vault};
 pub use location::{LocationSummary, NEAR, location_to_vault, meters};
 pub use relations::ADDED_FILE;
 use serde_json::Value;
+pub use watching::{WATCHED, WatchingSummary, watching_to_vault};
 
 use crate::journal::Journal;
 use crate::proposals::{Author, Change, Proposals, key_value};
