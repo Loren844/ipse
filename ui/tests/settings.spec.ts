@@ -207,7 +207,7 @@ test('the menu under the owner\'s name: their file, the settings, from the keybo
 	await button.focus();
 	await page.keyboard.press('ArrowDown');
 	const menu = page.getByRole('menu');
-	await expect(menu.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages']);
+	await expect(menu.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages', 'Comment ça marche']);
 	await expect(menu.getByRole('menuitem', { name: 'Votre fiche' })).toBeFocused();
 	await page.keyboard.press('ArrowDown');
 	await expect(menu.getByRole('menuitem', { name: 'Réglages' })).toBeFocused();
@@ -231,6 +231,6 @@ test('in the app, the menu also opens another memory', async ({ page }) => {
 	});
 	await page.goto(ipse.url);
 	await page.getByRole('button', { name: /^Mémoire de/ }).click();
-	await expect(page.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages', 'Ouvrir ou créer une autre mémoire']);
+	await expect(page.getByRole('menuitem')).toHaveText(['Votre fiche', 'Réglages', 'Comment ça marche', 'Ouvrir ou créer une autre mémoire']);
 	await expect(page.getByRole('menuitem', { name: 'Ouvrir ou créer une autre mémoire' })).toHaveAttribute('href', '/app/switch');
 });

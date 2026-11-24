@@ -344,6 +344,33 @@ const words = {
 		comingUp: 'Ce qui vient',
 		nothingComing: 'Rien de prévu dans les 30 prochains jours.',
 		nothingComingHint: 'Importez votre agenda, ou abonnez-vous à son lien, pour voir ici ce qui arrive.',
+		how: {
+			title: 'Comment ça marche',
+			lead: 'Ipse garde la mémoire de votre vie pour votre IA, en quatre idées.',
+			menu: 'Comment ça marche',
+			yourFolder: 'Votre mémoire est ici :',
+			more: 'Le guide complet, pas à pas',
+			folder: {
+				title: 'Votre mémoire est un dossier à vous',
+				text: 'Une fiche par personne, lieu ou événement, en fichiers Markdown sur votre ordinateur. Vous les lisez et les modifiez ici, dans Obsidian ou dans n’importe quel éditeur. Pas de compte, pas de serveur, pas de nuage.',
+				action: 'Parcourir la mémoire'
+			},
+			sources: {
+				title: 'Vos sources la remplissent',
+				text: 'Vos contacts, vos agendas et votre historique de positions sont recopiés tels quels, et les agendas suivis se mettent à jour d’eux-mêmes. Ipse lit seulement : il n’écrit jamais dans vos comptes.',
+				action: 'Ajouter une source'
+			},
+			rights: {
+				title: 'Chaque IA lit ce que vous lui ouvrez',
+				text: 'Pour chaque IA connectée, vous choisissez les catégories qu’elle peut lire. Santé, localisation, maison et privé restent fermées tant que vous ne les ouvrez pas. C’est Ipse qui l’applique, pas une consigne donnée à l’IA.',
+				action: 'Gérer les IA connectées'
+			},
+			proposals: {
+				title: 'Elle propose, vous décidez',
+				text: 'Ce que votre IA voudrait ajouter ou corriger attend votre avis, avec ce qui changerait. Vous acceptez, refusez avec un mot, ou annulez plus tard : l’historique dit qui a changé quoi.',
+				action: 'Voir ce qui attend'
+			}
+		},
 		firstSteps: 'Premiers pas',
 		firstStepsCount: (done: number, all: number) => `${done} sur ${all}`,
 		firstStepsHide: 'Masquer',
@@ -1144,6 +1171,33 @@ const words = {
 		comingUp: 'Coming up',
 		nothingComing: 'Nothing planned in the next 30 days.',
 		nothingComingHint: 'Import your calendar, or subscribe to its link, to see here what is coming.',
+		how: {
+			title: 'How it works',
+			lead: 'Ipse keeps the memory of your life for your AI, in four ideas.',
+			menu: 'How it works',
+			yourFolder: 'Your memory is here:',
+			more: 'The full guide, step by step',
+			folder: {
+				title: 'Your memory is a folder of your own',
+				text: 'One file per person, place or event, as Markdown files on your computer. Read and change them here, in Obsidian or in any editor. No account, no server, no cloud.',
+				action: 'Browse the memory'
+			},
+			sources: {
+				title: 'Your sources fill it',
+				text: 'Your contacts, your calendars and your location history are copied as they are, and followed calendars update on their own. Ipse only reads: it never writes to your accounts.',
+				action: 'Add a source'
+			},
+			rights: {
+				title: 'Each AI reads what you open to it',
+				text: 'For each connected AI, you choose the categories it may read. Health, location, home and private stay closed until you open them. Ipse enforces it, not an instruction given to the AI.',
+				action: 'Manage connected AIs'
+			},
+			proposals: {
+				title: 'It proposes, you decide',
+				text: 'What your AI would like to add or correct waits for you, with what would change. Accept, refuse with a word, or undo later: the history says who changed what.',
+				action: 'See what is waiting'
+			}
+		},
 		firstSteps: 'First steps',
 		firstStepsCount: (done: number, all: number) => `${done} of ${all}`,
 		firstStepsHide: 'Hide',

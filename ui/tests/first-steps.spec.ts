@@ -62,3 +62,23 @@ test('an invented memory says so, and how to make one’s own', async ({ page })
 	await expect(steps.locator('pre')).toHaveText('ipse init ~/Ipse');
 	await expect(steps.locator('li')).toHaveCount(0);
 });
+
+test('how it works, from the menu and from the first steps', async ({ page }) => {
+	ipse = await startIpse('Inès Roux', 'fr');
+	await page.goto(ipse.url);
+	await page.getByTestId('first-steps').getByRole('link', { name: 'Comment ça marche' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Comment ça marche');
+	await expect(page.getByRole('heading', { level: 2 })).toHaveText([
+		'Votre mémoire est un dossier à vous',
+		'Vos sources la remplissent',
+		'Chaque IA lit ce que vous lui ouvrez',
+		'Elle propose, vous décidez'
+	]);
+	await expect(page.locator('.how-folder code')).toHaveText(ipse.vault);
+	await page.getByRole('link', { name: 'Gérer les IA connectées' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('IA connectées');
+
+	await page.getByRole('button', { name: /^Mémoire de Inès Roux/ }).click();
+	await page.getByRole('menuitem', { name: 'Comment ça marche' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Comment ça marche');
+});
