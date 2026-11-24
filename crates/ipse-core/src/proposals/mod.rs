@@ -22,9 +22,9 @@ pub use change::{Change, NewRelation};
 pub(crate) use key::get as key_value;
 pub use person::{Created, Draft, DraftFact, version};
 
-use crate::rights::Standing;
+use crate::rights::{Categories, Standing};
 use crate::tasks::{TaskKind, Tasks};
-use crate::vault::{DateTime, Id, Source, Vault, write_atomic};
+use crate::vault::{DateTime, FileType, Id, Source, Vault, write_atomic};
 use crate::{Error, Result};
 
 /// Version of the proposal format.
@@ -33,6 +33,17 @@ pub const FORMAT: u32 = 1;
 /// Proposals of one kind accepted in a row, one by one, before Ipse offers to accept
 /// the next ones automatically (decision 0017).
 pub const OFFER_AFTER: usize = 3;
+
+/// The kinds of file an AI may create without the person waiting, once they allow it
+/// (decision 0018): none says who the person knows, where they go or when. People,
+/// places and events always wait, as text from outside could invent them (decision 0014).
+pub const CREATED_TYPES: [FileType; 5] = [
+    FileType::Thing,
+    FileType::Topic,
+    FileType::Project,
+    FileType::Organization,
+    FileType::Work,
+];
 
 /// Where proposals are kept, relative to the vault.
 pub const FOLDER: &str = ".ipse/proposals";
@@ -472,41 +483,107 @@ impl<'v> Proposals<'v> {
         Ok(Accepted::Applied(change))
     }
 
-    /// The kind of standing consent that may accept `proposal` (decision 0017): a
-    /// proposal by an AI, for a task Ipse gave it, made only of summaries for a
-    /// `summary` task or only of event kinds for a `classify` task. `None` for anything
-    /// else: a fact, a person, a relation, a change made without a task.
+    /// The kind of standing consent that may accept `proposal` (decisions 0017 and
+    /// 0018): a proposal by an AI made only of summaries for a `summary` task, only of
+    /// event kinds for a `classify` task, or only of [creations](Self::creations).
+    /// `None` for anything else: a person, a fact on a file the AI did not create, a
+    /// summary made without its task.
     ///
     /// # Errors
     ///
-    /// [`Error::Io`] or [`Error::Invalid`] when its task cannot be read.
+    /// [`Error::Io`] or [`Error::Invalid`] when its task or the proposals cannot be
+    /// read.
     pub fn standing(&self, proposal: &Proposal) -> Result<Option<Standing>> {
-        if !matches!(proposal.by, Author::Client(_)) {
+        let Author::Client(client) = &proposal.by else {
             return Ok(None);
+        };
+        if let Some(task) = &proposal.task {
+            let kind = match Tasks::new(self.vault).get(task) {
+                Ok(task) => Some(task.kind),
+                Err(Error::Refused(_)) => None,
+                Err(e) => return Err(e),
+            };
+            let only = |f: &dyn Fn(&Change) -> bool| proposal.changes.iter().all(f);
+            match kind {
+                Some(TaskKind::Summary) if only(&|c| matches!(c, Change::WriteSummary { .. })) => {
+                    return Ok(Some(Standing::Summaries));
+                }
+                Some(TaskKind::Classify)
+                    if only(&|c| {
+                        matches!(c, Change::SetKey { file, key, .. }
+                            if key == "kind" && file.starts_with("events/"))
+                    }) =>
+                {
+                    return Ok(Some(Standing::EventKinds));
+                }
+                _ => {}
+            }
         }
-        let Some(task) = &proposal.task else {
-            return Ok(None);
-        };
-        let kind = match Tasks::new(self.vault).get(task) {
-            Ok(task) => task.kind,
-            Err(Error::Refused(_)) => return Ok(None),
-            Err(e) => return Err(e),
-        };
-        let only = |f: &dyn Fn(&Change) -> bool| proposal.changes.iter().all(f);
-        Ok(match kind {
-            TaskKind::Summary if only(&|c| matches!(c, Change::WriteSummary { .. })) => {
-                Some(Standing::Summaries)
+        Ok(self
+            .creations(proposal, client)?
+            .then_some(Standing::Creations))
+    }
+
+    /// True when `proposal` is made only of what decision 0018 lets the person accept
+    /// in advance from the AI `client`: new files of [`CREATED_TYPES`] in a known
+    /// category that is not sensitive, and facts or relations added to files of those
+    /// types that `client` created, still in such a category. A change to a person, a
+    /// place or an event, to a file it did not create, a merge, a deletion or any other
+    /// change is not.
+    fn creations(&self, proposal: &Proposal, client: &str) -> Result<bool> {
+        let categories = Categories::of(self.vault.settings());
+        let sensitive = categories.sensitive();
+        if proposal.changes.is_empty()
+            || proposal
+                .categories
+                .iter()
+                .any(|c| !categories.known(c) || sensitive.contains(&c.as_str()))
+        {
+            return Ok(false);
+        }
+        let mut created: Option<Vec<String>> = None;
+        for change in &proposal.changes {
+            match change {
+                Change::Create { file_type, .. } => {
+                    if !FileType::parse(file_type).is_some_and(|t| CREATED_TYPES.contains(&t)) {
+                        return Ok(false);
+                    }
+                }
+                Change::AddFact { file, .. } | Change::AddRelation { file, .. } => {
+                    let created = match &mut created {
+                        Some(list) => list,
+                        None => created.insert(self.created_by(client)?),
+                    };
+                    if !created.contains(file) {
+                        return Ok(false);
+                    }
+                }
+                _ => return Ok(false),
             }
-            TaskKind::Classify
-                if only(&|c| {
-                    matches!(c, Change::SetKey { file, key, .. }
-                        if key == "kind" && file.starts_with("events/"))
-                }) =>
-            {
-                Some(Standing::EventKinds)
-            }
-            _ => None,
-        })
+        }
+        Ok(true)
+    }
+
+    /// The files of [`CREATED_TYPES`] that proposals by the AI `client` created and
+    /// that are still accepted (not undone).
+    fn created_by(&self, client: &str) -> Result<Vec<String>> {
+        let by = Author::Client(client.to_owned());
+        Ok(self
+            .list()?
+            .into_iter()
+            .filter(|p| p.by == by && matches!(p.status, Status::Accepted { .. }))
+            .flat_map(|p| p.changes)
+            .filter_map(|c| match c {
+                Change::Create {
+                    file: Some(file),
+                    file_type,
+                    ..
+                } if FileType::parse(&file_type).is_some_and(|t| CREATED_TYPES.contains(&t)) => {
+                    Some(file)
+                }
+                _ => None,
+            })
+            .collect())
     }
 
     /// Accepts the waiting proposal `id` because the person accepts its kind of change

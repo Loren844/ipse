@@ -25,8 +25,8 @@ read: Array<string>,
  */
 propose: Array<string>, 
 /**
- * What the person accepts from it in advance (decision 0017): `summaries`,
- * `event_kinds`.
+ * What the person accepts from it in advance (decisions 0017 and
+ * 0018): `summaries`, `event_kinds`, `creations`.
  */
 auto_accept: Array<string>, 
 /**

@@ -489,9 +489,9 @@ const words = {
 		decidedRecently: 'Décidées récemment',
 		autoTitle: 'Accepter automatiquement',
 		autoLead: (ai: string) =>
-			`Ce que ${ai} fait de ces sortes, pour une tâche d’Ipse, est accepté sans vous attendre, comme si vous l’aviez accepté vous-même : chaque changement reste dans l’historique et s’annule en un clic dans À revoir. Jamais pour les personnes, les faits ou les liens.`,
-		standings: { summaries: 'Résumés', event_kinds: 'Types d’événements' } as Record<string, string>,
-		standingsOf: { summaries: 'résumés', event_kinds: 'types d’événements' } as Record<string, string>,
+			`Ce que ${ai} fait de ces sortes est accepté sans vous attendre, comme si vous l’aviez accepté vous-même : chaque changement reste dans l’historique et s’annule en un clic dans À revoir. Les résumés et les types, pour une tâche d’Ipse ; les nouvelles fiches, pour un objet, un sujet, un projet, une organisation ou une œuvre dans une catégorie non sensible, et ce que ${ai} ajoute ensuite à ces fiches. Jamais pour les personnes, les lieux, les événements ni les fiches que ${ai} n’a pas créées.`,
+		standings: { summaries: 'Résumés', event_kinds: 'Types d’événements', creations: 'Nouvelles fiches (objets, sujets, projets…)' } as Record<string, string>,
+		standingsOf: { summaries: 'résumés', event_kinds: 'types d’événements', creations: 'ajouts' } as Record<string, string>,
 		autoSwitch: (ai: string, what: string) => `Accepter automatiquement les ${what} de ${ai}`,
 		autoOn: (ai: string, what: string) => `Les ${what} de ${ai} sont maintenant acceptés automatiquement.`,
 		autoOff: (ai: string, what: string) => `Les ${what} de ${ai} vous attendront de nouveau.`,
@@ -507,7 +507,9 @@ const words = {
 		automaticHome: (n: number, standing: string) =>
 			standing === 'summaries'
 				? `${n} résumé${n > 1 ? 's' : ''} accepté${n > 1 ? 's' : ''} automatiquement`
-				: `${n} type${n > 1 ? 's' : ''} d’événement accepté${n > 1 ? 's' : ''} automatiquement`,
+				: standing === 'creations'
+					? `${n} fiche${n > 1 ? 's' : ''} créée${n > 1 ? 's' : ''} par votre IA ces derniers jours`
+					: `${n} type${n > 1 ? 's' : ''} d’événement accepté${n > 1 ? 's' : ''} automatiquement`,
 		see: 'Voir',
 		proposedBy: (name: string) => `Proposée par ${name}`,
 		changedBy: (name: string) => `${capitalizeFirst(name)} a changé une fiche que vous aviez modifiée`,
@@ -1336,9 +1338,9 @@ const words = {
 		decidedRecently: 'Decided recently',
 		autoTitle: 'Accept automatically',
 		autoLead: (ai: string) =>
-			`What ${ai} does of these kinds, for a task from Ipse, is accepted without waiting for you, as if you had accepted it yourself: each change stays in the history and is undone in one click in Review. Never for people, facts or links.`,
-		standings: { summaries: 'Summaries', event_kinds: 'Event kinds' } as Record<string, string>,
-		standingsOf: { summaries: 'summaries', event_kinds: 'event kinds' } as Record<string, string>,
+			`What ${ai} does of these kinds is accepted without waiting for you, as if you had accepted it yourself: each change stays in the history and is undone in one click in Review. Summaries and kinds, for a task from Ipse; new files, for a thing, a topic, a project, an organization or a work in a category that is not sensitive, and what ${ai} adds to those files later. Never for people, places, events or files ${ai} did not create.`,
+		standings: { summaries: 'Summaries', event_kinds: 'Event kinds', creations: 'New files (things, topics, projects…)' } as Record<string, string>,
+		standingsOf: { summaries: 'summaries', event_kinds: 'event kinds', creations: 'additions' } as Record<string, string>,
 		autoSwitch: (ai: string, what: string) => `Accept ${ai}’s ${what} automatically`,
 		autoOn: (ai: string, what: string) => `${ai}’s ${what} are now accepted automatically.`,
 		autoOff: (ai: string, what: string) => `${ai}’s ${what} will wait for you again.`,
@@ -1352,7 +1354,11 @@ const words = {
 		undoNow: 'Undo',
 		undoneNow: 'Undone.',
 		automaticHome: (n: number, standing: string) =>
-			standing === 'summaries' ? `${n} ${n > 1 ? 'summaries' : 'summary'} accepted automatically` : `${n} event kind${n > 1 ? 's' : ''} accepted automatically`,
+			standing === 'summaries'
+				? `${n} ${n > 1 ? 'summaries' : 'summary'} accepted automatically`
+				: standing === 'creations'
+					? `${n} file${n > 1 ? 's' : ''} created by your AI these last days`
+					: `${n} event kind${n > 1 ? 's' : ''} accepted automatically`,
 		see: 'See',
 		proposedBy: (name: string) => `Proposed by ${name}`,
 		changedBy: (name: string) => `${capitalizeFirst(name)} changed a file you had edited`,

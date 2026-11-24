@@ -25,7 +25,7 @@
 	} = $props();
 
 	const name = (c: CategoryView) => c.label ?? capitalize(i18n.category(c.name));
-	const STANDINGS = ['summaries', 'event_kinds'];
+	const STANDINGS = ['summaries', 'event_kinds', 'creations'];
 </script>
 
 <section class="ai" aria-labelledby="ai-{ai.id}" data-testid="ai">
