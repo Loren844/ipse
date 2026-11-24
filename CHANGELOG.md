@@ -6,6 +6,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Changed
 
+- **The timeline is now the agenda's Years view**: one Agenda tab with List, Week, Month and Years. A month of the timeline opens its calendar, and the Month view links back to what marked that month. Old timeline links still work ([#211](https://github.com/Loren844/ipse/issues/211)).
 - **A smoother map, light and dark**: moving and zooming glide, with a trackpad or a finger too, and close places gather in groups that open with a click. The base map, still off until you turn it on, now comes from OpenFreeMap and is drawn in Ipse's colours, dark when the interface is ([#212](https://github.com/Loren844/ipse/issues/212)).
 
 ### Added
