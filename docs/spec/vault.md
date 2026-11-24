@@ -30,6 +30,7 @@ Settled on 2026-11-12. These choices are hard to undo after 1.0.
 ├── things/                 objects and devices: a car, a lamp, a laptop
 ├── topics/                 interests and themes: "jazz", "climbing"
 ├── works/                  films, series, books, albums
+├── reminders/              what to remind the person of, once or again and again
 ├── events/<YYYY>/          one file per dated event
 ├── states/<topic>/<YYYY>.md   "right now" states, one file per topic and year
 ├── summaries/
@@ -99,7 +100,7 @@ Text outside known sections, and the `Notes` section, is free text: Ipse indexes
 
 ## 3. Entities
 
-Entities are the files under `people/`, `places/`, `organizations/`, `projects/`, `things/`, `topics/` and `works/`.
+Entities are the files under `people/`, `places/`, `organizations/`, `projects/`, `things/`, `topics/`, `works/` and `reminders/`.
 
 ### 3.1 Entity front matter
 
@@ -115,6 +116,11 @@ In addition to the common keys:
 | `address` | string | place, person, organization | Free text. |
 | `geo` | `[lat, lon]` | place | WGS 84, decimal degrees. |
 | `located_in` | wikilink | place, thing | Containing place: a room in a home, a city. |
+| `at` | date or date-time | reminder | When it is due, the first time when it comes back: `2026-11-26`, or `2026-11-26T18:00:00+01:00`. Without it, the reminder is never due. |
+| `every` | `day`, `week`, `month` or `year` | reminder | It comes back, on the day and at the hour of `at` (a missing day of month falls on the month's last day). |
+| `done` | date | reminder | The day it was last done. Once without `every`; for one that comes back, an occurrence is done when `done` is its day or later. |
+
+A **reminder** (type `reminder`, category `agenda` by default, issue #206) says in its `name` what to remind the person of; its relations link what it is about. Ipse never rings: the person's AI reads the reminders due when it calls `now` (`rights.md`, section 4.1), at the start of a conversation or from its own app's scheduled run. On another type, `at`, `every` and `done` are the person's own keys, kept as written.
 
 Well-known attributes live here because connectors fill them and duplicate detection compares them.
 

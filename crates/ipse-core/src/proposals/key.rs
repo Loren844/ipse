@@ -3,7 +3,9 @@
 
 use serde_json::Value;
 
-use crate::vault::{Birthday, EventKind, EventStatus, EventTime, LinkOrText, MemoryFile, WikiLink};
+use crate::vault::{
+    Birthday, EventKind, EventStatus, EventTime, Every, FileType, LinkOrText, MemoryFile, WikiLink,
+};
 
 /// The keys a proposal may set on an entity.
 pub(super) const ENTITY_KEYS: [&str; 7] = [
@@ -14,6 +16,20 @@ pub(super) const ENTITY_KEYS: [&str; 7] = [
     "phones",
     "address",
     "located_in",
+];
+
+/// The keys a proposal may set on a reminder: an entity's, and when it is due.
+pub(super) const REMINDER_KEYS: [&str; 10] = [
+    "name",
+    "aliases",
+    "birthday",
+    "emails",
+    "phones",
+    "address",
+    "located_in",
+    "at",
+    "every",
+    "done",
 ];
 
 /// The keys a proposal may set on an event.
@@ -52,6 +68,9 @@ pub(crate) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
             "phones" => list(&e.phones),
             "address" => text(e.address.clone()),
             "located_in" => text(e.located_in.as_ref().map(ToString::to_string)),
+            "at" => text(e.at.map(|t| t.to_string())),
+            "every" => text(e.every.map(|v| v.as_str().to_owned())),
+            "done" => text(e.done.map(|d| d.to_string())),
             _ => return None,
         });
     }
@@ -75,8 +94,21 @@ pub(crate) fn get(file: &MemoryFile, key: &str) -> Option<Value> {
 
 /// Sets `key` of `file` to `value`. The error says what is wrong, without the value.
 pub(super) fn set(file: &mut MemoryFile, key: &str, value: &Value) -> Result<(), String> {
+    let reminder = file.common().file_type == FileType::Reminder;
     if let Some(e) = file.entity_mut() {
         match key {
+            "at" if reminder => e.at = optional(key, value, EventTime::parse, DATE_OR_TIME)?,
+            "every" if reminder => {
+                e.every = optional(key, value, Every::parse, "day, week, month or year")?;
+            }
+            "done" if reminder => {
+                e.done = optional(
+                    key,
+                    value,
+                    |t| t.parse().ok().filter(|_| t.len() == 10),
+                    "a day: 2026-11-14",
+                )?;
+            }
             "name" => {
                 // The old name stays as another name: the person may still say it.
                 let new = optional_text(key, value)?;

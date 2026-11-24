@@ -25,7 +25,8 @@ pub use body::{Body, Fact, FactId, Relation, RelationKind, Section};
 pub use check::{Problem, Report, check};
 pub use event::{EventFields, EventKind, EventStatus, EventTime};
 pub use fields::{
-    Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
+    Birthday, Category, Common, DateTime, EntityFields, Every, FileType, Geo, Id, LinkOrText,
+    WikiLink,
 };
 pub use file::MemoryFile;
 pub use history::{Change, History, Source};

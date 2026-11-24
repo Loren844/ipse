@@ -14,7 +14,19 @@ kind: string, name: string, aliases: Array<string>,
 /**
  * `YYYY-MM-DD`, or `--MM-DD` without the year.
  */
-birthday: string | null, emails: Array<string>, phones: Array<string>, address: string | null, facts: Array<string>, relations: Array<RelationView>, notes: string | null, category: string, 
+birthday: string | null, 
+/**
+ * For a reminder: when it is due, a day or a date and time with its offset.
+ */
+at: string | null, 
+/**
+ * For a reminder: `day`, `week`, `month` or `year`.
+ */
+every: string | null, 
+/**
+ * For a reminder: the day it was last done.
+ */
+done: string | null, emails: Array<string>, phones: Array<string>, address: string | null, facts: Array<string>, relations: Array<RelationView>, notes: string | null, category: string, 
 /**
  * Closed to AIs unless the person opens its category.
  */
