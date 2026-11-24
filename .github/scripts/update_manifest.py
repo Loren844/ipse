@@ -36,6 +36,22 @@ def section(changelog: str, version: str) -> str:
     return match.group(1).strip() if match else ""
 
 
+def plain(markdown: str) -> str:
+    """The notes as plain text, for the app's window, which shows them as they are:
+    no `###`, `**` or backticks, links as their text, items as bullets. An app of any
+    version shows them well, old ones included."""
+    lines = []
+    for line in markdown.splitlines():
+        line = re.sub(r"^#{1,6}\s+", "", line)
+        line = re.sub(r"^(\s*)[-*]\s+", r"\1• ", line)
+        line = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", line)
+        line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+        line = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"\1", line)
+        line = line.replace("`", "")
+        lines.append(line)
+    return "\n".join(lines).strip()
+
+
 def memory_format(settings: str) -> int:
     """The memory format the core reads and writes."""
     match = re.search(r"^pub const FORMAT: u32 = (\d+);", settings, flags=re.M)
@@ -61,7 +77,7 @@ def manifest(folder: str, tag: str, repository: str, changelog: str, settings: s
         raise SystemExit(f"no signed file in {folder}")
     return {
         "version": version,
-        "notes": section(changelog, version),
+        "notes": plain(section(changelog, version)),
         "pub_date": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "memory_format": memory_format(settings),
         "platforms": platforms,
