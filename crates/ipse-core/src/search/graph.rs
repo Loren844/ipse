@@ -219,7 +219,7 @@ impl SearchIndex {
 pub struct Neighbour<'i> {
     /// The file.
     pub node: GraphNode<'i>,
-    /// The relation's words as the center's file writes them: "mère : [[it]]".
+    /// The relation's words as the center's file writes them: `mère : [[it]]`.
     pub words: Vec<&'i str>,
     /// The relation's words as its own file writes them about the center.
     pub back: Vec<&'i str>,
