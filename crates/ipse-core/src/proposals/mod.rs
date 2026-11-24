@@ -485,7 +485,8 @@ impl<'v> Proposals<'v> {
 
     /// The kind of standing consent that may accept `proposal` (decisions 0017 and
     /// 0018): a proposal by an AI made only of summaries for a `summary` task, only of
-    /// event kinds for a `classify` task, or only of [creations](Self::creations).
+    /// event kinds for a `classify` task, or only of new files of [`CREATED_TYPES`]
+    /// and what was added to them (decision 0018).
     /// `None` for anything else: a person, a fact on a file the AI did not create, a
     /// summary made without its task.
     ///
