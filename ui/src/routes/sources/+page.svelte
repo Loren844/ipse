@@ -26,6 +26,7 @@
 		| { kind: 'connect-server'; connector: Server }
 		| { kind: 'sync'; instance: string }
 		| { kind: 'choose'; instance: string }
+		| { kind: 'positions'; instance: string }
 		| null = $state(null);
 	let over = $state(false);
 	let picker: HTMLInputElement | undefined = $state();
@@ -104,6 +105,8 @@
 			}
 			case 'imported':
 			case 'synced':
+			case 'positions':
+			case 'noPositions':
 				return { tone: 'done', text: t.sourceOutcomes[change.outcome] };
 			case 'failed': {
 				const source = change.sources.sources.find((s) => s.instance === change.source);
@@ -185,6 +188,10 @@
 		if (!person) return;
 		const change = await run({ kind: 'choose', instance: source.instance }, () => api.chooseOne(source.instance, person));
 		if (change) delete persons[source.instance];
+	}
+
+	async function setPositions(source: SourceView, on: boolean) {
+		await run({ kind: 'positions', instance: source.instance }, () => api.setPositions(source.instance, on));
 	}
 
 	async function choose(event: SubmitEvent, source: SourceView) {
@@ -436,6 +443,19 @@
 									<p class="quiet">
 										{i18n.t.followedWho(server.choices.find((c) => c.id === server.chosen)?.name ?? server.chosen)}
 									</p>
+									{#if server.positions !== null}
+										<label class="check">
+											<input
+												type="checkbox"
+												checked={server.positions}
+												disabled={working !== null}
+												aria-describedby={`positions-${source.instance}`}
+												onchange={(e) => setPositions(source, e.currentTarget.checked)}
+											/>
+											{i18n.t.positionsLabel}
+										</label>
+										<p class="quiet" id={`positions-${source.instance}`}>{i18n.t.positionsHint}</p>
+									{/if}
 								{:else if server.choices.length}
 									<h4>{i18n.t.chooseWho}</h4>
 									<p class="quiet">{words.chooseHint}</p>

@@ -205,6 +205,53 @@ pub(crate) fn choose(
     sync_once(vault, &instance, secrets, false)
 }
 
+/// The config key that asks Home Assistant for the phone's positions too (issue #208).
+pub(crate) const POSITIONS: &str = "positions";
+
+/// Whether the server `instance` also reads the phone's positions.
+pub(crate) fn reads_positions(instance: &Instance) -> bool {
+    instance.config.get(POSITIONS).and_then(Value::as_bool) == Some(true)
+}
+
+/// Reads, or stops reading, the positions of the phone from Home Assistant `id`
+/// (issue #208), then syncs it. The stays already in the memory stay.
+///
+/// # Errors
+///
+/// [`Error::Refused`] when no Home Assistant is connected under `id`; errors of the
+/// memory, the history or the keychain.
+pub(crate) fn set_positions(
+    vault: &Vault,
+    id: &str,
+    on: bool,
+    secrets: &dyn SecretStore,
+) -> Result<Option<Synced>> {
+    let kind = &super::homeassistant::KIND;
+    let root = vault.root();
+    let mut instances = Instances::load(root)?;
+    let mut instance = source(kind, &instances, id)?;
+    if reads_positions(&instance) == on {
+        return Ok(None);
+    }
+    if on {
+        instance
+            .config
+            .insert(POSITIONS.to_owned(), Value::Bool(true));
+    } else {
+        instance.config.remove(POSITIONS);
+    }
+    instances.set_config(id, instance.config.clone())?;
+    let history = vault.history()?;
+    let mut change = history.change(Source::Person);
+    change.touched(&root.join(INSTANCES_FILE));
+    change.commit(if on {
+        "Read the phone's positions from Home Assistant"
+    } else {
+        "Stop reading the phone's positions from Home Assistant"
+    })?;
+    sync_once(vault, &instance, secrets, false).map(Some)
+}
+
 /// Stops following the server `id`: its token leaves the keychain, what it brought
 /// stays.
 ///

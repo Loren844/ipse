@@ -1,5 +1,5 @@
 // Home Assistant on the Sources screen (issue #225): connect it, choose whom to follow,
-// see the stays at home, disconnect it. A small server on this computer answers as Home
+// see the stays at home, read the phone's positions or not (#208), disconnect it. A small server on this computer answers as Home
 // Assistant's REST API. Data invented.
 import { expect, test } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
@@ -83,6 +83,16 @@ test('connect Home Assistant, choose whom to follow, then disconnect it', async 
 	await source.getByRole('button', { name: 'Suivre cette personne' }).click();
 	await expect(page.getByRole('status')).toHaveText('Synchronisé.');
 	await expect(source).toContainText('Suit Inès.');
+
+	// The phone's positions are read only when the person asks (issue #208).
+	const positions = source.getByLabel('Lire aussi où va mon téléphone');
+	await expect(positions).not.toBeChecked();
+	await expect(source).toContainText('fermée aux IA tant que vous ne l’ouvrez pas');
+	await positions.check();
+	await expect(page.getByRole('status')).toContainText('Ipse lit maintenant les positions de votre téléphone');
+	await expect(source.getByLabel('Lire aussi où va mon téléphone')).toBeChecked();
+	await source.getByLabel('Lire aussi où va mon téléphone').uncheck();
+	await expect(page.getByRole('status')).toContainText('Ipse ne lit plus les positions de votre téléphone');
 
 	await source.getByRole('button', { name: 'Ne plus suivre' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Ne plus suivre « Maison » ?' });

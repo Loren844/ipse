@@ -9,6 +9,7 @@ pub(crate) mod homeassistant;
 pub(crate) mod immich;
 pub(crate) mod jellyfin;
 pub(crate) mod rest;
+pub(crate) mod stays;
 pub(crate) mod timeline;
 
 use ipse_core::{Error, Result};

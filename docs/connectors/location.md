@@ -2,6 +2,8 @@
 
 Imports where you have been from your phone's location history (Google Maps Timeline), so that your memory knows the places you go and when you were there.
 
+Without exporting a file: connect your own Home Assistant and turn on its phone's positions (`docs/connectors/homeassistant.md`); its stays are the same `location.visit` records, and land in the vault in the same way.
+
 | | |
 | --- | --- |
 | Id | `google-timeline` |

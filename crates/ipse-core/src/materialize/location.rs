@@ -140,8 +140,12 @@ pub fn location_to_vault(
 ) -> Result<LocationSummary> {
     let ledger = Ledger::read(vault.root())?;
     let applied = ledger.applied(instance).map(str::to_owned);
-    let labels = labels(journal, instance)?;
     let (items, last) = versions(journal, instance, VISIT, applied.as_deref())?;
+    if items.is_empty() {
+        // Nothing new: a source that syncs every few minutes reads no place file.
+        return Ok(LocationSummary::default());
+    }
+    let labels = labels(journal, instance)?;
     let mut places = Places::read(vault, instance)?;
     let mut events = read_events(vault.root(), instance)?;
     let zone = vault.settings().time_zone().clone();
