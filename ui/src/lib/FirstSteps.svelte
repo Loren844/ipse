@@ -29,6 +29,7 @@
 		<div class="first-steps-head">
 			<h2 id="first-steps">{guide.demo ? i18n.t.demoTitle : i18n.t.firstSteps}</h2>
 			{#if !guide.demo}<span class="steps-count">{i18n.t.firstStepsCount(done, guide.steps.length)}</span>{/if}
+			<a class="how-link" href="/how">{i18n.t.how.title}</a>
 			<button type="button" class="button small" onclick={hide}>{i18n.t.firstStepsHide}</button>
 		</div>
 		{#if guide.demo}

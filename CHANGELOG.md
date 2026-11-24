@@ -7,6 +7,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 ### Added
 
 - **First steps** on the home screen: add your contacts or your calendar, connect your AI, ask it a first question, answer its first proposal. Each step is ticked when Ipse sees it done, and the list goes away once all are done or when you hide it. An invented memory says so, and how to create your own ([#172](https://github.com/Loren844/ipse/issues/172)).
+- **How it works**, a page that explains Ipse in four ideas: your memory is a folder of your own, your sources fill it, each AI reads what you open to it, it proposes and you decide. From the menu under your name and from the first steps ([#172](https://github.com/Loren844/ipse/issues/172)).
 - **A note the first time a screen opens** (Sources, Connected AIs, Review, Agenda, Timeline, Map, Memory): what to do there, until you say you read it ([#172](https://github.com/Loren844/ipse/issues/172)).
 
 ## 0.3.0 - 2026-11-24

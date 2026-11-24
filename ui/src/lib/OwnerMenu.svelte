@@ -17,6 +17,7 @@
 		[
 			me ? { href: `/people/${me}`, label: i18n.t.yourFile, reload: false } : null,
 			{ href: '/settings', label: i18n.t.settings, reload: false },
+			{ href: '/how', label: i18n.t.how.menu, reload: false },
 			inApp ? { href: appLinks.switchMemory, label: i18n.t.switchMemory, reload: true } : null
 		].filter((i) => i !== null)
 	);
