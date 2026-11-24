@@ -25,6 +25,7 @@ What changed in each version of Ipse, for the people who use it. The format foll
 
 ### Fixed
 
+- The graph, beside the memory's list, opens centred in what the window shows of it: on a window 800 pixels high, the whole memory was drawn half below the bottom of the window until the page scrolled ([#198](https://github.com/Loren844/ipse/issues/198)).
 - A test of the background sync no longer fails now and then on macOS: it waits for the sync's state as it waits for its run.
 - In **En ce moment**, a book or a series linked to its file lines up with the rest; the light theme's darkest red (links, names) is softened to the same family as the rest ([#171](https://github.com/Loren844/ipse/issues/171)).
 - Widening the window while the phone's **Plus** panel is open no longer leaves the page blocked behind it ([#177](https://github.com/Loren844/ipse/issues/177)).

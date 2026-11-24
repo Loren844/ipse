@@ -95,3 +95,25 @@ test('on a phone, the graph takes the whole width', async ({ page }) => {
 	const scroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
 	expect(scroll).toBe(true);
 });
+
+test('in the app’s window, the graph opens whole, with you inside the window (#198)', async ({ page }) => {
+	await page.setViewportSize({ width: 1200, height: 800 });
+	await page.goto(ipse.url);
+	await page.goto(`${ipse.origin}/memory?graph=1`);
+	const canvas = page.getByTestId('memory-graph');
+	await expect(canvas).toHaveAttribute('data-owner', /^-?\d+,-?\d+$/);
+	const [x, y] = (await canvas.getAttribute('data-owner'))!.split(',').map(Number);
+	const box = (await canvas.boundingBox())!;
+	// The frame goes below the window before the page scrolls; you are not below it.
+	expect(box.y + box.height).toBeGreaterThan(800);
+	expect(box.x + x!).toBeGreaterThan(box.x);
+	expect(box.x + x!).toBeLessThan(box.x + box.width);
+	expect(box.y + y!).toBeGreaterThan(box.y);
+	expect(box.y + y!).toBeLessThan(800);
+	// The whole memory, top to bottom, is in the window.
+	const [top, bottom] = (await canvas.getAttribute('data-extent'))!.split(',').map(Number);
+	expect(box.y + top!).toBeGreaterThanOrEqual(box.y);
+	expect(box.y + bottom!).toBeLessThanOrEqual(800);
+	// And it is centred in what the window shows of the frame, not in the whole frame.
+	expect(Math.abs(box.y + (top! + bottom!) / 2 - (box.y + 800) / 2)).toBeLessThan(20);
+});

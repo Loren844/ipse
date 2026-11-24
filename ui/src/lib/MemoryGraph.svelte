@@ -335,14 +335,30 @@
 		canvas.dataset.frame = sorted[Math.floor(sorted.length / 2)]!.toFixed(2);
 		canvas.dataset.worst = sorted[sorted.length - 1]!.toFixed(2);
 		canvas.dataset.frames = String(frames.length);
+		// Where you and the whole memory are drawn, for the tests.
+		if (graph.centered) canvas.dataset.owner = `${Math.round(laid.x[0]! * k + tx)},${Math.round(laid.y[0]! * k + ty)}`;
+		const [, y0, , y1] = bounds(laid);
+		canvas.dataset.extent = `${Math.round(y0 * k + ty)},${Math.round(y1 * k + ty)}`;
 	}
 
+	/** The part of the drawing the window shows now, from its top: `[top, bottom]`. Below
+	 * the heading, before the page scrolls, the frame's lower part is out of the window. */
+	function seen(): [number, number] {
+		const box = canvas.getBoundingClientRect();
+		const top = Math.max(0, -box.top);
+		const bottom = Math.min(height, window.innerHeight - box.top);
+		// Barely shown: the person scrolls to it, and finds it whole.
+		return bottom - top < Math.min(height, 240) ? [0, height] : [top, bottom];
+	}
+
+	/** The whole memory in the part of the drawing the window shows. */
 	function fit() {
 		const [x0, y0, x1, y1] = bounds(laid);
+		const [top, bottom] = seen();
 		const margin = 40;
-		k = Math.min((width - margin * 2) / (x1 - x0), (height - margin * 2) / (y1 - y0), 3);
+		k = Math.min((width - margin * 2) / (x1 - x0), (bottom - top - margin * 2) / (y1 - y0), 3);
 		tx = width / 2 - ((x0 + x1) / 2) * k;
-		ty = height / 2 - ((y0 + y1) / 2) * k;
+		ty = (top + bottom) / 2 - ((y0 + y1) / 2) * k;
 		schedule();
 	}
 
