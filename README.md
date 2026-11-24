@@ -62,16 +62,16 @@ Your AI forgets who your friends are, what you did last summer and what is on ne
       <sub>Calendar files and links, iCloud, Fastmail or any CalDAV and CardDAV account, synced in the background. By list, week, month and kind.</sub>
     </td>
     <td width="50%" valign="top">
-      <img alt="The timeline" src="docs/images/timeline.png">
+      <img alt="The agenda by years" src="docs/images/timeline.png">
       <strong>Your life by years and months</strong><br>
       <sub>What marked each period and the people you saw most; a map of the places you go, from your location history.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img alt="The graph of the whole memory" src="docs/images/graph.png">
+      <img alt="The graph around you" src="docs/images/graph.png">
       <strong>Your whole memory, linked</strong><br>
-      <sub>People, places, organizations, projects, books and series, events: one graph, you at its center.</sub>
+      <sub>Start from you or any file: the people you see most, the places, projects and relations around it, each link said in words.</sub>
     </td>
     <td width="50%" valign="top">
       <img alt="Connected AIs and their rights" src="docs/images/ais.png">
@@ -115,7 +115,7 @@ Measured with `cargo bench` on a 4-core Intel Xeon at 2.1 GHz (a cloud virtual m
 | Tell whether that memory changed, as the MCP server does on every request | 4.3 ms |
 | Search it | 8 µs |
 
-The graph of a whole memory of 22 000 files is laid out in under 20 ms and drawn in under half a second.
+In a memory of 22 000 files, the graph around a file opens in under half a second.
 
 ## 🧭 Principles
 

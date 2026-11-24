@@ -38,6 +38,7 @@
 			{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
 			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
 			{ href: '/map', label: i18n.t.map, icon: icons.place },
+			{ href: '/graph', label: i18n.t.graph, icon: icons.graph },
 			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
 		],
 		[

@@ -19,7 +19,9 @@ use serde::{Deserialize, Serialize};
 pub(crate) const FILE: &str = ".ipse/guide.json";
 
 /// The screens that have a note the first time they open.
-const SCREENS: [&str; 6] = ["sources", "ais", "review", "agenda", "map", "memory"];
+const SCREENS: [&str; 7] = [
+    "sources", "ais", "review", "agenda", "map", "memory", "graph",
+];
 
 /// What `.ipse/guide.json` holds.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -1,8 +1,9 @@
 //! The neighbourhood of a file, for the graph view (issue #130): what it links to and
 //! what links to it, one or two steps away, among the files a client may read. Only
 //! the neighbourhood is computed, from the links the index read once per file, so that
-//! a memory of tens of thousands of files is drawn as fast as a small one. And the whole
-//! memory as one graph (issue #174), every file and every link, in one pass.
+//! a memory of tens of thousands of files is drawn as fast as a small one. And a file
+//! with the files directly linked to it (issue #213), two files in the same events
+//! being linked by how many there are, in one pass.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -213,82 +214,193 @@ impl SearchIndex {
     }
 }
 
-/// The whole memory as one graph (issue #174): every file the client may read and
-/// every link between two of them.
+/// A file linked to the file at the center of [`Around`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WholeGraph<'i> {
-    /// The file at the center first (depth 0), when there is one; then every other
-    /// file (depth 1): entities by name, then events, the most recent first.
-    pub nodes: Vec<GraphNode<'i>>,
-    /// Each link once, whichever way it is written, by the places of its two files in
-    /// `nodes`, the smaller first.
-    pub edges: Vec<(u32, u32)>,
+pub struct Neighbour<'i> {
+    /// The file.
+    pub node: GraphNode<'i>,
+    /// The relation's words as the center's file writes them: `mère : [[it]]`.
+    pub words: Vec<&'i str>,
+    /// The relation's words as its own file writes them about the center.
+    pub back: Vec<&'i str>,
+    /// How many events of the period both are in.
+    pub together: u32,
+    /// When the last of those events started.
+    pub last: Option<&'i EventTime>,
+}
+
+impl Neighbour<'_> {
+    /// How strongly it is linked: a relation written in either file counts as much as
+    /// five events together.
+    fn strength(&self) -> u32 {
+        let written = !self.words.is_empty() || !self.back.is_empty();
+        self.together + if written { 5 } else { 1 }
+    }
+}
+
+/// A file and the files directly linked to it, for the graph centred on one file (issue
+/// #213). Events are not neighbours of an entity: two files in the same events are
+/// linked by how many there are.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Around<'i> {
+    /// The file at the center.
+    pub center: GraphNode<'i>,
+    /// Its neighbours, the most strongly linked first, then by name.
+    pub neighbours: Vec<Neighbour<'i>>,
 }
 
 impl SearchIndex {
-    /// Every file of the allowed categories that `keep` keeps (by type and category),
-    /// with `center` first when it is one of them or allowed (`keep` does not apply to
-    /// it), and every link between two of them. One pass over the files, one over
-    /// their links.
+    /// The file `center` and the files linked to it, among the allowed categories.
+    /// `owner` is the owner's own file: every event counts as theirs. Only the events
+    /// that start within `period` (inclusive) are counted. With no `center`, the owner's
+    /// file; with no owner either, the entity in the most events. `None` when there is
+    /// no such file, or its category is not allowed.
     #[must_use]
-    pub fn whole_graph(
-        &self,
+    pub fn around<'i>(
+        &'i self,
         center: Option<&Id>,
+        owner: Option<&Id>,
+        period: (jiff::Timestamp, jiff::Timestamp),
         allowed: impl Fn(&Category) -> bool,
-        keep: impl Fn(FileType, &Category) -> bool,
-    ) -> WholeGraph<'_> {
-        let center = center
+    ) -> Option<Around<'i>> {
+        let readable = |slot: usize| self.document(slot).filter(|d| allowed(&d.category));
+        let owner_slot = owner
             .and_then(|id| self.by_id.get(id).copied())
-            .filter(|&slot| self.document(slot).is_some_and(|d| allowed(&d.category)));
-        let mut order: Vec<usize> = self
-            .slots
-            .iter()
-            .enumerate()
-            .filter_map(|(slot, entry)| {
-                let d = entry.as_ref()?.document.as_ref()?;
-                (Some(slot) != center && allowed(&d.category) && keep(d.file_type, &d.category))
-                    .then_some(slot)
-            })
-            .collect();
-        self.sort_for_graph(&mut order);
-        if let Some(slot) = center {
-            order.insert(0, slot);
+            .filter(|&s| readable(s).is_some());
+        let start = match center {
+            Some(id) => *self.by_id.get(id)?,
+            None => owner_slot.or_else(|| self.busiest(&allowed))?,
+        };
+        let doc = readable(start)?;
+        let stem = doc
+            .path
+            .file_stem()
+            .map(|s| s.to_string_lossy().to_ascii_lowercase())
+            .unwrap_or_default();
+        let is_event = doc.file_type == FileType::Event;
+        let everything = Some(start) == owner_slot;
+        let within = |time: &EventTime| {
+            let at = sort_key(time);
+            period.0 <= at && at <= period.1
+        };
+
+        let mut found: HashMap<usize, Neighbour<'i>> = HashMap::new();
+        let entry = |slot: usize, found: &mut HashMap<usize, Neighbour<'i>>| -> bool {
+            if slot == start {
+                return false;
+            }
+            let Some(d) = readable(slot) else {
+                return false;
+            };
+            if !is_event && d.file_type == FileType::Event {
+                return false;
+            }
+            found.entry(slot).or_insert_with(|| Neighbour {
+                node: node_of(d, 1),
+                words: Vec::new(),
+                back: Vec::new(),
+                together: 0,
+                last: None,
+            });
+            true
+        };
+        // What the center links to.
+        for link in &doc.links {
+            if let Some(target) = self.resolve(&link.target, &allowed)
+                && entry(target, &mut found)
+                && let (Some(word), Some(n)) = (link.word.as_deref(), found.get_mut(&target))
+                && !n.words.contains(&word)
+            {
+                n.words.push(word);
+            }
         }
-        let place: HashMap<usize, u32> = order
-            .iter()
-            .enumerate()
-            .filter_map(|(i, &slot)| Some((slot, u32::try_from(i).ok()?)))
-            .collect();
-        let mut nodes = Vec::with_capacity(order.len());
-        let mut edges = Vec::new();
-        let mut seen: HashSet<(u32, u32)> = HashSet::new();
-        for (&slot, from) in order.iter().zip(0_u32..) {
-            let Some(d) = self.document(slot) else {
+        // What links to it, and the events it is in: one pass over every file.
+        for (slot, item) in self.slots.iter().enumerate() {
+            let Some(d) = item.as_ref().and_then(|s| s.document.as_ref()) else {
                 continue;
             };
-            nodes.push(GraphNode {
-                id: &d.id,
-                name: &d.name.text,
-                file_type: d.file_type,
-                category: &d.category,
-                path: &d.path,
-                depth: u8::from(Some(slot) != center),
-                start: d.event.as_ref().map(|e| &e.start),
-            });
-            for link in &d.links {
-                let Some(to) = self
-                    .by_stem
-                    .get(&link.target)
-                    .and_then(|slots| slots.iter().find_map(|s| place.get(s).copied()))
-                else {
+            if slot == start || !allowed(&d.category) {
+                continue;
+            }
+            let links_here = d.links.iter().filter(|l| l.target == stem);
+            if d.file_type == FileType::Event && !is_event {
+                let Some(event) = &d.event else { continue };
+                let mine = everything || d.links.iter().any(|l| l.target == stem);
+                if !mine || !within(&event.start) {
                     continue;
-                };
-                let pair = (from.min(to), from.max(to));
-                if from != to && seen.insert(pair) {
-                    edges.push(pair);
+                }
+                // Every event is the owner's, whether it names them or not.
+                let others = d
+                    .links
+                    .iter()
+                    .filter_map(|link| self.resolve(&link.target, &allowed))
+                    .chain(owner_slot)
+                    .collect::<HashSet<usize>>();
+                for other in others {
+                    if entry(other, &mut found)
+                        && let Some(n) = found.get_mut(&other)
+                    {
+                        n.together += 1;
+                        if n.last.is_none_or(|l| sort_key(l) < sort_key(&event.start)) {
+                            n.last = Some(&event.start);
+                        }
+                    }
+                }
+                continue;
+            }
+            for link in links_here {
+                if entry(slot, &mut found)
+                    && let (Some(word), Some(n)) = (link.word.as_deref(), found.get_mut(&slot))
+                    && !n.back.contains(&word)
+                {
+                    n.back.push(word);
                 }
             }
         }
-        WholeGraph { nodes, edges }
+        let mut neighbours: Vec<Neighbour<'i>> = found.into_values().collect();
+        neighbours.sort_by(|a, b| {
+            b.strength()
+                .cmp(&a.strength())
+                .then_with(|| fold(a.node.name).cmp(&fold(b.node.name)))
+        });
+        Some(Around {
+            center: node_of(doc, 0),
+            neighbours,
+        })
+    }
+
+    /// The entity in the most events, among the allowed categories.
+    fn busiest(&self, allowed: &impl Fn(&Category) -> bool) -> Option<usize> {
+        let mut count: HashMap<usize, u32> = HashMap::new();
+        for item in &self.slots {
+            let Some(d) = item.as_ref().and_then(|s| s.document.as_ref()) else {
+                continue;
+            };
+            if d.file_type != FileType::Event || !allowed(&d.category) {
+                continue;
+            }
+            for link in &d.links {
+                if let Some(slot) = self.resolve(&link.target, allowed) {
+                    *count.entry(slot).or_default() += 1;
+                }
+            }
+        }
+        count
+            .into_iter()
+            .max_by_key(|&(slot, n)| (n, std::cmp::Reverse(slot)))
+            .map(|(slot, _)| slot)
+    }
+}
+
+/// A file of a graph, `depth` steps from its center.
+fn node_of(d: &super::document::Document, depth: u8) -> GraphNode<'_> {
+    GraphNode {
+        id: &d.id,
+        name: &d.name.text,
+        file_type: d.file_type,
+        category: &d.category,
+        path: &d.path,
+        depth,
+        start: d.event.as_ref().map(|e| &e.start),
     }
 }

@@ -68,6 +68,7 @@ export type { EditView, SavedView };
 import type { GraphView } from './types/GraphView.ts';
 export type { GraphView };
 export type { NodeView } from './types/NodeView.ts';
+export type { NeighbourView } from './types/NeighbourView.ts';
 export type { LinkField } from './types/LinkField.ts';
 export type { RelationField } from './types/RelationField.ts';
 
@@ -184,7 +185,7 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
-	graph: () => get<GraphView>('/api/graph'),
+	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),

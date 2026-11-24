@@ -1,5 +1,5 @@
-// The graph of a large memory (issue #174): 20 000 people and 2 000 events, moved and
-// zoomed in a real browser; each frame's drawing time is measured by the page itself.
+// The graph of a large memory (issue #213): 20 000 people and 2 000 events. Centred on
+// one file, it draws its strongest links at once, whatever the size of the memory.
 // Data invented.
 import { expect, test } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -38,32 +38,26 @@ test.beforeEach(async () => {
 });
 test.afterEach(() => ipse.stop());
 
-test('22 000 files are drawn, moved and zoomed smoothly', async ({ page }) => {
+test('a graph of 22 000 files opens and recentres at once', async ({ page }) => {
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.goto(ipse.url);
-	const asked = Date.now();
-	await page.goto(`${ipse.origin}/memory?graph=1`);
-	const canvas = page.getByTestId('memory-graph');
-	await expect(canvas).toHaveAttribute('data-files', String(PEOPLE + EVENTS + 1), { timeout: 120_000 });
-	const shown = Date.now() - asked;
+	let asked = Date.now();
+	await page.goto(`${ipse.origin}/graph`);
+	const drawing = page.getByTestId('graph');
+	await expect(drawing).toHaveAttribute('data-files', '31', { timeout: 60_000 });
+	const opened = Date.now() - asked;
 
-	const box = (await canvas.boundingBox())!;
-	const x = box.x + box.width / 2;
-	const y = box.y + box.height / 2;
-	await page.mouse.move(x, y);
-	// Zoom in, move around, zoom out: every frame measured.
-	for (let i = 0; i < 12; i++) await page.mouse.wheel(0, -180);
-	await page.mouse.down();
-	for (let i = 0; i < 20; i++) await page.mouse.move(x + i * 15, y + i * 8);
-	await page.mouse.up();
-	for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 240);
-	await page.waitForTimeout(300);
-
-	const frames = Number(await canvas.getAttribute('data-frames'));
-	const median = Number(await canvas.getAttribute('data-frame'));
-	const worst = Number(await canvas.getAttribute('data-worst'));
-	console.log(`graph of ${PEOPLE + EVENTS + 1} files: shown in ${shown} ms; ${frames} frames, median ${median} ms, worst ${worst} ms`);
-	expect(frames).toBeGreaterThan(20);
-	// A frame of a 60 Hz screen lasts 16.7 ms; a test machine is slower than a person's.
-	expect(median).toBeLessThan(33);
+	// The busiest person: in every event, a friend on each side.
+	const busiest = page.getByTestId('graph-links').getByRole('button', { name: /Marie Durand 0$/ });
+	asked = Date.now();
+	await busiest.click();
+	await expect(page.getByTestId('graph-panel').getByRole('heading', { level: 2 })).toHaveText('Marie Durand 0');
+	await expect(drawing).toHaveAttribute('data-moving', 'false');
+	const recentred = Date.now() - asked;
+	// Hundreds of links (the events of the last twelve months), 30 drawn.
+	await expect(page.getByTestId('graph-panel').getByRole('heading', { level: 3 }).first()).toHaveText(/^\d\s?\d{3} liens$/);
+	await expect(drawing).toHaveAttribute('data-files', '31');
+	console.log(`graph of ${PEOPLE + EVENTS + 1} files: opened in ${opened} ms, recentred in ${recentred} ms`);
+	// A test machine is slower than a person's: still well under a second each.
+	expect(recentred).toBeLessThan(3000);
 });

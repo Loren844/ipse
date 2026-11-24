@@ -34,7 +34,7 @@ use crate::{Error, Result};
 use document::{Document, Field, Stored};
 
 pub use fold::{fold, stem, words};
-pub use graph::{GraphEdge, GraphNode, Neighbourhood, WholeGraph};
+pub use graph::{Around, GraphEdge, GraphNode, Neighbour, Neighbourhood};
 pub use kinds::{Born, KindSummary, Often, next_birthday};
 pub use places::{Met, Visited};
 pub use series::Series;

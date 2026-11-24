@@ -175,16 +175,32 @@ pub struct GraphOut {
     pub more: usize,
 }
 
-/// The whole memory, for the graph view (issue #174).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
-pub struct WholeGraphOut {
-    /// The owner's own file first when `centered`, then entities by name, then events,
-    /// the most recent first.
-    pub nodes: Vec<NodeOut>,
-    /// Each link once, by the places of its two files in `nodes`, the smaller first.
-    pub edges: Vec<(u32, u32)>,
-    /// True when the first node is the owner's own file.
-    pub centered: bool,
+/// A file linked to the center of [`AroundOut`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct NeighbourOut {
+    /// The file.
+    pub node: NodeOut,
+    /// The relation's words as the center's file writes them.
+    pub words: Vec<String>,
+    /// The relation's words as its own file writes them about the center.
+    pub back: Vec<String>,
+    /// How many events of the period both are in.
+    pub together: u32,
+    /// When the last of them started: `YYYY-MM-DD` or RFC 3339.
+    pub last: Option<String>,
+}
+
+/// A file and the files directly linked to it (issue #213).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AroundOut {
+    /// The file at the center.
+    pub center: NodeOut,
+    /// True when it is the owner's own file.
+    pub mine: bool,
+    /// The id of the owner's own file, when there is one.
+    pub owner: Option<String>,
+    /// Its neighbours, the most strongly linked first.
+    pub neighbours: Vec<NeighbourOut>,
 }
 
 impl Access<'_> {
@@ -245,43 +261,53 @@ impl Access<'_> {
         })
     }
 
-    /// The whole memory as one graph (issue #174): every entity and event of this
-    /// client's categories that `categories` keeps (all when `None`) and of the types
-    /// `kinds` keeps (all when empty), the owner's own file first (whatever the
-    /// filters, when this client may read it), and every link between two of them.
+    /// The file `id` (the owner's own file when `None`, or the entity in the most
+    /// events when there is none) and the files directly linked to it, among this
+    /// client's categories; two files are linked by the events within `period` they are
+    /// both in. `None` when there is no such file, or this client may not read it.
     #[must_use]
-    pub fn whole_graph(&self, kinds: &[FileType], categories: Option<&[String]>) -> WholeGraphOut {
-        let kept = |t: FileType, c: &crate::vault::Category| {
-            let kind = if kinds.is_empty() {
-                t.is_entity() || t == FileType::Event
-            } else {
-                kinds.contains(&t)
-            };
-            kind && categories.is_none_or(|keep| keep.iter().any(|k| k == c.as_str()))
+    pub fn around(
+        &self,
+        id: Option<&str>,
+        period: (jiff::Timestamp, jiff::Timestamp),
+    ) -> Option<AroundOut> {
+        let center = match id {
+            Some(id) => Some(Id::parse(id)?),
+            None => None,
         };
         let me = self.about_me().and_then(|me| Id::parse(&me.id));
         let found = self
             .gateway
             .index
-            .whole_graph(me.as_ref(), |c| self.reads(c.as_str()), kept);
-        let centered = found.nodes.first().is_some_and(|n| n.depth == 0);
-        WholeGraphOut {
-            nodes: found
-                .nodes
+            .around(center.as_ref(), me.as_ref(), period, |c| {
+                self.reads(c.as_str())
+            })?;
+        let node = |n: crate::search::GraphNode<'_>| NodeOut {
+            id: n.id.to_string(),
+            name: n.name.to_owned(),
+            file_type: n.file_type.as_str().to_owned(),
+            category: n.category.as_str().to_owned(),
+            sensitive: self.sensitive(n.category.as_str()),
+            depth: n.depth,
+            start: n.start.map(ToString::to_string),
+        };
+        let mine = me.as_ref() == Some(found.center.id);
+        Some(AroundOut {
+            center: node(found.center),
+            mine,
+            owner: me.as_ref().map(ToString::to_string),
+            neighbours: found
+                .neighbours
                 .into_iter()
-                .map(|n| NodeOut {
-                    id: n.id.to_string(),
-                    name: n.name.to_owned(),
-                    file_type: n.file_type.as_str().to_owned(),
-                    category: n.category.as_str().to_owned(),
-                    sensitive: self.sensitive(n.category.as_str()),
-                    depth: n.depth,
-                    start: n.start.map(ToString::to_string),
+                .map(|n| NeighbourOut {
+                    node: node(n.node),
+                    words: n.words.into_iter().map(str::to_owned).collect(),
+                    back: n.back.into_iter().map(str::to_owned).collect(),
+                    together: n.together,
+                    last: n.last.map(ToString::to_string),
                 })
                 .collect(),
-            edges: found.edges,
-            centered,
-        }
+        })
     }
 
     /// True when `category` is closed to AIs unless the person opens it to one.
