@@ -202,6 +202,7 @@ export const api = {
 			notes: draft.notes || undefined,
 			stem
 		}),
+	ownId: (file: string) => post<MemoryView>('/api/files/copies', { file }),
 	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone }),
 	hideFirstSteps: () => post<NotesView>('/api/guide', { hide: true }),
 	sawScreen: (screen: string) => post<NotesView>('/api/guide', { seen: screen })

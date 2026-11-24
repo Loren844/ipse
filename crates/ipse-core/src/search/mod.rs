@@ -542,6 +542,26 @@ impl SearchIndex {
         *self = fresh;
     }
 
+    /// The files that share their id with another, by id, each group sorted by path:
+    /// most often copies made by hand (issue #230). Cheap: read from the index.
+    #[must_use]
+    pub fn shared_ids(&self) -> Vec<Vec<PathBuf>> {
+        let mut by_id: HashMap<&Id, Vec<PathBuf>> = HashMap::new();
+        for d in self.documents() {
+            by_id.entry(&d.id).or_default().push(d.path.clone());
+        }
+        let mut groups: Vec<Vec<PathBuf>> = by_id
+            .into_values()
+            .filter(|g| g.len() > 1)
+            .map(|mut g| {
+                g.sort();
+                g
+            })
+            .collect();
+        groups.sort();
+        groups
+    }
+
     fn documents(&self) -> impl Iterator<Item = &Document> {
         self.slots
             .iter()

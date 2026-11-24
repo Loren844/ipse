@@ -489,3 +489,43 @@ fn markdown_that_does_not_read_as_a_file_is_refused_in_words() {
     // Read at an older version: refused.
     assert!(refusal(proposals.edit_text(FILE, &at, MARIE)).contains("changed since you opened it"));
 }
+
+#[test]
+fn a_copy_made_by_hand_gets_an_id_of_its_own() {
+    // Obsidian's "Make a copy" (issue #230).
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let copy = "people/marie-durand 1.md";
+    std::fs::write(dir.path().join(copy), MARIE).unwrap();
+
+    let found = ipse_core::vault::copies(dir.path()).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(
+        found[0].path,
+        Path::new(copy),
+        "the longer name is the copy"
+    );
+    assert_eq!(found[0].original, Path::new(FILE));
+    let report = ipse_core::vault::check(dir.path()).unwrap();
+    assert!(
+        report
+            .problems
+            .iter()
+            .any(|p| p.path == Path::new(copy) && p.message.contains(FILE)),
+        "{report:?}"
+    );
+
+    let proposals = Proposals::new(&vault);
+    let refused = proposals.own_id(FILE).unwrap_err();
+    assert!(
+        matches!(refused, Error::Refused(_)),
+        "the original keeps its id"
+    );
+    let id = proposals.own_id(copy).unwrap();
+    assert!(read(dir.path(), copy).contains(&format!("\nid: {id}\n")));
+    assert!(read(dir.path(), FILE).contains("\nid: 01jcx8m2p4q6r8t0v2w4y6z8a0\n"));
+    assert!(ipse_core::vault::copies(dir.path()).unwrap().is_empty());
+    let last = &History::open(dir.path()).unwrap().entries(1).unwrap()[0];
+    assert_eq!(last.source, Some(Source::Person));
+    assert!(matches!(proposals.own_id(copy), Err(Error::Refused(_))));
+}

@@ -59,6 +59,18 @@
 	});
 
 	const ready = $derived(memory.state.kind === 'ready' ? memory.state.value : null);
+
+	// A file copied by hand holds the id of another (issue #230): give it its own.
+	let fixing = $state<string | null>(null);
+	let fixFailed = $state(false);
+	async function ownId(file: string) {
+		fixing = file;
+		fixFailed = false;
+		await memory.load(() => api.ownId(file), true);
+		fixFailed = memory.state.kind === 'failed';
+		fixing = null;
+		if (fixFailed) memory.load(() => api.memory(), true);
+	}
 </script>
 
 <svelte:head><title>{i18n.t.memory} · Ipse</title></svelte:head>
@@ -115,6 +127,21 @@
 			{/if}
 		{/if}
 	{:else if ready}
+		{#if ready.copies.length}
+			<section class="copies" aria-labelledby="copies" data-testid="copies">
+				<h2 id="copies">{i18n.t.copiesTitle(ready.copies.length)}</h2>
+				<p class="hint">{i18n.t.copiesLead}</p>
+				<ul>
+					{#each ready.copies as copy (copy.file)}
+						<li>
+							<span>{i18n.t.copyLine(copy.file, copy.original)}</span>
+							<button type="button" class="button small" disabled={fixing !== null} onclick={() => ownId(copy.file)}>{i18n.t.copyFix}</button>
+						</li>
+					{/each}
+				</ul>
+				{#if fixFailed}<p class="quiet" role="alert">{i18n.t.failed}</p>{/if}
+			</section>
+		{/if}
 		<div class="memory-overview">
 		<ul class="kinds" data-testid="kinds">
 			{#each KINDS as kind (kind.kind)}
