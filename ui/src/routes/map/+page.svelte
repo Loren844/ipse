@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Where one has been (issue #135): the places with a position on a map, sized by
 	// how often one went; a place opens its visits and the people there.
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { api, type EntityView, type MapView } from '#lib/api.ts';
 	import { dayOf, longDay, timeOf } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
@@ -61,6 +62,7 @@
 		<h1>{i18n.t.map}</h1>
 		<p class="intro">{i18n.t.mapLead}</p>
 	</header>
+	<FirstVisit screen="map" />
 
 	{#if remote.state.kind === 'failed'}
 		<p class="quiet">{i18n.t.failed}</p>

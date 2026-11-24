@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
@@ -177,6 +178,7 @@
 		</div>
 		<p class="intro">{i18n.t.memoryLead}</p>
 	</header>
+	<FirstVisit screen="memory" />
 
 	<div class={open ? 'memory-split' : 'memory-whole'}>
 	<div class="memory-list">

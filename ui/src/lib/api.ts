@@ -42,6 +42,10 @@ export type { SummariesView, SummaryView };
 import type { QuestionsView } from './types/QuestionsView.ts';
 import type { SettingsView } from './types/SettingsView.ts';
 export type { SettingsView };
+import type { GuideView } from './types/GuideView.ts';
+import type { NotesView } from './types/NotesView.ts';
+export type { GuideView, NotesView };
+export type { StepView } from './types/StepView.ts';
 import type { MemoryView } from './types/MemoryView.ts';
 import type { ListView } from './types/ListView.ts';
 import type { SearchView } from './types/SearchView.ts';
@@ -194,5 +198,7 @@ export const api = {
 			notes: draft.notes || undefined,
 			stem
 		}),
-	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone })
+	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone }),
+	hideFirstSteps: () => post<NotesView>('/api/guide', { hide: true }),
+	sawScreen: (screen: string) => post<NotesView>('/api/guide', { seen: screen })
 };

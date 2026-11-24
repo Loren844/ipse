@@ -37,6 +37,7 @@ mod api;
 mod background;
 mod edit;
 mod graph;
+pub(crate) mod guide;
 mod history;
 mod kinds;
 mod map;
@@ -457,6 +458,8 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
         review::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "settings" {
         settings::change(gateway, body).map(|v| Some(to_json(&v)))
+    } else if path == "guide" {
+        guide::change(gateway, body).map(|v| Some(to_json(&v)))
     } else if let Some(action) = path.strip_prefix("sources/") {
         sources::change(gateway, action, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "files" || path.starts_with("file/") {
@@ -561,6 +564,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path == "files"
             || path.starts_with("file/")
             || path == "settings"
+            || path == "guide"
             || path.starts_with("sources/"))
     {
         let json = request

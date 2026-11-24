@@ -1,6 +1,7 @@
 <script lang="ts">
 	// What feeds the memory (issue #152): files imported, calendars followed by link,
 	// calendars and contacts accounts (CalDAV, CardDAV: issue #154).
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { api, SessionEnded, type SourcesChange, type SourcesView, type SourceView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Confirm, { type Question } from '#lib/Confirm.svelte';
@@ -181,6 +182,7 @@
 		<h1>{i18n.t.sourcesNav}</h1>
 		<p class="intro">{i18n.t.sourcesLead}</p>
 	</header>
+	<FirstVisit screen="sources" />
 
 	<div class="live" role="status" aria-live="polite">
 		{#if working?.kind === 'import'}

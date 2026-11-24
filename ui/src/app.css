@@ -4095,3 +4095,129 @@ p.automatic a {
 	background: var(--warn-soft);
 	color: var(--warn);
 }
+
+/* The first steps on the home screen (issue #172): knots on the thread, past once done,
+   filled for the one to do now. */
+.first-steps {
+	margin: 0 0 2.5rem;
+}
+
+.first-steps-head {
+	display: flex;
+	align-items: baseline;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	margin-bottom: 1rem;
+}
+
+.first-steps-head h2 {
+	margin: 0;
+}
+
+.first-steps-head .steps-count {
+	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.first-steps-head .button {
+	margin-left: auto;
+}
+
+.first-steps ol {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.first-steps li,
+.first-steps .step-text {
+	position: relative;
+	padding: 0 0 1.25rem 2rem;
+}
+
+.first-steps li::before {
+	content: '';
+	position: absolute;
+	left: 0.4rem;
+	top: 1.1rem;
+	bottom: 0;
+	width: 2px;
+	border-radius: 2px;
+	background: var(--thread-faint);
+}
+
+.first-steps li:last-child::before {
+	display: none;
+}
+
+.first-steps li::after {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 0.35rem;
+	width: 0.9rem;
+	height: 0.9rem;
+	border-radius: 50%;
+	border: 2.5px solid var(--thread);
+	background: var(--ground);
+	box-sizing: border-box;
+}
+
+.first-steps li.done::after {
+	border-color: var(--thread-faint);
+	background: var(--thread-faint);
+}
+
+.first-steps li.now::after {
+	background: var(--thread);
+}
+
+.first-steps h3 {
+	margin: 0;
+	font-size: var(--step-1);
+}
+
+.first-steps li.done h3 {
+	color: var(--muted);
+	font-weight: 400;
+}
+
+.first-steps li p,
+.first-steps .step-text p {
+	margin: 0.35rem 0 0;
+	color: var(--muted);
+	max-width: 62ch;
+}
+
+.first-steps li p:has(.button),
+.first-steps .step-text p:has(.button) {
+	margin-top: 0.75rem;
+}
+
+.first-steps .copy {
+	margin-top: 0.6rem;
+}
+
+.first-steps .step-text {
+	padding-left: 0;
+}
+
+/* A note the first time a screen opens (issue #172): written on the thread. */
+.first-visit {
+	display: flex;
+	align-items: flex-start;
+	gap: 1rem;
+	margin: 0 0 1.75rem;
+	padding: 0.1rem 0 0.1rem 0.9rem;
+	border-left: 2px solid var(--thread);
+	max-width: 46rem;
+}
+
+.first-visit p {
+	margin: 0;
+	line-height: 1.55;
+}
+
+.first-visit .button {
+	flex: none;
+}

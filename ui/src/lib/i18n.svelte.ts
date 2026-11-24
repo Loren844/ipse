@@ -344,6 +344,49 @@ const words = {
 		comingUp: 'Ce qui vient',
 		nothingComing: 'Rien de prévu dans les 30 prochains jours.',
 		nothingComingHint: 'Importez votre agenda, ou abonnez-vous à son lien, pour voir ici ce qui arrive.',
+		firstSteps: 'Premiers pas',
+		firstStepsCount: (done: number, all: number) => `${done} sur ${all}`,
+		firstStepsHide: 'Masquer',
+		firstStepsList: 'Les premières choses à faire',
+		stepDone: 'fait',
+		steps: {
+			sources: {
+				title: 'Ajoutez vos contacts ou votre agenda',
+				text: 'Ipse s’en sert pour savoir qui sont vos proches et ce qui arrive. Rien ne quitte votre ordinateur.',
+				action: 'Ouvrir les sources'
+			},
+			ai: {
+				title: 'Connectez votre IA',
+				text: 'Claude Desktop, LM Studio ou toute app qui parle MCP lit votre mémoire, avec les droits que vous lui donnez.',
+				action: 'Connecter une IA'
+			},
+			question: {
+				title: 'Posez-lui une première question',
+				text: 'Dans votre IA, essayez par exemple :',
+				action: ''
+			},
+			review: {
+				title: 'Répondez à sa première proposition',
+				text: 'Quand votre IA veut ajouter ou corriger quelque chose, elle le propose. Vous acceptez ou refusez, et tout s’annule ensuite.',
+				action: 'Voir ce qui attend'
+			}
+		} as Record<string, { title: string; text: string; action: string }>,
+		firstQuestion: 'Qui ai-je vu le plus ce mois-ci ?',
+		firstQuestionLabel: 'Une première question',
+		demoTitle: 'Une mémoire inventée',
+		demoText: 'Les personnes, les événements et ce qu’une IA a proposé ici sont inventés : explorez librement. Quand vous voulez, créez votre propre mémoire.',
+		demoCreate: 'Créer ma mémoire',
+		demoCommand: 'Avec la commande ipse, dans un terminal :',
+		screenNoteRead: 'Compris',
+		firstVisit: {
+			sources: 'Pour commencer, importez le fichier de vos contacts (.vcf) ou de votre agenda (.ics), ou suivez un agenda par son lien secret : Ipse le relit de lui-même tant que l’app tourne. Ce qui vient d’une source est recopié tel quel.',
+			ais: 'Connectez votre IA ici, en un clic pour Claude Desktop. Les catégories sensibles (santé, localisation, maison, privé) restent fermées tant que vous ne les ouvrez pas à une IA, une par une.',
+			review: 'Ce que votre IA voudrait changer attend ici. Rien n’est écrit tant que vous n’avez pas accepté, et un changement accepté s’annule plus tard en un clic.',
+			agenda: 'Votre agenda, en liste, par semaine ou par mois. Ouvrez un événement pour voir qui y était et où, et donnez-lui un genre (repas, sport, voyage…) pour le retrouver plus tard.',
+			timeline: 'Choisissez une année, puis un mois, pour voir ce qui l’a marqué. Les résumés sont écrits par votre IA, et vous pouvez les corriger.',
+			map: 'Les lieux viennent de votre historique de localisation et des adresses de votre agenda. Le fond de carte n’est chargé depuis internet que si vous l’allumez.',
+			memory: 'Toute votre mémoire, fiche par fiche, ou en graphe autour de vous. Chaque fiche est un fichier Markdown de votre dossier : modifiez-la ici ou dans n’importe quel éditeur.'
+		} as Record<string, string>,
 		waitingBanner: (proposals: number, questions: number) => {
 			const p = plural(proposals, '1 proposition', '# propositions');
 			const q = plural(questions, '1 question', '# questions');
@@ -1101,6 +1144,49 @@ const words = {
 		comingUp: 'Coming up',
 		nothingComing: 'Nothing planned in the next 30 days.',
 		nothingComingHint: 'Import your calendar, or subscribe to its link, to see here what is coming.',
+		firstSteps: 'First steps',
+		firstStepsCount: (done: number, all: number) => `${done} of ${all}`,
+		firstStepsHide: 'Hide',
+		firstStepsList: 'The first things to do',
+		stepDone: 'done',
+		steps: {
+			sources: {
+				title: 'Add your contacts or your calendar',
+				text: 'Ipse uses them to know who your people are and what is coming. Nothing leaves your computer.',
+				action: 'Open Sources'
+			},
+			ai: {
+				title: 'Connect your AI',
+				text: 'Claude Desktop, LM Studio or any app that speaks MCP reads your memory, with the rights you give it.',
+				action: 'Connect an AI'
+			},
+			question: {
+				title: 'Ask it a first question',
+				text: 'In your AI, try for example:',
+				action: ''
+			},
+			review: {
+				title: 'Answer its first proposal',
+				text: 'When your AI wants to add or correct something, it proposes it. You accept or refuse, and anything can be undone later.',
+				action: 'See what is waiting'
+			}
+		} as Record<string, { title: string; text: string; action: string }>,
+		firstQuestion: 'Who did I see most this month?',
+		firstQuestionLabel: 'A first question',
+		demoTitle: 'An invented memory',
+		demoText: 'The people, the events and what an AI proposed here are invented: explore freely. Whenever you like, create your own memory.',
+		demoCreate: 'Create my memory',
+		demoCommand: 'With the ipse command, in a terminal:',
+		screenNoteRead: 'Got it',
+		firstVisit: {
+			sources: 'To begin, import the file of your contacts (.vcf) or of your calendar (.ics), or follow a calendar by its secret link: Ipse reads it again on its own while the app runs. What comes from a source is copied as it is.',
+			ais: 'Connect your AI here, in one click for Claude Desktop. Sensitive categories (health, location, home, private) stay closed until you open them to an AI, one by one.',
+			review: 'What your AI would like to change waits here. Nothing is written until you accept, and an accepted change can be undone later in one click.',
+			agenda: 'Your agenda, as a list, by week or by month. Open an event to see who was there and where, and give it a kind (meal, sport, trip…) to find it later.',
+			timeline: 'Pick a year, then a month, to see what marked it. The summaries are written by your AI, and you can correct them.',
+			map: 'The places come from your location history and the addresses in your agenda. The base map is loaded from the internet only if you turn it on.',
+			memory: 'Your whole memory, file by file, or as a graph around you. Each file is a Markdown file in your folder: change it here or in any editor.'
+		} as Record<string, string>,
 		waitingBanner: (proposals: number, questions: number) => {
 			const p = plural(proposals, '1 proposal', '# proposals');
 			const q = plural(questions, '1 question', '# questions');

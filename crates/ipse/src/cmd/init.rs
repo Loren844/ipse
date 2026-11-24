@@ -21,6 +21,7 @@ pub(crate) fn run(
         let name = super::demo::owner_name(settings.language());
         let vault = Vault::init(&folder, &name, settings)?;
         let made = super::demo::fill(&vault)?;
+        crate::ui::guide::mark_demo(vault.root())?;
         println!(
             "A demo memory is ready in {}: {}, {} people and {} events, all invented, with what an AI proposed.",
             folder.display(),

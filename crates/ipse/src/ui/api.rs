@@ -44,6 +44,8 @@ pub(crate) struct AppInfo {
     pub(crate) waiting: usize,
     /// Followed sources whose last sync failed: the Sources screen says what to do.
     pub(crate) failing: usize,
+    /// The screens whose first-time note the person read (issue #172).
+    pub(crate) seen: Vec<String>,
 }
 
 /// A link to another file, or a name as written.
@@ -311,6 +313,8 @@ pub(crate) struct HomeView {
     latest: Option<super::summaries::SummaryView>,
     /// What is going on right now.
     now: Vec<super::memory::StateView>,
+    /// The first steps, until they are done or put away (issue #172).
+    guide: Option<super::guide::GuideView>,
 }
 
 /// What `/api/app` answers.
@@ -336,6 +340,7 @@ pub(crate) fn app(gateway: &mut Gateway) -> Result<AppInfo> {
         time_zone,
         waiting,
         failing,
+        seen: super::guide::seen(gateway.vault().root()),
     })
 }
 
@@ -449,6 +454,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         kind: Some(me.file_type),
     });
     let now = super::memory::now(&owner);
+    let guide = super::guide::home(gateway)?;
     Ok(HomeView {
         today: today.to_string(),
         me,
@@ -459,6 +465,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         questions,
         latest,
         now,
+        guide,
     })
 }
 

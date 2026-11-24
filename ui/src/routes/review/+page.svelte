@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { leave, move } from '#lib/motion.ts';
 	import { tick } from 'svelte';
 	import {
@@ -119,6 +120,7 @@
 				<p class="lead">{i18n.t.inboxEmpty}</p>
 			{/if}
 		</header>
+		<FirstVisit screen="review" />
 
 		<div class="live" role="status" aria-live="polite" tabindex="-1" bind:this={status}>
 			{#if outcome}<Notice tone={outcome.tone}>{outcome.text}</Notice>{/if}
@@ -210,6 +212,7 @@
 	<Empty title={i18n.t.inbox}>
 		<p class="lead">{i18n.t.inboxEmpty}</p>
 		<p>{i18n.t.inboxEmptyHint}</p>
+		<FirstVisit screen="review" />
 	</Empty>
 {:else if inbox.state.kind === 'failed'}
 	<p class="quiet">{i18n.t.failed}</p>

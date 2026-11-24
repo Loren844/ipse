@@ -28,7 +28,7 @@ const TRAILER: &str = "Ipse-Source:";
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
 /// indexes, the connected AIs and what they read, the connectors' runs and
 /// diagnostics) and editors' scratch files.
-const IGNORED: [&str; 13] = [
+const IGNORED: [&str; 14] = [
     "journal/",
     ".ipse/connectors/",
     ".ipse/materialized.toml",
@@ -39,6 +39,7 @@ const IGNORED: [&str; 13] = [
     ".ipse/tasks/",
     ".ipse/access/",
     ".ipse/clients.toml",
+    ".ipse/guide.json",
     ".obsidian/workspace*",
     ".trash/",
     ".DS_Store",

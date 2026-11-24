@@ -1,4 +1,5 @@
 <script lang="ts">
+	import FirstVisit from '#lib/FirstVisit.svelte';
 	import { onMount } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { goto } from '$app/navigation';
@@ -133,6 +134,7 @@
 		<h1>{i18n.t.agenda}</h1>
 		<a class="button small" href="/memory/new?kind=event">+ {i18n.t.addKind.event}</a>
 	</header>
+	<FirstVisit screen="agenda" />
 	<div class="agenda-bar">
 		<div class="segmented" role="group" aria-label={i18n.t.agendaViews}>
 			{#each VIEWS as v (v)}
