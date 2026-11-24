@@ -34,7 +34,7 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await more.click();
 	await expect(page.getByRole('dialog', { name: 'Autres sections' }).getByRole('link').first()).toHaveText('Votre fiche');
 	await page.keyboard.press('Escape');
-	for (const name of ['Réglages', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
+	for (const name of ['Réglages', 'Carte', 'Graphe', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
 		await more.click();
 		const panel = page.getByRole('dialog', { name: 'Autres sections' });
 		await expect(panel).toBeVisible();

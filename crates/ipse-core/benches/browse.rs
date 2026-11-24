@@ -162,24 +162,26 @@ fn main() {
         median(hub)
     );
 
-    let mut whole = Vec::new();
-    let mut people_only = Vec::new();
+    let mut mine = Vec::new();
+    let mut one = Vec::new();
+    let always = (jiff::Timestamp::MIN, jiff::Timestamp::MAX);
     for _ in 0..11 {
         let start = Instant::now();
-        let graph = owner.whole_graph(&[], None);
-        whole.push(start.elapsed());
-        assert_eq!(graph.nodes.len(), PEOPLE + 1 + EVENTS);
-        assert!(graph.centered);
-        assert!(graph.edges.len() >= PEOPLE + EVENTS);
+        let graph = owner.around(None, always).unwrap();
+        mine.push(start.elapsed());
+        assert!(graph.mine);
+        assert!(!graph.neighbours.is_empty());
         let start = Instant::now();
-        let graph = owner.whole_graph(&[ipse_core::vault::FileType::Person], None);
-        people_only.push(start.elapsed());
-        assert_eq!(graph.nodes.len(), PEOPLE + 1);
+        let graph = owner
+            .around(Some("01jcx8m2p4q6r8t0v2w4000000"), always)
+            .unwrap();
+        one.push(start.elapsed());
+        assert!(!graph.neighbours.is_empty());
     }
     println!(
-        "whole memory as a graph   {:>9.2?}  ({} files, 2 000 events)",
-        median(whole),
+        "graph around the owner    {:>9.2?}  ({} files, 2 000 events)",
+        median(mine),
         PEOPLE + 1 + EVENTS
     );
-    println!("whole graph, people only  {:>9.2?}", median(people_only));
+    println!("graph around a person     {:>9.2?}  (1 step)", median(one));
 }
