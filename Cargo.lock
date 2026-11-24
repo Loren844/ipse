@@ -2001,7 +2001,7 @@ dependencies = [
 
 [[package]]
 name = "ipse"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "clap",
@@ -2027,7 +2027,7 @@ dependencies = [
 
 [[package]]
 name = "ipse-core"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "blake3",
  "criterion",
@@ -2050,7 +2050,7 @@ dependencies = [
 
 [[package]]
 name = "ipse-protocol"
-version = "0.3.0"
+version = "0.3.1"
 dependencies = [
  "jiff",
  "serde",
