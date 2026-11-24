@@ -64,7 +64,7 @@ Every memory file starts with a YAML front matter block. These keys are common t
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `id` | string | yes | Stable identifier, a [ULID](https://github.com/ulid/spec) in lowercase. Never changes, even when the file is renamed or moved. |
+| `id` | string | yes | Stable identifier, a [ULID](https://github.com/ulid/spec) in lowercase. Never changes, even when the file is renamed or moved. A file that holds another's `id` (a copy made by hand) is reported by `ipse check` and in the interface, which gives it an id of its own as the person's change; the oldest by `created`, then the shortest path, keeps it. |
 | `type` | string | yes | `person`, `place`, `organization`, `project`, `thing`, `topic`, `work`, `event`, `state-log`, `summary`. |
 | `category` | string | yes | Rights category (see `rights.md`). Defaults per type are listed there. |
 | `created` | datetime | yes | RFC 3339 with offset, e.g. `2026-11-12T19:30:00+01:00`. |

@@ -63,6 +63,10 @@ const words = {
 		reminderAt: 'Quand',
 		reminderDone: 'Fait le',
 		reminderEvery: { day: 'tous les jours', week: 'toutes les semaines', month: 'tous les mois', year: 'tous les ans' } as Record<string, string>,
+		copiesTitle: (n: number) => plural(n, 'Une fiche semble copiée', '# fiches semblent copiées'),
+		copiesLead: 'Une copie faite à la main, par exemple avec « Faire une copie » d’Obsidian, garde l’identifiant de l’original : Ipse les confond. Donnez-lui le sien, ou supprimez-la si elle ne sert pas.',
+		copyLine: (file: string, original: string) => `${file} a le même identifiant que ${original}`,
+		copyFix: 'Lui donner son propre identifiant',
 		nowTitle: 'En ce moment',
 		topics: {
 			music: 'Musique',
@@ -926,6 +930,10 @@ const words = {
 		reminderAt: 'When',
 		reminderDone: 'Done on',
 		reminderEvery: { day: 'every day', week: 'every week', month: 'every month', year: 'every year' } as Record<string, string>,
+		copiesTitle: (n: number) => plural(n, 'A file looks copied', '# files look copied'),
+		copiesLead: 'A copy made by hand, for instance with Obsidian’s “Make a copy”, keeps the id of the original, and Ipse mixes them up. Give it its own, or delete it if you do not need it.',
+		copyLine: (file: string, original: string) => `${file} has the same id as ${original}`,
+		copyFix: 'Give it its own id',
 		nowTitle: 'Right now',
 		topics: {
 			music: 'Music',

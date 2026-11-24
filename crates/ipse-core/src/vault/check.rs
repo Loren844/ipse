@@ -27,16 +27,76 @@ pub struct Report {
     pub problems: Vec<Problem>,
 }
 
-/// Looks at every file of the vault's folders (`people/`, `events/`, `states/`,
-/// `summaries/`…): files that cannot be read, and fact ids used twice in a file; and at
-/// the journal's archived months that do not match their checksum. Other files, the
-/// person's own notes elsewhere included, are left alone.
+/// A file that holds the same `id` as another one: most often a copy made by hand, in
+/// a file manager or with Obsidian's *Make a copy* (issue #230).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CopiedFile {
+    /// The copy, relative to the vault's folder.
+    pub path: PathBuf,
+    /// The file kept as the one with that id: the oldest by `created`, then the
+    /// shortest path.
+    pub original: PathBuf,
+}
+
+/// The files of the vault's folders whose `id` another file already has, each with the
+/// file kept as the one with that id. Unreadable files are left out, as [`check`]
+/// reports them.
 ///
 /// # Errors
 ///
 /// [`Error::Io`] when a folder exists but cannot be listed.
-pub fn check(root: &Path) -> Result<Report> {
-    let mut report = Report::default();
+pub fn copies(root: &Path) -> Result<Vec<CopiedFile>> {
+    let mut by_id: std::collections::HashMap<String, Vec<PathBuf>> =
+        std::collections::HashMap::new();
+    for path in memory_files(root)? {
+        let Ok(file) = MemoryFile::read(&path) else {
+            continue;
+        };
+        let relative = path.strip_prefix(root).unwrap_or(&path).to_owned();
+        by_id
+            .entry(file.common().id.to_string())
+            .or_default()
+            .push(relative);
+    }
+    Ok(copies_among(
+        root,
+        by_id.into_values().filter(|g| g.len() > 1).collect(),
+    ))
+}
+
+/// The copies among `groups`, files of the vault at `root` (relative paths) that share
+/// one id each, as the search index finds them: in each group, every file but the
+/// oldest by `created` (then the shortest path, then by path). Only these files are
+/// read.
+#[must_use]
+pub fn copies_among(root: &Path, groups: Vec<Vec<PathBuf>>) -> Vec<CopiedFile> {
+    let mut found = Vec::new();
+    for group in groups {
+        // The oldest is kept; between files of the same age, as a copy keeps the
+        // original's `created`, the shortest name ("marie.md" before "marie 1.md").
+        let mut files: Vec<(jiff::Timestamp, usize, PathBuf)> = group
+            .into_iter()
+            .filter_map(|p| {
+                let file = MemoryFile::read(root.join(&p)).ok()?;
+                Some((file.common().created.timestamp(), p.as_os_str().len(), p))
+            })
+            .collect();
+        if files.len() < 2 {
+            continue;
+        }
+        files.sort();
+        let original = files[0].2.clone();
+        found.extend(files.into_iter().skip(1).map(|(_, _, path)| CopiedFile {
+            path,
+            original: original.clone(),
+        }));
+    }
+    found.sort_by(|a, b| a.path.cmp(&b.path));
+    found
+}
+
+/// The `.md` files of the vault's folders, sorted.
+fn memory_files(root: &Path) -> Result<Vec<PathBuf>> {
     let mut folders: Vec<PathBuf> = FileType::ALL
         .into_iter()
         .map(|t| root.join(t.folder()))
@@ -47,6 +107,21 @@ pub fn check(root: &Path) -> Result<Report> {
         markdown_files(&folder, &mut files)?;
     }
     files.sort();
+    Ok(files)
+}
+
+/// Looks at every file of the vault's folders (`people/`, `events/`, `states/`,
+/// `summaries/`…): files that cannot be read, fact ids used twice in a file, files that
+/// hold another file's `id` ([`copies`]); and at
+/// the journal's archived months that do not match their checksum. Other files, the
+/// person's own notes elsewhere included, are left alone.
+///
+/// # Errors
+///
+/// [`Error::Io`] when a folder exists but cannot be listed.
+pub fn check(root: &Path) -> Result<Report> {
+    let mut report = Report::default();
+    let files = memory_files(root)?;
     for path in crate::journal::damaged_segments(root)? {
         report.problems.push(Problem {
             path: path.strip_prefix(root).unwrap_or(&path).to_owned(),
@@ -81,6 +156,17 @@ pub fn check(root: &Path) -> Result<Report> {
             }),
         }
     }
+    for copy in copies(root)? {
+        report.problems.push(Problem {
+            message: format!(
+                "this file has the same id as {}: it looks like a copy. Open it in Ipse's Memory screen to give it an id of its own, or delete it",
+                copy.original.to_string_lossy().replace('\\', "/")
+            ),
+            path: copy.path,
+            line: None,
+        });
+    }
+    report.problems.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(report)
 }
 
@@ -154,7 +240,17 @@ mod tests {
             [
                 ("people/broken.md".to_owned(), false),
                 ("people/marie.md".to_owned(), true),
+                ("people/marie.md".to_owned(), false),
             ]
         );
+        assert!(
+            report.problems[2]
+                .message
+                .contains("the same id as people/paul.md"),
+            "of the same age: the shortest name is kept"
+        );
+        let copies = copies(dir.path()).unwrap();
+        assert_eq!(copies.len(), 1);
+        assert_eq!(copies[0].path, Path::new("people/marie.md"));
     }
 }

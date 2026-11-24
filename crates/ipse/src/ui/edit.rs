@@ -166,6 +166,13 @@ fn with_offsets(keys: &mut std::collections::BTreeMap<String, Value>, zone: &jif
     }
 }
 
+/// The body of `files/copies`.
+#[derive(Deserialize)]
+struct CopyBody {
+    /// The copy, relative to the memory's folder.
+    file: String,
+}
+
 fn read_body<'a, T: Deserialize<'a>>(body: &'a [u8]) -> Result<T> {
     serde_json::from_slice(body)
         .map_err(|_| Error::Refused("The request could not be read.".to_owned()))
@@ -301,6 +308,13 @@ pub(crate) fn text(gateway: &mut Gateway, id: &str) -> Result<Option<TextView>> 
 /// changed since the form read it; errors writing the files or the history.
 pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u8>>> {
     let root = gateway.vault().root().to_owned();
+    if path == "files/copies" {
+        // A copy made by hand gets an id of its own (issue #230).
+        let body: CopyBody = read_body(body)?;
+        Proposals::new(gateway.vault()).own_id(&body.file)?;
+        gateway.refresh()?;
+        return Ok(Some(super::to_json(&super::memory::overview(gateway)?)));
+    }
     if path == "files" {
         let mut body: CreateBody = read_body(body)?;
         with_offsets(&mut body.keys, gateway.settings().time_zone());

@@ -34,7 +34,7 @@ If a file no longer reads after an edit (a header that is not valid YAML, a date
 
 - A link is the file's name without `.md`: `[[marie-dupont]]`, or `[[marie-dupont|Maman]]` to show another text. Obsidian follows these links, and its graph view shows them.
 - **Rename a person or a thing from Ipse** (**Modifier**, then the name): Ipse renames the file and rewrites every link to it, in one change you can undo. If you rename a file in Obsidian instead, turn on **Settings → Files and links → Automatically update internal links**, so that Obsidian updates the links as well. Ipse still knows the file by its `id`.
-- **Don't duplicate a file** in Obsidian (**Make a copy**): the copy keeps the same `id`, and Ipse would see one file twice. Create a new one from Ipse (**Ajouter**) or ask your AI.
+- **Don't duplicate a file** in Obsidian (**Make a copy**): the copy keeps the same `id`. Create a new one from Ipse (**Ajouter**) or ask your AI. If a copy slips in, **Mémoire** (**Memory**) says so and gives it an id of its own in one click, and `ipse check` names it.
 
 ## Syncing between computers
 
