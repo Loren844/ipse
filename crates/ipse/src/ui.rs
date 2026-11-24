@@ -55,9 +55,9 @@ mod assets {
 
 type Body = BoxBody<Bytes, Infallible>;
 
-/// Where the map's tiles come from, once the person accepted them (issue #135, the
-/// threat model): only images, only from there.
-const MAP_TILES: &str = "https://tile.openstreetmap.org";
+/// Where the map's base map comes from, once the person accepted it (issues #135 and
+/// #212, the threat model): its vector tiles and letters, only from there.
+const MAP_TILES: &str = "https://tiles.openfreemap.org";
 /// Where the Sources screen sends a file to import.
 const UPLOAD: &str = "/api/sources/import";
 
@@ -730,7 +730,7 @@ fn empty_body() -> Body {
 fn secured(mut response: Response<Body>) -> Response<Body> {
     let policy = format!(
         "default-src 'self'; script-src {}; style-src 'self' 'unsafe-inline'; img-src 'self' data: {MAP_TILES}; \
-         font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; \
+         font-src 'self'; connect-src 'self' {MAP_TILES}; object-src 'none'; base-uri 'none'; \
          form-action 'self'; frame-ancestors 'none'",
         assets::SCRIPT_SRC
     );

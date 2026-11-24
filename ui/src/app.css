@@ -3732,8 +3732,8 @@ nav.crumbs:empty {
 	font-weight: 700;
 }
 
-/* The map (issue #135): places as circles on a plain ground, or on OpenStreetMap's
-   tiles once the person accepts them; the chosen place beside it. */
+/* The map (issues #135 and #212): places as circles on a plain ground, or on
+   OpenFreeMap's tiles once the person accepts them; the chosen place beside it. */
 .map-screen {
 	max-width: 72rem;
 	gap: 1.25rem;
@@ -3775,40 +3775,23 @@ nav.crumbs:empty {
 }
 
 .map {
-	display: block;
 	width: 100%;
 	height: 100%;
-	cursor: grab;
-	touch-action: none;
-	user-select: none;
 }
 
-.map:active {
-	cursor: grabbing;
-}
-
-.map:focus-visible {
+.map .maplibregl-canvas:focus-visible {
 	outline: 2.5px solid var(--focus);
 	outline-offset: -3px;
 }
 
-.spot {
-	fill: var(--thread);
-	fill-opacity: 0.55;
-	stroke: var(--thread-ink);
-	stroke-width: 1.5;
-	vector-effect: non-scaling-stroke;
-	cursor: pointer;
-}
-
-.spot:hover,
-.spot.chosen {
-	fill-opacity: 0.9;
-}
-
-.spot.chosen {
-	stroke: var(--text);
-	stroke-width: 2.5;
+.map-failed {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	margin: 0;
+	padding: 2rem;
+	text-align: center;
 }
 
 .map-zoom {
