@@ -17,10 +17,9 @@ use serde::{Deserialize, Serialize};
 use super::history::{RunView, run_view};
 use crate::cmd::calendar::{DEFAULT_EVERY, NotFollowed, follow, unfollow};
 use crate::cmd::dav::{self as account, NotConnected};
-use crate::cmd::homeassistant as home;
+use crate::cmd::server::{self, NotConnected as ServerNotConnected};
 use crate::cmd::sync::connector_command;
 use crate::connectors::dav::{self, Kind};
-use crate::connectors::homeassistant;
 use crate::keychain::secrets;
 
 /// Runs read to list the sources and their last import.
@@ -55,36 +54,37 @@ pub(crate) struct SourceView {
     runs: u32,
     /// For a calendars and contacts account: what was found on it, and what is followed.
     account: Option<AccountView>,
-    /// For Home Assistant: its people, and whom Ipse follows.
-    home: Option<HomeAssistantView>,
+    /// For a server followed for one of its people (Home Assistant, Jellyfin): whom
+    /// it has, and whom Ipse follows.
+    server: Option<ServerView>,
 }
 
-/// The people of a Home Assistant (issue #225).
+/// The people of a server followed for one of them (issues #225, #227).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(
     test,
     derive(ts_rs::TS),
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
-pub(crate) struct HomeAssistantView {
-    /// The entity followed, like `person.ines`; `None` until the person chose.
+pub(crate) struct ServerView {
+    /// Whom Ipse follows, like `person.ines`; `None` until the person chose.
     chosen: Option<String>,
-    people: Vec<HomeAssistantPersonView>,
+    choices: Vec<ChoiceView>,
     /// Its address is `http://`, on the home network: the token goes unencrypted there.
     plain: bool,
 }
 
-/// One person of a Home Assistant.
+/// Someone of a server: a person of Home Assistant, a user of Jellyfin.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[cfg_attr(
     test,
     derive(ts_rs::TS),
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
-pub(crate) struct HomeAssistantPersonView {
-    /// Its entity: what the screen sends back to follow it.
-    entity: String,
-    /// Its name in Home Assistant.
+pub(crate) struct ChoiceView {
+    /// What the screen sends back to follow them.
+    id: String,
+    /// Their name on the server.
     name: String,
 }
 
@@ -170,19 +170,21 @@ struct ConnectBody {
     name: Option<String>,
 }
 
-/// `POST /api/sources/connect-home`.
+/// `POST /api/sources/connect-server`.
 #[derive(Debug, Deserialize)]
-struct ConnectHomeBody {
+struct ConnectServerBody {
+    /// `homeassistant` or `jellyfin`.
+    connector: String,
     url: String,
     token: String,
     name: Option<String>,
 }
 
-/// `POST /api/sources/choose-person`.
+/// `POST /api/sources/choose-one`.
 #[derive(Debug, Deserialize)]
-struct ChoosePersonBody {
+struct ChooseOneBody {
     instance: String,
-    person: String,
+    choice: String,
 }
 
 /// `POST /api/sources/choose`.
@@ -224,8 +226,8 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
                 account: (instance.connector == dav::ID)
                     .then(|| account_view(gateway, instance))
                     .transpose()?,
-                home: (instance.connector == homeassistant::ID)
-                    .then(|| home_view(gateway, instance))
+                server: server::kind_of(&instance.connector)
+                    .map(|kind| server_view(gateway, kind, instance))
                     .transpose()?,
             })
         })
@@ -250,7 +252,7 @@ pub(crate) fn view(gateway: &Gateway) -> Result<SourcesView> {
                 last: None,
                 runs: 0,
                 account: None,
-                home: None,
+                server: None,
             });
             let last = sources.len() - 1;
             &mut sources[last]
@@ -288,15 +290,16 @@ fn account_view(
     })
 }
 
-/// The people of the Home Assistant `instance`, and whom Ipse follows.
-fn home_view(
+/// The people of the server `instance`, and whom Ipse follows.
+fn server_view(
     gateway: &Gateway,
+    kind: &server::Kind,
     instance: &ipse_core::connector::Instance,
-) -> Result<HomeAssistantView> {
-    let people = home::found(gateway.vault(), &instance.id)?
+) -> Result<ServerView> {
+    let choices = server::found(gateway.vault(), &instance.id)?
         .into_iter()
-        .map(|found| HomeAssistantPersonView {
-            entity: found.entity,
+        .map(|found| ChoiceView {
+            id: found.id,
             name: found.name,
         })
         .collect();
@@ -305,9 +308,9 @@ fn home_view(
         .get("url")
         .and_then(serde_json::Value::as_str)
         .is_some_and(|url| url.starts_with("http://"));
-    Ok(HomeAssistantView {
-        chosen: home::chosen(instance),
-        people,
+    Ok(ServerView {
+        chosen: server::chosen(kind, instance),
+        choices,
         plain,
     })
 }
@@ -334,10 +337,17 @@ pub(crate) fn change(
     match action {
         "follow" => follow_calendar(gateway, body).map(Some),
         "connect" => connect_account(gateway, body).map(Some),
-        "connect-home" => connect_home(gateway, body).map(Some),
-        "choose-person" => {
-            let body: ChoosePersonBody = read(body)?;
-            let synced = home::choose(gateway.vault(), &body.instance, &body.person, &*secrets())?;
+        "connect-server" => connect_server(gateway, body).map(Some),
+        "choose-one" => {
+            let body: ChooseOneBody = read(body)?;
+            let kind = server_kind(gateway, &body.instance)?;
+            let synced = server::choose(
+                kind,
+                gateway.vault(),
+                &body.instance,
+                &body.choice,
+                &*secrets(),
+            )?;
             let outcome = if synced.succeeded() {
                 "synced"
             } else {
@@ -373,8 +383,9 @@ pub(crate) fn change(
                 .map(|i| i.connector.clone());
             let instance = match connector.as_deref() {
                 Some(dav::ID) => account::disconnect(gateway.vault(), &body.instance, &*secrets())?,
-                Some(homeassistant::ID) => {
-                    home::disconnect(gateway.vault(), &body.instance, &*secrets())?
+                Some(connector) if server::kind_of(connector).is_some() => {
+                    let kind = server_kind(gateway, &body.instance)?;
+                    server::disconnect(kind, gateway.vault(), &body.instance, &*secrets())?
                 }
                 _ => unfollow(gateway.vault(), &body.instance, &*secrets())?,
             };
@@ -473,43 +484,54 @@ fn connect_account(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> 
     }
 }
 
-/// Connects Home Assistant, as `ipse homeassistant add`: follows its only person at
-/// once, or lets the person choose among several.
-fn connect_home(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> {
-    let body: ConnectHomeBody = read(body)?;
+/// The server followed as `instance`.
+fn server_kind(gateway: &Gateway, instance: &str) -> Result<&'static server::Kind> {
+    Instances::load(gateway.vault().root())?
+        .get(instance)
+        .and_then(|i| server::kind_of(&i.connector))
+        .ok_or_else(|| Error::Refused("This source is not followed.".to_owned()))
+}
+
+/// Connects a server, as `ipse homeassistant add` or `ipse jellyfin add`: follows its
+/// only person at once, or lets the person choose among several.
+fn connect_server(gateway: &mut Gateway, body: &[u8]) -> Result<SourcesChange> {
+    let body: ConnectServerBody = read(body)?;
+    let kind = server::kind_of(&body.connector)
+        .ok_or_else(|| Error::Refused("Ipse does not connect such a server.".to_owned()))?;
     let name = body
         .name
         .as_deref()
         .map(str::trim)
         .filter(|n| !n.is_empty());
     let vault = gateway.vault();
-    let connected = match home::connect(
+    let connected = match server::connect(
+        kind,
         vault,
         body.url.trim(),
         &body.token,
         name,
-        home::DEFAULT_EVERY,
+        kind.every,
         &*secrets(),
     ) {
         Ok(connected) => connected,
-        Err(home::NotConnected::BadAddress(_)) => {
+        Err(ServerNotConnected::BadAddress(_)) => {
             return answer(gateway, "bad_address", None, None);
         }
-        Err(home::NotConnected::Already(name)) => {
+        Err(ServerNotConnected::Already(name)) => {
             return answer(gateway, "already", Some(name), None);
         }
-        Err(home::NotConnected::Failed(_)) => {
+        Err(ServerNotConnected::Failed(_)) => {
             let code = failed_code(gateway, false)?;
             return answer(gateway, "not_connected", code, None);
         }
-        Err(home::NotConnected::Other(Error::Refused(_))) => {
+        Err(ServerNotConnected::Other(Error::Refused(_))) => {
             return answer(gateway, "keychain", None, None);
         }
-        Err(home::NotConnected::Other(error)) => return Err(error),
+        Err(ServerNotConnected::Other(error)) => return Err(error),
     };
     let id = connected.instance.id.clone();
     if let [only] = connected.found.as_slice() {
-        let synced = home::choose(vault, &id, &only.entity, &*secrets())?;
+        let synced = server::choose(kind, vault, &id, &only.id, &*secrets())?;
         let outcome = if synced.succeeded() {
             "synced"
         } else {

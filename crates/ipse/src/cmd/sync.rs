@@ -103,6 +103,11 @@ pub(crate) fn outcome_lines(synced: &Synced) -> Vec<String> {
     {
         lines.push(home_line(s.stays));
     }
+    if let Some(s) = synced.watching
+        && s.logs > 0
+    {
+        lines.push(watching_line(s.plays));
+    }
     if synced.tasks > 0 {
         lines.push(tasks_line(synced.tasks));
     }
@@ -123,6 +128,15 @@ fn nothing_changed(synced: &Synced) -> bool {
             .people
             .is_none_or(|s| s.added + s.updated + s.conflicts + s.relations == 0 && !s.owner)
         && synced.home.is_none_or(|s| s.logs == 0)
+        && synced.watching.is_none_or(|s| s.logs == 0)
+}
+
+fn watching_line(plays: u64) -> String {
+    let plays = match plays {
+        1 => "1 film or episode".to_owned(),
+        n => format!("{n} films and episodes"),
+    };
+    format!("Updated what you watch: {plays} in all.")
 }
 
 fn home_line(stays: u64) -> String {

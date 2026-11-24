@@ -170,9 +170,9 @@ export const api = {
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),
 	connectAccount: (url: string, user: string, password: string, name: string) =>
 		post<SourcesChange>('/api/sources/connect', { url, user, password, name }),
-	connectHome: (url: string, token: string, name: string) =>
-		post<SourcesChange>('/api/sources/connect-home', { url, token, name }),
-	choosePerson: (instance: string, person: string) => post<SourcesChange>('/api/sources/choose-person', { instance, person }),
+	connectServer: (connector: string, url: string, token: string, name: string) =>
+		post<SourcesChange>('/api/sources/connect-server', { connector, url, token, name }),
+	chooseOne: (instance: string, choice: string) => post<SourcesChange>('/api/sources/choose-one', { instance, choice }),
 	chooseCollections: (instance: string, collections: string[]) =>
 		post<SourcesChange>('/api/sources/choose', { instance, collections }),
 	syncSource: (instance: string) => post<SourcesChange>('/api/sources/sync', { instance }),

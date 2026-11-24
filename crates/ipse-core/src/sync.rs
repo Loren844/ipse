@@ -13,8 +13,8 @@ use crate::connector::{
 };
 use crate::journal::Journal;
 use crate::materialize::{
-    EventsSummary, HomeSummary, PRESENCE, PeopleSummary, calendar_to_events, contacts_to_people,
-    home_to_vault,
+    EventsSummary, HomeSummary, PRESENCE, PeopleSummary, WATCHED, WatchingSummary,
+    calendar_to_events, contacts_to_people, home_to_vault, watching_to_vault,
 };
 use crate::tasks::Tasks;
 use crate::vault::{DateTime, Source, Vault};
@@ -31,7 +31,7 @@ pub struct Syncable {
 }
 
 /// The connectors that sync, built into Ipse.
-pub const SYNCABLE: [Syncable; 3] = [
+pub const SYNCABLE: [Syncable; 4] = [
     Syncable {
         connector: "calendar",
         kinds: &["calendar.event"],
@@ -50,6 +50,13 @@ pub const SYNCABLE: [Syncable; 3] = [
         connector: "homeassistant",
         kinds: &[PRESENCE],
         secrets: &["token"],
+    },
+    // The person's own Jellyfin: the films and series they watch
+    // (`docs/connectors/jellyfin.md`).
+    Syncable {
+        connector: "jellyfin",
+        kinds: &[WATCHED],
+        secrets: &["key"],
     },
 ];
 
@@ -74,6 +81,8 @@ pub struct Synced {
     pub people: Option<PeopleSummary>,
     /// The stays at home and in zones, for Home Assistant.
     pub home: Option<HomeSummary>,
+    /// The films and episodes watched, for Jellyfin.
+    pub watching: Option<WatchingSummary>,
     /// Tasks made for the person's AI from what the sync brought.
     pub tasks: usize,
     /// Possible duplicates proposed to the person after the sync.
@@ -181,6 +190,16 @@ pub fn sync_instance(
     } else {
         None
     };
+    let watching = if kinds.contains(&WATCHED) {
+        Some(watching_to_vault(
+            vault,
+            &journal,
+            &instance.id,
+            &mut change,
+        )?)
+    } else {
+        None
+    };
     let touched = change.paths();
     change.commit(&format!("Sync {}", instance.id))?;
     let tasks = Tasks::new(vault).extract_from(&touched)?;
@@ -210,6 +229,7 @@ pub fn sync_instance(
         events,
         people,
         home,
+        watching,
         tasks,
     };
     SyncState::load(root)?.record(&instance.id, options.now, synced.succeeded())?;
