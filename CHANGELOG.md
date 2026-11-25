@@ -2,19 +2,21 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.5.0 - 2026-11-25
+
+Your own servers feed your memory: Home Assistant says when you are at home and, if you want, where your phone goes, without exporting a file; Jellyfin says what you watch, and Immich who is on your photos. Everything stays read only, and a new source in a sensitive category stays closed to AIs until you open it. Ipse can now also run on a home server, from a Docker image, with your AI apps and your browser reaching it from your other machines. The memory's format does not change: a 0.4 memory opens as it is. 0.4.0 offers this version in the app.
 
 ### Added
 
 - **Where you go, without exporting a file**: a Home Assistant you connected can also read the positions the Home Assistant app of your phone sends it. Turn on **Lire aussi où va mon téléphone** on the source in **Sources**, or run `ipse homeassistant positions`. Ipse turns them into the places you stay at and your visits there, as the Google Timeline export does, in the `location` category, closed to AIs until you open it ([#208](https://github.com/Loren844/ipse/issues/208)).
 - **Ipse on a home server**: `ipse serve` runs the interface, MCP for your AI apps and the sync of your sources in one process, and the Docker image `ghcr.io/loren844/ipse` (amd64 and arm64) runs it on a NAS or a Raspberry Pi. Reaching it from your network is asked with `--listen`; the interface then asks for its own access code, made with `ipse access-code`, and HTTPS is left to your reverse proxy. [Ipse on a home server](docs/guide/self-hosting.md) covers the first start, connecting an AI from another machine, backups and updates ([#224](https://github.com/Loren844/ipse/issues/224), decision 0019).
-- **Immich**: connect your own Immich from **Sources**, or with `ipse immich add`, and Ipse knows who is on your photos, how many photos you have together and when the last was taken. Someone is linked to a person of your memory only when Ipse is sure; otherwise it asks you, in **À revoir**. It never downloads a photo, and keeps the API key in your system's keychain.
-- **Jellyfin**: connect your own Jellyfin from **Sources**, or with `ipse jellyfin add`, and Ipse knows the films and series you watch: one row per series or film in what you are watching, linked to its file when you have one. It reads only the user you choose, and keeps the API key in your system's keychain.
-- **Home Assistant**: connect your own Home Assistant from **Sources**, or with `ipse homeassistant add`, and Ipse knows when you are at home and in which zones. It reads only the person you choose, stays in the `home` category, closed to AIs until you open it, and keeps the token in your system's keychain. Plain `http://` is accepted only on your home network, and Ipse says so.
+- **Immich**: connect your own Immich from **Sources**, or with `ipse immich add`, and Ipse knows who is on your photos, how many photos you have together and when the last was taken. Someone is linked to a person of your memory only when Ipse is sure; otherwise it asks you, in **À revoir**. It never downloads a photo, and keeps the API key in your system's keychain ([#226](https://github.com/Loren844/ipse/issues/226)).
+- **Jellyfin**: connect your own Jellyfin from **Sources**, or with `ipse jellyfin add`, and Ipse knows the films and series you watch: one row per series or film in what you are watching, linked to its file when you have one. It reads only the user you choose, and keeps the API key in your system's keychain ([#227](https://github.com/Loren844/ipse/issues/227)).
+- **Home Assistant**: connect your own Home Assistant from **Sources**, or with `ipse homeassistant add`, and Ipse knows when you are at home and in which zones. It reads only the person you choose, stays in the `home` category, closed to AIs until you open it, and keeps the token in your system's keychain. Plain `http://` is accepted only on your home network, and Ipse says so ([#225](https://github.com/Loren844/ipse/issues/225)).
 
 ### Fixed
 
-- **What changes in a new version** reads as text in the update window: headings and items, without Markdown marks, across the whole width of the window.
+- **What changes in a new version** reads as text in the update window: headings and items, without Markdown marks, across the whole width of the window ([#234](https://github.com/Loren844/ipse/issues/234)).
 
 ## 0.4.0 - 2026-11-24
 
