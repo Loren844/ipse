@@ -141,6 +141,7 @@ In a memory of 22 000 files, the graph around a file opens in under half a secon
 - ✅ **Your AI remembers** ([0.4.0](https://github.com/Loren844/ipse/releases/tag/v0.4.0)): *"remember this about me"* becomes a file of your memory; reminders your AI tells you about when they are due; one AI allowed to create files without waiting, each undone in one click; a guide to open your memory in [Obsidian](docs/guide/obsidian.md).
 - ✅ **Your own servers** ([0.5.0](https://github.com/Loren844/ipse/releases/tag/v0.5.0)): Home Assistant (when you are at home, and where your phone goes), Jellyfin (what you watch), Immich (who is on your photos); Ipse on a [home server](docs/guide/self-hosting.md) with `ipse serve` and a Docker image, behind an access code.
 - 🔜 **Launch**: the public launch of the desktop app.
+- 🔜 **Around someone**: one view centred on a person or a place, with everything that touches them (events, visits, photos, what your AI remembers, reminders, notes), ahead of the graph ([#244](https://github.com/Loren844/ipse/issues/244)).
 - 🔜 **More connectors**: Wardrowbe, your wardrobe and what you wear ([#242](https://github.com/Loren844/ipse/issues/242)), then a kit for anyone to write one.
 - 🔜 **Your own categories** for what your AI remembers, beyond the ones Ipse ships with.
 - 🔜 **Semantic search** with a model that runs on your computer, as an option.
