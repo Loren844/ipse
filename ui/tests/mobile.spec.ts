@@ -83,3 +83,17 @@ test('widening the window with More open leaves the page usable', async ({ page 
 	await page.getByRole('link', { name: 'Agenda' }).first().click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agenda');
 });
+
+test('the sources to add stack one under the other, and a form fits the screen', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.goto(new URL('/sources', ipse.url).href);
+	const cards = page.getByRole('group', { name: 'Agendas et contacts' }).getByRole('link');
+	await expect(cards).toHaveCount(3);
+	const [first, second] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+	expect(second!.y).toBeGreaterThan(first!.y + first!.height - 1);
+	const wide = () => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+	expect(await wide()).toBe(false);
+	await page.getByRole('link', { name: 'Home Assistant' }).click();
+	await expect(page.getByRole('region', { name: 'Connecter Home Assistant' })).toBeVisible();
+	expect(await wide()).toBe(false);
+});

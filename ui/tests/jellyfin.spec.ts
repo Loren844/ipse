@@ -61,6 +61,7 @@ test.afterEach(() => {
 test('connect Jellyfin, follow its only user, then disconnect it', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Sources' }).first().click();
+	await page.getByRole('link', { name: 'Jellyfin' }).click();
 	const form = page.getByRole('region', { name: 'Connecter Jellyfin' });
 
 	await form.getByLabel('Nom de la source').fill('Films');
@@ -73,7 +74,7 @@ test('connect Jellyfin, follow its only user, then disconnect it', async ({ page
 	await form.getByRole('button', { name: 'Connecter Jellyfin' }).click();
 	// Its only user is followed at once, and what they watched is read.
 	await expect(page.getByRole('status')).toHaveText('Synchronisé.');
-	await expect(form.getByLabel('Clé d’API')).toHaveValue('');
+	await expect(form).toHaveCount(0);
 	expect(readFileSync(secrets, 'utf8')).toContain(TOKEN);
 	expect(JSON.stringify(await page.evaluate(() => fetch('/api/sources').then((r) => r.json())))).not.toContain(TOKEN);
 	const source = page.getByTestId('sources').getByRole('listitem').filter({ hasText: 'Films' });

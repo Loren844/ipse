@@ -119,6 +119,18 @@ const words = {
 		followGo: 'Suivre cet agenda',
 		following: 'Vérification de l’agenda…',
 		yourSources: 'Vos sources',
+		addSource: 'Ajouter une source',
+		backToSources: 'Retour aux sources',
+		sourceConnected: 'Connectée',
+		sourceCategories: { calendars: 'Agendas et contacts', home: 'Maison et lieux', media: 'Photos et médias' },
+		sourceCards: {
+			file: { name: 'Un fichier', line: 'Contacts, agenda ou historique des positions, exportés d’une autre app.' },
+			link: { name: 'Un agenda par son lien', line: 'Le lien iCal secret d’un agenda Google, iCloud ou Outlook.' },
+			account: { name: 'Un compte d’agendas et de contacts', line: 'iCloud, Fastmail, Nextcloud ou tout serveur CalDAV et CardDAV.' },
+			homeassistant: { name: 'Home Assistant', line: 'Quand vous êtes à la maison, et où va votre téléphone.' },
+			immich: { name: 'Immich', line: 'Qui est sur vos photos.' },
+			jellyfin: { name: 'Jellyfin', line: 'Les films et les séries que vous regardez.' }
+		},
 		noSources: 'Rien encore. Importez un fichier ou suivez un agenda pour commencer.',
 		sourceKinds: {
 			contacts: 'Contacts',
@@ -1109,6 +1121,18 @@ const words = {
 		followGo: 'Follow this calendar',
 		following: 'Checking the calendar…',
 		yourSources: 'Your sources',
+		addSource: 'Add a source',
+		backToSources: 'Back to sources',
+		sourceConnected: 'Connected',
+		sourceCategories: { calendars: 'Calendars and contacts', home: 'Home and places', media: 'Photos and media' },
+		sourceCards: {
+			file: { name: 'A file', line: 'Contacts, a calendar or your location history, exported from another app.' },
+			link: { name: 'A calendar by its link', line: 'The secret iCal link of a Google, iCloud or Outlook calendar.' },
+			account: { name: 'A calendars and contacts account', line: 'iCloud, Fastmail, Nextcloud or any CalDAV and CardDAV server.' },
+			homeassistant: { name: 'Home Assistant', line: 'When you are at home, and where your phone goes.' },
+			immich: { name: 'Immich', line: 'Who is on your photos.' },
+			jellyfin: { name: 'Jellyfin', line: 'The films and series you watch.' }
+		},
 		noSources: 'Nothing yet. Import a file or follow a calendar to start.',
 		sourceKinds: {
 			contacts: 'Contacts',

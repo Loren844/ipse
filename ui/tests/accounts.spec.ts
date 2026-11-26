@@ -117,6 +117,7 @@ test.afterEach(() => {
 test('connect an account, choose what to follow, then disconnect it', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Sources' }).first().click();
+	await page.getByRole('link', { name: 'Un compte d’agendas et de contacts' }).click();
 	const form = page.getByRole('region', { name: 'Connecter un compte d’agendas et de contacts' });
 
 	await form.getByLabel('Nom du compte').fill('Nuage');
@@ -131,7 +132,7 @@ test('connect an account, choose what to follow, then disconnect it', async ({ p
 	await form.getByRole('button', { name: 'Connecter ce compte' }).click();
 	await expect(page.getByRole('status')).toHaveText('« Nuage » est connecté. Choisissez les agendas et les carnets d’adresses à suivre.');
 	// The password leaves the page, and is kept only in the keychain (here, the test file).
-	await expect(form.getByLabel('Mot de passe d’application')).toHaveValue('');
+	await expect(form).toHaveCount(0);
 	expect(readFileSync(secrets, 'utf8')).toContain(PASSWORD);
 	expect(JSON.stringify(await page.evaluate(() => fetch('/api/sources').then((r) => r.json())))).not.toContain(PASSWORD);
 
