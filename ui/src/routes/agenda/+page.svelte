@@ -83,10 +83,11 @@
 			if (next.kind) url.searchParams.set('kind', next.kind);
 			else url.searchParams.delete('kind');
 		}
-		// The timeline's year and month stay with it.
+		// The timeline's year, month and person (issue #244) stay with it.
 		if (v !== 'years') {
 			url.searchParams.delete('year');
 			url.searchParams.delete('month');
+			url.searchParams.delete('person');
 		}
 		if (v === 'list') {
 			url.searchParams.delete('view');

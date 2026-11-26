@@ -12,7 +12,12 @@
 	import { Loader } from './remote.svelte.ts';
 
 	const remote = new Loader<TimelineView>();
-	remote.load(() => api.timeline());
+	// `person`: the events of one file only, from the view around it (issue #244).
+	const person = $derived(page.url.searchParams.get('person') || null);
+	$effect(() => {
+		const asked = person ?? undefined;
+		remote.load(() => api.timeline(asked), true);
+	});
 	const view = $derived(remote.state.kind === 'ready' ? remote.state.value : null);
 
 	const year = $derived(Number(page.url.searchParams.get('year')) || null);
@@ -42,6 +47,7 @@
 		const query = new URLSearchParams({ view: 'years' });
 		if (next.year) query.set('year', String(next.year));
 		if (next.year && next.month) query.set('month', next.month.slice(5));
+		if (person) query.set('person', person);
 		return `/agenda?${query}`;
 	}
 
@@ -95,6 +101,12 @@
 				{/if}
 			{/if}
 		</nav>
+		{#if view?.with}
+			<p class="timeline-with" data-testid="timeline-with">
+				<span>{i18n.t.timelineWith}</span><Mention link={view.with} />
+				<a href={(() => { const url = new URL(page.url.href); url.searchParams.delete('person'); return `${url.pathname}${url.search}`; })()}>{i18n.t.timelineAll}</a>
+			</p>
+		{/if}
 		{#if year}
 			<h2 class="period">{chosenMonth ? monthTitle(chosenMonth.month) : chosenYear ? chosenYear.year : i18n.t.timeline}</h2>
 		{:else}

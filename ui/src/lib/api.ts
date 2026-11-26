@@ -68,6 +68,13 @@ import type { SavedView } from './types/SavedView.ts';
 export type { EditView, SavedView };
 import type { GraphView } from './types/GraphView.ts';
 export type { GraphView };
+import type { AroundView } from './types/AroundView.ts';
+export type { AroundView };
+export type { AroundEventView } from './types/AroundEventView.ts';
+export type { SharedView } from './types/SharedView.ts';
+export type { LinkedView } from './types/LinkedView.ts';
+export type { AroundReminderView } from './types/AroundReminderView.ts';
+export type { SectionView } from './types/SectionView.ts';
 export type { NodeView } from './types/NodeView.ts';
 export type { NeighbourView } from './types/NeighbourView.ts';
 export type { LinkField } from './types/LinkField.ts';
@@ -163,7 +170,8 @@ export const api = {
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
 	map: () => get<MapView>('/api/map'),
-	timeline: () => get<TimelineView>('/api/timeline'),
+	/** The years, of the events that link to the file `person` when given. */
+	timeline: (person?: string) => get<TimelineView>('/api/timeline', { person }),
 	kind: (kind: string) => get<EventKindView>(`/api/kinds/${encodeURIComponent(kind)}`),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
@@ -191,6 +199,8 @@ export const api = {
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
 	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
+	/** Everything around a file; with `section`, that section's items from `offset`. */
+	around: (id: string, section?: string, offset?: number) => get<AroundView>('/api/around', { id, section, offset }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
 	fileText: (id: string) => get<TextView>(`/api/file/${encodeURIComponent(id)}/text`),
 	saveText: (id: string, version: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/text`, { version, text }),

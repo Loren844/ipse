@@ -2,7 +2,8 @@
 //! list, a search as one types (each prefix of a name), and one person in full; then
 //! the whole memory (issue #128): how many of each kind, one kind listed, and what links
 //! to a person; then the graph around a person (issue #130), and around one who takes
-//! part in 2 000 events; then the whole memory as one graph (issue #174).
+//! part in 2 000 events; then the whole memory as one graph (issue #174); then everything
+//! around that person, for the view around someone (issue #244).
 #![allow(
     missing_docs,
     clippy::unwrap_used,
@@ -184,4 +185,23 @@ fn main() {
         PEOPLE + 1 + EVENTS
     );
     println!("graph around a person     {:>9.2?}  (1 step)", median(one));
+
+    let mut busy = Vec::new();
+    let mut quiet = Vec::new();
+    for _ in 0..11 {
+        let start = Instant::now();
+        let found = owner.surroundings("01jcx8m2p4q6r8t0v2w4000000").unwrap();
+        busy.push(start.elapsed());
+        assert_eq!(found.events.len(), EVENTS);
+        assert!(!found.people.is_empty());
+        let start = Instant::now();
+        let found = owner.surroundings("01jcx8m2p4q6r8t0v2w4000013").unwrap();
+        quiet.push(start.elapsed());
+        assert_eq!(found.events.len(), 1);
+    }
+    println!(
+        "around someone, 2 000 ev. {:>9.2?}  (every section)",
+        median(busy)
+    );
+    println!("around someone, 1 event   {:>9.2?}", median(quiet));
 }

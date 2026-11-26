@@ -28,6 +28,18 @@ pub(crate) struct NodeView {
     start: Option<String>,
 }
 
+impl NodeView {
+    /// Its id.
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// `person`, `place`… or `event`.
+    pub(crate) fn kind(&self) -> &str {
+        &self.kind
+    }
+}
+
 impl From<NodeOut> for NodeView {
     fn from(n: NodeOut) -> Self {
         Self {

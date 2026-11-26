@@ -65,6 +65,11 @@ pub(crate) struct LinkView {
 }
 
 impl LinkView {
+    /// The linked file's id.
+    pub(crate) fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
     /// A name as written, linking nowhere.
     pub(crate) fn text(name: &str) -> Self {
         Self {

@@ -62,6 +62,14 @@ struct Words {
     colleague_word: &'static str,
     links_reason: &'static str,
     yoga_reason: &'static str,
+    /// For the view around someone (issue #244), a close friend: why the AI writes it
+    /// down, how the owner calls them, a fact it heard, and a reminder about them with
+    /// the word that links it to them.
+    close_reason: &'static str,
+    close_word: &'static str,
+    close_about: &'static str,
+    close_fact: &'static str,
+    close_reminder: fn(&str) -> String,
     /// What is going on right now: topic, subject (a name, linked when a file has it).
     now: &'static [(&'static str, &'static str)],
     /// Where the person lives, then the weekend's and the holidays' cities: name,
@@ -329,6 +337,11 @@ const FR: Words = Words {
     colleague_word: "travaille chez",
     links_reason: "Qui travaille où, d’après vos contacts et vos réunions.",
     yoga_reason: "Les cours de yoga ont lieu au Studio Lotus.",
+    close_reason: "Vous m’avez parlé de votre partenaire d’escalade et du livre à lui rendre.",
+    close_word: "partenaire d’escalade",
+    close_about: "pour",
+    close_fact: "Prête volontiers ses livres.",
+    close_reminder: |first| format!("Rendre son livre à {first}"),
     now: &[
         ("music", "Les Ondes Basses"),
         ("music", "Mira Sol"),
@@ -504,6 +517,11 @@ const EN: Words = Words {
     colleague_word: "works at",
     links_reason: "Who works where, from your contacts and your meetings.",
     yoga_reason: "Yoga classes take place at Lotus Studio.",
+    close_reason: "You told me about your climbing partner and the book to give back.",
+    close_word: "climbing partner",
+    close_about: "for",
+    close_fact: "Happy to lend books.",
+    close_reminder: |first| format!("Give {first} the book back"),
     now: &[
         ("music", "Low Waves"),
         ("music", "Mira Sol"),
@@ -1494,9 +1512,109 @@ fn world(
         proposals.accept(&made.id)?;
     }
 
+    close_friend(vault, words, people, today, by, proposals)?;
     now(vault, words, today)?;
     vault.history()?.record_outside_edits()?;
     Ok(())
+}
+
+/// A close friend with something in every section of the view around someone (issue
+/// #244): how the owner calls them, a fact and a reminder the AI wrote down, and the
+/// photos that show them, as Immich's sync writes them (`docs/connectors/immich.md`).
+fn close_friend(
+    vault: &Vault,
+    words: &Words,
+    people: &People,
+    today: Date,
+    by: &Author,
+    proposals: &Proposals<'_>,
+) -> Result<()> {
+    let stem = |name: &str| to_file_stem(name).unwrap_or_default();
+    let Some(friend) = people.friends.get(1) else {
+        return Ok(());
+    };
+    let target = stem(&friend.name);
+    let owner = vault
+        .owner_file()
+        .strip_prefix(vault.root())
+        .map(|p| p.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_default();
+    let made = proposals.submit(
+        by.clone(),
+        words.close_reason,
+        None,
+        vec![
+            Change::AddRelation {
+                file: owner,
+                word: words.close_word.to_owned(),
+                target: target.clone(),
+                display: None,
+            },
+            Change::AddFact {
+                file: format!("people/{target}.md"),
+                text: words.close_fact.to_owned(),
+            },
+            Change::Create {
+                file: None,
+                file_type: "reminder".to_owned(),
+                category: None,
+                keys: [
+                    (
+                        "name".to_owned(),
+                        serde_json::Value::String((words.close_reminder)(&friend.first)),
+                    ),
+                    (
+                        "at".to_owned(),
+                        serde_json::Value::String(today.saturating_add(9.days()).to_string()),
+                    ),
+                ]
+                .into(),
+                facts: Vec::new(),
+                relations: vec![ipse_core::proposals::NewRelation {
+                    word: words.close_about.to_owned(),
+                    target: target.clone(),
+                    display: None,
+                }],
+                notes: None,
+            },
+        ],
+    )?;
+    proposals.accept(&made.id)?;
+
+    // The photos that show them, and two others.
+    let year = today.year();
+    let mut table = String::from(
+        "| Subject | First seen | Last seen | Count | Source |\n| --- | --- | --- | --- | --- |\n",
+    );
+    let shown = [
+        (format!("[[{target}]]"), 420, 12, 37),
+        (format!("[[{}]]", stem(&people.family[0].name)), 700, 30, 64),
+        (people.others[0].first.clone(), 90, 45, 3),
+    ];
+    for (subject, first, last, count) in shown {
+        let _ = writeln!(
+            table,
+            "| {subject} | {} | {} | {count} | immich |",
+            today.saturating_sub(first.days()),
+            today.saturating_sub(last.days())
+        );
+    }
+    let path = vault.root().join(format!("states/photos/{year}.md"));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|source| Error::Io {
+            action: "create",
+            path: parent.to_owned(),
+            source,
+        })?;
+    }
+    let now = DateTime::now(vault.settings().time_zone());
+    write(
+        &path,
+        &format!(
+            "---\nid: {}\ntype: state-log\ncategory: people\ncreated: {now}\nupdated: {now}\ntopic: photos\nyear: {year}\n---\n\n{table}",
+            ipse_core::vault::Id::generate()
+        ),
+    )
 }
 
 /// What is going on right now, as state files the person keeps (`vault.md` §5).

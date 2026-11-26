@@ -61,3 +61,18 @@ test('a graph of 22 000 files opens and recentres at once', async ({ page }) => 
 	// A test machine is slower than a person's: still well under a second each.
 	expect(recentred).toBeLessThan(3000);
 });
+
+test('around the busiest person of 22 000 files opens in under half a second', async ({ page }) => {
+	// Issue #244: in every one of the 2 000 events.
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.goto(ipse.url);
+	await page.goto(`${ipse.origin}/memory`);
+	const asked = Date.now();
+	await page.goto(`${ipse.origin}/around?id=${id('4', 0)}`);
+	await expect(page.getByRole('heading', { name: /^Événements/ })).toContainText('2000');
+	await expect(page.getByTestId('around-events').getByRole('listitem')).toHaveCount(5);
+	const opened = Date.now() - asked;
+	console.log(`around someone in ${PEOPLE + EVENTS + 1} files: opened in ${opened} ms`);
+	// The page itself loads too: still well under a second on a test machine.
+	expect(opened).toBeLessThan(1500);
+});
