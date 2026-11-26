@@ -59,6 +59,7 @@ test.afterEach(() => {
 test('connect Home Assistant, choose whom to follow, then disconnect it', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Sources' }).first().click();
+	await page.getByRole('link', { name: 'Home Assistant' }).click();
 	const form = page.getByRole('region', { name: 'Connecter Home Assistant' });
 
 	await form.getByLabel('Nom de la source').fill('Maison');
@@ -71,7 +72,7 @@ test('connect Home Assistant, choose whom to follow, then disconnect it', async 
 	await form.getByRole('button', { name: 'Connecter Home Assistant' }).click();
 	await expect(page.getByRole('status')).toHaveText('« Maison » est connecté. Choisissez qui suivre.');
 	// The token leaves the page, and is kept only in the keychain (here, the test file).
-	await expect(form.getByLabel('Jeton d’accès longue durée')).toHaveValue('');
+	await expect(form).toHaveCount(0);
 	expect(readFileSync(secrets, 'utf8')).toContain(TOKEN);
 	expect(JSON.stringify(await page.evaluate(() => fetch('/api/sources').then((r) => r.json())))).not.toContain(TOKEN);
 

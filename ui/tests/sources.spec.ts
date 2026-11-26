@@ -51,6 +51,18 @@ test('import a contacts file, then see it among the sources', async ({ page }) =
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sources');
 	await expect(page.getByText('Rien encore. Importez un fichier ou suivez un agenda pour commencer.')).toBeVisible();
 
+	// What can be added is grouped by category, and a card opens its form alone (issue #245).
+	const calendars = page.getByRole('group', { name: 'Agendas et contacts' });
+	await expect(calendars.getByRole('link')).toHaveText([/Un fichier/, /Un agenda par son lien/, /Un compte d’agendas et de contacts/]);
+	await expect(page.getByRole('group', { name: 'Maison et lieux' }).getByRole('link')).toHaveText([/Home Assistant/]);
+	await expect(page.getByRole('group', { name: 'Photos et médias' }).getByRole('link')).toHaveText([/Immich/, /Jellyfin/]);
+	await calendars.getByRole('link', { name: 'Un fichier' }).click();
+	await expect(page).toHaveURL(/\/sources\?add=file$/);
+	await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Importer un fichier']);
+	await page.getByRole('link', { name: 'Retour aux sources' }).click();
+	await expect(page.getByRole('heading', { name: 'Ajouter une source' })).toBeVisible();
+	await page.getByRole('link', { name: 'Un fichier' }).click();
+
 	await page.getByLabel('choisissez-le').setInputFiles(join(FIXTURES, 'contacts/google-v3.vcf'));
 	await expect(page.getByRole('status')).toHaveText('Fichier importé.');
 	const source = page.getByTestId('sources').getByRole('listitem').filter({ hasText: 'Contacts' });
@@ -63,19 +75,26 @@ test('import a contacts file, then see it among the sources', async ({ page }) =
 
 	// Location history, from a phone's export.
 	await page.getByRole('link', { name: 'Sources' }).first().click();
+	await page.getByRole('link', { name: 'Un fichier' }).click();
 	await page.getByLabel('choisissez-le').setInputFiles(join(FIXTURES, 'location/Timeline.json'));
 	await expect(page.getByRole('status')).toHaveText('Fichier importé.');
 	await expect(page.getByTestId('sources').getByRole('listitem').filter({ hasText: 'Historique des positions' })).toBeVisible();
 
-	// A file Ipse cannot read is said plainly, and nothing is listed for it.
+	// A file Ipse cannot read is said plainly on its form, and nothing is listed for it.
+	await page.getByRole('link', { name: 'Un fichier' }).click();
 	await page.getByLabel('choisissez-le').setInputFiles({ name: 'photo.jpg', mimeType: 'image/jpeg', buffer: Buffer.from('not a contact') });
 	await expect(page.getByRole('status')).toContainText('Ipse ne sait pas encore lire ce type de fichier');
+	await expect(page.getByLabel('choisissez-le')).toBeAttached();
+	await page.getByRole('link', { name: 'Retour aux sources' }).click();
 	await expect(page.getByTestId('sources').getByRole('listitem')).toHaveCount(2);
 });
 
 test('follow a calendar by its link, sync it, then stop following it', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Sources' }).first().click();
+	const card = page.getByRole('link', { name: 'Un agenda par son lien' });
+	await expect(card).not.toContainText('Connecté');
+	await card.click();
 
 	await page.getByLabel('Nom de l’agenda').fill('Perso');
 	await page.getByLabel('Lien secret (iCal)').fill('ftp://example.org/agenda.ics');
@@ -86,7 +105,9 @@ test('follow a calendar by its link, sync it, then stop following it', async ({ 
 	await page.getByRole('button', { name: 'Suivre cet agenda' }).click();
 	await expect(page.getByRole('status')).toHaveText('« Perso » est suivi.');
 	// The link leaves the page, and is kept only in the keychain (here, the test file).
-	await expect(page.getByLabel('Lien secret (iCal)')).toHaveValue('');
+	// Back to the sources, where the new one is listed and its card says so.
+	await expect(page.getByLabel('Lien secret (iCal)')).toHaveCount(0);
+	await expect(card).toContainText('Connectée');
 	expect(readFileSync(secrets, 'utf8')).toContain(link);
 	expect(JSON.stringify(await page.evaluate(() => fetch('/api/sources').then((r) => r.json())))).not.toContain(link);
 
@@ -95,10 +116,12 @@ test('follow a calendar by its link, sync it, then stop following it', async ({ 
 	await expect(source).toContainText('fiches ajoutées');
 
 	// The same link again: already followed.
+	await card.click();
 	await page.getByLabel('Lien secret (iCal)').fill(link);
 	await page.getByRole('button', { name: 'Suivre cet agenda' }).click();
 	await expect(page.getByRole('status')).toHaveText('Cet agenda est déjà suivi, sous le nom « Perso ».');
-	await page.getByLabel('Lien secret (iCal)').fill('');
+	await page.getByRole('link', { name: 'Retour aux sources' }).click();
+	await expect(page.getByRole('status')).toBeEmpty();
 
 	await source.getByRole('button', { name: 'Synchroniser' }).click();
 	await expect(page.getByRole('status')).toHaveText('Synchronisé.');
@@ -119,6 +142,7 @@ test('a followed calendar that fails is marked beside Sources until it syncs aga
 	await page.goto(ipse.url);
 	const nav = page.getByRole('navigation', { name: 'Sections' });
 	await nav.getByRole('link', { name: 'Sources' }).click();
+	await page.getByRole('link', { name: 'Un agenda par son lien' }).click();
 	await page.getByLabel('Nom de l’agenda').fill('Perso');
 	await page.getByLabel('Lien secret (iCal)').fill(link);
 	await page.getByRole('button', { name: 'Suivre cet agenda' }).click();
