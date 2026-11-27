@@ -75,21 +75,21 @@ test('the AI tidies up, the person decides', async ({ page }) => {
 
 	// Three accepted at once.
 	for (const reason of ['Résumé d’hier.', 'Inès m’a dit que c’est Jo Lambert, son plombier.', 'Ses notes disent que Bob, c’est Robert.'])
-		await page.getByLabel(`Sélectionner : ${reason}`).check();
-	await page.getByRole('button', { name: 'Accepter les 3 propositions sélectionnées' }).click();
+		await lines.filter({ hasText: reason }).getByRole('checkbox').check();
+	await page.getByRole('button', { name: 'Accepter 3 propositions' }).click();
 	await expect(page.getByRole('status').first()).toContainText('3 propositions acceptées.');
 	expect(read('people/jo-plombier.md')).toContain('name: Jo Lambert\n');
 	expect(read(`summaries/day/${day.slice(0, 4)}/${day}.md`)).toContain('Dîner avec Élodie.');
 	expect(existsSync(join(ipse.vault, 'people/bob-martin.md'))).toBe(false);
 
 	// Ipse's duplicate, merged from its page.
-	await page.getByRole('link', { name: /Même adresse email/ }).click();
+	await lines.filter({ hasText: /Même adresse email/ }).locator('a.title').click();
 	await page.getByRole('button', { name: 'Fusionner' }).click();
 	await expect(page.getByRole('status')).toContainText('Fusionnées');
 
 	// The facts refused, saying why.
 	await inbox.click();
-	await page.getByRole('link', { name: 'Lu dans les notes d’Élodie.' }).click();
+	await lines.filter({ hasText: 'Lu dans les notes d’Élodie.' }).locator('a.title').click();
 	await page.getByRole('button', { name: 'Refuser' }).click();
 	await page.keyboard.type('Sage-femme, pas infirmière.');
 	await page.getByRole('button', { name: 'Refuser la proposition' }).click();
@@ -99,7 +99,7 @@ test('the AI tidies up, the person decides', async ({ page }) => {
 	// The merge of Bob undone: his file is back.
 	await inbox.click();
 	await expect(page.getByText('Rien à revoir pour le moment.')).toBeVisible();
-	await page.getByTestId('decided').getByRole('link', { name: 'Ses notes disent que Bob, c’est Robert.' }).click();
+	await page.getByTestId('decided').filter({ hasText: 'Ses notes disent que Bob, c’est Robert.' }).locator('a.title').click();
 	await page.getByRole('button', { name: 'Annuler' }).click();
 	await expect(page.getByRole('status')).toContainText('Proposition annulée');
 	expect(existsSync(join(ipse.vault, 'people/bob-martin.md'))).toBe(true);

@@ -19,8 +19,8 @@ for (const [language, w] of [
 			list: /^Voir les \d+ dates de la liste$/,
 			agenda: 'Agenda',
 			select: 'Tout sélectionner',
-			accept: 'Accepter les 6 propositions sélectionnées',
-			acceptOne: 'Accepter la proposition sélectionnée',
+			accept: 'Accepter 6 propositions',
+			acceptOne: 'Accepter 1 proposition',
 			where: 'Où vous êtes'
 		}
 	],
@@ -33,8 +33,8 @@ for (const [language, w] of [
 			list: /^Show the \d+ dates in this list$/,
 			agenda: 'Agenda',
 			select: 'Select all',
-			accept: 'Accept the 6 selected proposals',
-			acceptOne: 'Accept the selected proposal',
+			accept: 'Accept 6 proposals',
+			acceptOne: 'Accept 1 proposal',
 			where: 'Where you are'
 		}
 	]

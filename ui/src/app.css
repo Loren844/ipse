@@ -875,15 +875,41 @@ a {
 	min-width: 0;
 }
 
-.proposal .reason {
+/* What it changes is the title; why, in its author's words, comes under it, smaller. */
+.proposal .title {
 	font-weight: 700;
 	color: var(--text);
 	text-decoration: none;
+	overflow-wrap: anywhere;
 }
 
-.proposal .reason:hover {
+.proposal .title:hover {
 	color: var(--thread-ink);
 	text-decoration: underline;
+}
+
+.proposal .why,
+.page-head .why {
+	margin: 0;
+	color: var(--muted);
+}
+
+.proposal .why {
+	font-size: var(--step--1);
+}
+
+/* A single change, shown in its card so it can be decided without opening it. */
+.proposal .diff-file {
+	margin: 0.3rem 0 0.1rem;
+}
+
+.proposal .diff .what,
+.proposal .diff .sides {
+	padding: 0.35rem 0;
+}
+
+.proposal .diff li:last-child > * {
+	border-bottom: none;
 }
 
 .proposal .meta {
@@ -964,6 +990,15 @@ a {
 	cursor: not-allowed;
 }
 
+/* A disabled main button is drawn flat and grey: a pale version of its colour would
+   still read as one to press. */
+.button.primary:disabled {
+	opacity: 1;
+	background: var(--line);
+	border-color: var(--line);
+	color: var(--muted);
+}
+
 .actions {
 	display: flex;
 	flex-wrap: wrap;
@@ -997,7 +1032,7 @@ a {
 	color: var(--warn);
 }
 
-/* A proposal's title is its reason, in its author's words: it can be a long sentence. */
+/* A proposal's title is what it changes: it can be a long sentence. */
 h1.proposal-title {
 	font-size: clamp(1.75rem, 3.6vw, 2.5rem);
 	letter-spacing: -0.025em;

@@ -7,6 +7,7 @@
 	import { ago, authorName } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Notice from '#lib/Notice.svelte';
+	import { title } from '#lib/proposal.ts';
 	import { Loader } from '#lib/remote.svelte.ts';
 
 	const proposal = new Loader<ProposalView>();
@@ -58,7 +59,7 @@
 
 	const merge = $derived(line?.merge ?? false);
 	/** For a merge, "these are two people", or "keep them apart" for events. */
-	const apart = $derived(view?.files.some((f) => f.kind === 'person') ? i18n.t.twoPeople : i18n.t.keepApart);
+	const apart = $derived(view?.line.files.some((f) => f.kind === 'person') ? i18n.t.twoPeople : i18n.t.keepApart);
 	const accept = () =>
 		decide(
 			() => api.accept(line!.id),
@@ -83,13 +84,15 @@
 	}
 </script>
 
-<svelte:head><title>{line ? line.reason : i18n.t.inbox} · Ipse</title></svelte:head>
+<svelte:head><title>{line ? title(line) : i18n.t.inbox} · Ipse</title></svelte:head>
 
 {#if view && line}
 	<article class="screen">
 		<header class="page-head">
 			<p class="quiet-link" style:margin="0"><a href="/review">← {i18n.t.backToInbox}</a></p>
-			<h1 class="proposal-title">{line.reason}</h1>
+			<!-- What it changes is the title; why, in its author's words, comes under it. -->
+			<h1 class="proposal-title">{title(line)}</h1>
+			<p class="why"><span class="visually-hidden">{`${i18n.t.why} `}</span>{line.reason}</p>
 			<p class="date">
 				<span>{by}, {ago(line.created)}</span>
 				{#if line.status !== 'waiting'}<span class="badge" class:warn={line.status === 'stale'}>{i18n.t.status[line.status]}</span>{/if}
@@ -109,7 +112,7 @@
 			<Notice tone="warn"><strong>{i18n.t.staleTitle}.</strong> {i18n.t.staleHint}</Notice>
 		{/if}
 
-		{#each view.files as file, i (i)}<Diff {file} />{/each}
+		{#each view.line.files as file, i (i)}<Diff {file} />{/each}
 
 		{#if line.status === 'refused' && view.comment}<p class="quiet">{i18n.t.youSaid(view.comment)}</p>{/if}
 
