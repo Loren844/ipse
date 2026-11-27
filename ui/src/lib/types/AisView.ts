@@ -2,6 +2,7 @@
 import type { AiView } from "./AiView";
 import type { AppView } from "./AppView";
 import type { CategoryView } from "./CategoryView";
+import type { DiskView } from "./DiskView";
 
 /**
  * The screen.
@@ -10,4 +11,9 @@ export type AisView = { ais: Array<AiView>, categories: Array<CategoryView>,
 /**
  * The AI apps Ipse can set up itself, and whether each is on this computer.
  */
-apps: Array<AppView>, };
+apps: Array<AppView>, 
+/**
+ * Whether the memory's disk is encrypted: said when a sensitive category is
+ * opened to an AI for the first time, if it is not (issue #262).
+ */
+disk: DiskView, };

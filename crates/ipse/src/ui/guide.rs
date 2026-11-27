@@ -18,9 +18,10 @@ use serde::{Deserialize, Serialize};
 /// Where the guide's state is kept, from the vault's root.
 pub(crate) const FILE: &str = ".ipse/guide.json";
 
-/// The screens that have a note the first time they open.
-const SCREENS: [&str; 7] = [
-    "sources", "ais", "review", "agenda", "map", "memory", "graph",
+/// The screens that have a note the first time they open; `disk`, the note on the
+/// disk's encryption shown once on the home screen (issue #262).
+const SCREENS: [&str; 8] = [
+    "sources", "ais", "review", "agenda", "map", "memory", "graph", "disk",
 ];
 
 /// What `.ipse/guide.json` holds.

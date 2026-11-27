@@ -1661,3 +1661,21 @@ fn search_finds_a_memory() {
         assert!(group["count"].as_u64().unwrap() >= shown);
     }
 }
+
+#[test]
+fn the_disk_encryption_is_said() {
+    // Issue #262: whatever this machine's state, it is read and said.
+    let ui = start_with(|_| {});
+    let cookie = login(&ui);
+    let (status, disk) = api(&ui, &cookie, "/api/disk");
+    assert_eq!(status, 200, "{disk}");
+    assert!(
+        ["on", "off", "unknown"].contains(&disk["state"].as_str().unwrap()),
+        "{disk}"
+    );
+    assert!(disk["system"].is_string());
+    let (_, settings) = api(&ui, &cookie, "/api/settings");
+    assert_eq!(settings["disk"], disk);
+    let (_, ais) = api(&ui, &cookie, "/api/ais");
+    assert_eq!(ais["disk"], disk);
+}

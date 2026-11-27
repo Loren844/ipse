@@ -562,6 +562,25 @@ const words = {
 		demoCreate: 'Créer ma mémoire',
 		demoCommand: 'Avec la commande ipse, dans un terminal :',
 		screenNoteRead: 'Compris',
+		diskTitle: 'Chiffrement du disque',
+		diskHeading: (state: string) => `Chiffrement du disque\u00a0: ${state.toLocaleLowerCase('fr')}`,
+		diskState: { on: 'Activé', off: 'Désactivé', unknown: 'Inconnu' } as Record<string, string>,
+		diskOn: {
+			macos: 'FileVault est activé : sans votre mot de passe, personne ne peut lire votre mémoire sur ce disque.',
+			windows: 'BitLocker est activé sur ce lecteur : sans votre session, personne ne peut lire votre mémoire.',
+			other: 'Le disque qui contient votre mémoire est chiffré : sans votre mot de passe, personne ne peut la lire.'
+		} as Record<string, string>,
+		diskOff: 'Le disque qui contient votre mémoire n’est pas chiffré : quelqu’un qui a l’ordinateur, ou son disque, peut lire vos fichiers.',
+		diskSteps: {
+			macos: 'Pour le chiffrer, ouvrez Réglages Système, puis Confidentialité et sécurité, puis FileVault, et cliquez sur Activer. Gardez la clé de secours en lieu sûr.',
+			windows: 'Pour le chiffrer, ouvrez Paramètres, puis Confidentialité et sécurité, puis Chiffrement de l’appareil, et activez-le. Sur Windows Pro, passez par Panneau de configuration, puis Chiffrement de lecteur BitLocker. Gardez la clé de récupération en lieu sûr.',
+			linux: 'La plupart des distributions proposent de chiffrer le disque (LUKS) à l’installation. Sur un système déjà installé, gardez votre mémoire sur une partition chiffrée, ou réinstallez avec cette option après une sauvegarde.',
+			other: 'Activez le chiffrement du disque dans les réglages de votre système.'
+		} as Record<string, string>,
+		diskUnknown: 'Ipse n’a pas pu savoir si le disque qui contient votre mémoire est chiffré. Vérifiez-le dans les réglages de votre système : FileVault sur Mac, BitLocker sur Windows, LUKS sur Linux.',
+		diskWhy: 'Vos fichiers restent du Markdown, lisible dans n’importe quel éditeur : c’est le chiffrement du disque qui les protège. Ipse le vérifie sans rien changer.',
+		diskNoteDone: 'C’est noté',
+		openDiskOff: 'Attention : le disque de cet ordinateur n’est pas chiffré, ce qui est classé ici reste lisible par quiconque a l’ordinateur. Réglages, « Votre mémoire », explique comment le chiffrer.',
 		firstVisit: {
 			sources: 'Pour commencer, importez le fichier de vos contacts (.vcf) ou de votre agenda (.ics), ou suivez un agenda par son lien secret : Ipse le relit de lui-même tant que l’app tourne. Ce qui vient d’une source est recopié tel quel.',
 			ais: 'Connectez votre IA ici, en un clic pour Claude Desktop. Les catégories sensibles (santé, localisation, maison, privé) restent fermées tant que vous ne les ouvrez pas à une IA, une par une.',
@@ -1621,6 +1640,25 @@ const words = {
 		demoCreate: 'Create my memory',
 		demoCommand: 'With the ipse command, in a terminal:',
 		screenNoteRead: 'Got it',
+		diskTitle: 'Disk encryption',
+		diskHeading: (state: string) => `Disk encryption: ${state.toLowerCase()}`,
+		diskState: { on: 'On', off: 'Off', unknown: 'Unknown' } as Record<string, string>,
+		diskOn: {
+			macos: 'FileVault is on: without your password, no one can read your memory on this disk.',
+			windows: 'BitLocker is on for this drive: without your session, no one can read your memory.',
+			other: 'The disk that holds your memory is encrypted: without your password, no one can read it.'
+		} as Record<string, string>,
+		diskOff: 'The disk that holds your memory is not encrypted: someone with the computer, or its disk, can read your files.',
+		diskSteps: {
+			macos: 'To encrypt it, open System Settings, then Privacy & Security, then FileVault, and click Turn On. Keep the recovery key somewhere safe.',
+			windows: 'To encrypt it, open Settings, then Privacy & security, then Device encryption, and turn it on. On Windows Pro, go through Control Panel, then BitLocker Drive Encryption. Keep the recovery key somewhere safe.',
+			linux: 'Most distributions offer to encrypt the disk (LUKS) when they are installed. On a system already installed, keep your memory on an encrypted partition, or reinstall with that option after a backup.',
+			other: 'Turn on disk encryption in your system’s settings.'
+		} as Record<string, string>,
+		diskUnknown: 'Ipse could not tell whether the disk that holds your memory is encrypted. Check it in your system’s settings: FileVault on a Mac, BitLocker on Windows, LUKS on Linux.',
+		diskWhy: 'Your files stay Markdown, readable in any editor: the disk’s encryption is what protects them. Ipse checks it and changes nothing.',
+		diskNoteDone: 'Noted',
+		openDiskOff: 'Note: this computer’s disk is not encrypted, so what is filed here stays readable by anyone with the computer. Settings, “Your memory”, explains how to encrypt it.',
 		firstVisit: {
 			sources: 'To begin, import the file of your contacts (.vcf) or of your calendar (.ics), or follow a calendar by its secret link: Ipse reads it again on its own while the app runs. What comes from a source is copied as it is.',
 			ais: 'Connect your AI here, in one click for Claude Desktop. Sensitive categories (health, location, home, private) stay closed until you open them to an AI, one by one.',

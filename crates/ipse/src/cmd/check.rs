@@ -1,4 +1,5 @@
-//! `ipse check`: says which files of the memory need fixing, changes nothing.
+//! `ipse check`: says which files of the memory need fixing, and whether the disk
+//! holding it is encrypted (issue #262); changes nothing.
 
 use std::path::PathBuf;
 
@@ -10,6 +11,8 @@ use ipse_core::{Error, Result};
 pub(crate) fn run(vault: Option<PathBuf>) -> Result<()> {
     let vault = Vault::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
     let report = check(vault.root())?;
+    // Decision 0009: the files are plain Markdown, protected by the disk's encryption.
+    println!("{}", crate::disk::sentence(crate::disk::of(vault.root())));
     let files = |n: usize| if n == 1 { "file" } else { "files" };
     if report.problems.is_empty() {
         println!(

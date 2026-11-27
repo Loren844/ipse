@@ -42,6 +42,8 @@ export type { SummariesView, SummaryView };
 import type { QuestionsView } from './types/QuestionsView.ts';
 import type { SettingsView } from './types/SettingsView.ts';
 export type { SettingsView };
+import type { DiskView } from './types/DiskView.ts';
+export type { DiskView };
 import type { GuideView } from './types/GuideView.ts';
 import type { NotesView } from './types/NotesView.ts';
 export type { GuideView, NotesView };
@@ -196,6 +198,8 @@ export const api = {
 		post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/answer`, { name, word: word.trim() || undefined }),
 	skipQuestion: (id: string) => post<QuestionsView>(`/api/questions/${encodeURIComponent(id)}/skip`),
 	settings: () => get<SettingsView>('/api/settings'),
+	/** Whether the disk holding the memory is encrypted (issue #262). */
+	disk: () => get<DiskView>('/api/disk'),
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	/** The memory's files matching `q`, by kind; with `few`, a few of each kind. */

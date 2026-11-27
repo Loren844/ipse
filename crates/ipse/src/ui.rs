@@ -590,6 +590,7 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         }
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
+        "disk" => Ok(Some(to_json(&settings::disk(gateway)))),
         "map" => map::view(gateway).map(|v| Some(to_json(&v))),
         "timeline" => {
             let work = param("work").is_some_and(|w| w == "1");
