@@ -37,7 +37,7 @@ postcard = { version = "1.1", default-features = false, features = ["use-std"] }
 # The system keychain: Keychain on macOS, Credential Manager on Windows, Secret Service on Linux.
 keyring = "4.2"
 rmcp = { version = "3.10", default-features = false, features = ["server", "macros", "transport-io"] }
-saphyr-parser = "0.3"
+saphyr-parser = "0.4"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 sys-locale = "0.3"
