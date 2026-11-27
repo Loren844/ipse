@@ -19,7 +19,7 @@
 	<div class="screen">
 		<header class="page-head">
 			<p class="date">{longDay(view.today)}</p>
-			<h1>{i18n.t.comingUp}</h1>
+			<h1 id="coming">{i18n.t.comingUp}</h1>
 		</header>
 
 		{#if view.waiting > 0 || view.questions > 0}
@@ -40,8 +40,8 @@
 			<FirstSteps guide={view.guide} />
 		{/if}
 
+		<!-- The screen's title names this first section: no second heading repeats it. -->
 		<section aria-labelledby="coming">
-			<h2 id="coming" class="visually-hidden">{i18n.t.comingUp}</h2>
 			{#if view.upcoming.length}
 				<Events events={view.upcoming} today={view.today} group />
 			{:else}

@@ -101,7 +101,8 @@ export function ago(text: string, now: Date = new Date()): string {
 	const seconds = Math.round((then.getTime() - now.getTime()) / 1000);
 	const format = new Intl.RelativeTimeFormat(locale(), { numeric: 'auto' });
 	const abs = Math.abs(seconds);
-	if (abs < 60) return format.format(0, 'second');
+	// "Now" reads as a live state; a moment ago is what is meant (issue #260).
+	if (abs < 60) return i18n.t.justNow;
 	if (abs < 3600) return format.format(Math.round(seconds / 60), 'minute');
 	if (abs < 86400) return format.format(Math.round(seconds / 3600), 'hour');
 	if (abs < 7 * 86400) return format.format(Math.round(seconds / 86400), 'day');

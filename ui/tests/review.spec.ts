@@ -45,7 +45,7 @@ test('review proposals: accept, refuse with a comment, accept several, undo', as
 	await expect(count(page)).toHaveText('5');
 	await page.getByRole('link', { name: /À revoir/ }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('À revoir');
-	await expect(page.getByText('5 propositions attendent votre décision.')).toBeVisible();
+	await expect(page.getByText('5 propositions attendent votre avis.')).toBeVisible();
 	// Newest first, with who, why and what it touches.
 	const lines = page.getByTestId('proposal');
 	await expect(lines.locator('.reason')).toHaveText([

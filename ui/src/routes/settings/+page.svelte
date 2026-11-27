@@ -6,6 +6,7 @@
 	import Notice from '#lib/Notice.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 	import { theme, type ThemeChoice } from '#lib/theme.svelte.ts';
+	import { fold, systemZone, zoneList } from '#lib/zones.ts';
 
 	const settings = new Loader<SettingsView>();
 	settings.load(() => api.settings());
@@ -15,24 +16,24 @@
 		{ code: 'fr', name: 'Français' },
 		{ code: 'en', name: 'English' }
 	];
-	/** Every time zone the browser knows. */
-	const zones: string[] = (() => {
-		try {
-			return Intl.supportedValuesOf('timeZone');
-		} catch {
-			return [];
-		}
-	})();
+	const system = systemZone();
 
 	let language = $state('');
 	let timeZone = $state('');
+	let findZone = $state('');
 	let busy = $state(false);
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
 
 	const ready = $derived(settings.state.kind === 'ready' ? settings.state.value : null);
 	const changed = $derived(!!ready && (language !== ready.language || timeZone !== ready.time_zone));
-	/** The memory's own zone first when the browser does not list it. */
-	const zoneList = $derived(ready && !zones.includes(ready.time_zone) ? [ready.time_zone, ...zones] : zones);
+	const locale = $derived(i18n.language === 'fr' ? 'fr-FR' : 'en-GB');
+	/** This computer's zone first, then the memory's, in the interface's language. */
+	const zones = $derived(ready ? zoneList(locale, system, ready.time_zone) : []);
+	/** Those matching the search; the zone chosen always stays, so the list shows it. */
+	const shownZones = $derived.by(() => {
+		const words = fold(findZone.trim());
+		return words ? zones.filter((z) => z.id === timeZone || z.search.includes(words)) : zones;
+	});
 
 	$effect(() => {
 		if (ready && !language) {
@@ -91,6 +92,7 @@
 					>
 				{/each}
 			</div>
+			<p class="hint setting-hint">{i18n.t.interfaceLanguageHint}</p>
 		</div>
 	</section>
 
@@ -145,8 +147,11 @@
 				</div>
 				<div class="form-field">
 					<label for="time-zone">{i18n.t.timeZone}</label>
+					<input type="search" class="zone-search" bind:value={findZone} placeholder={i18n.t.findZone} aria-label={i18n.t.findZone} aria-controls="time-zone" />
 					<select id="time-zone" bind:value={timeZone} aria-describedby="time-zone-hint">
-						{#each zoneList as zone (zone)}<option value={zone}>{zone.replaceAll('_', ' ')}</option>{/each}
+						{#each shownZones as zone (zone.id)}<option value={zone.id}
+								>{zone.id === system ? i18n.t.thisComputer(zone.label) : zone.label}</option
+							>{/each}
 					</select>
 					<p class="hint" id="time-zone-hint">{i18n.t.timeZoneHint}</p>
 				</div>
