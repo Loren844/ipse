@@ -1060,6 +1060,8 @@ pub(crate) fn fill(vault: &Vault) -> Result<Made> {
 
     claude(vault, words, &people, today)?;
     location(vault, words, today)?;
+    let now = jiff::Timestamp::now().to_zoned(settings.time_zone().clone());
+    super::demo_dates::spread(vault, &now)?;
     let count = |folder: &str| walk(&vault.root().join(folder));
     Ok(Made {
         owner: people.owner.name.clone(),

@@ -6,6 +6,7 @@ pub(crate) mod check;
 pub(crate) mod client;
 pub(crate) mod dav;
 pub(crate) mod demo;
+pub(crate) mod demo_dates;
 pub(crate) mod duplicates;
 pub(crate) mod homeassistant;
 pub(crate) mod immich;
