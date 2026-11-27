@@ -91,12 +91,17 @@ pub(crate) struct TimelineView {
 
 /// The timeline of the whole memory, as the person sees it; with `person`, of the
 /// events that link to that file only (issue #244), without the summaries, which are
-/// of the whole period.
+/// of the whole period. The people seen most leave out work meetings and crowds
+/// unless `work` (issue #264).
 ///
 /// # Errors
 ///
 /// Errors reading the index or the summaries.
-pub(crate) fn view(gateway: &mut Gateway, person: Option<&str>) -> Result<TimelineView> {
+pub(crate) fn view(
+    gateway: &mut Gateway,
+    person: Option<&str>,
+    work: bool,
+) -> Result<TimelineView> {
     let person = person.filter(|p| !p.is_empty());
     let root = gateway.vault().root().to_owned();
     let texts = |period: Period| -> Result<HashMap<String, String>> {
@@ -112,7 +117,7 @@ pub(crate) fn view(gateway: &mut Gateway, person: Option<&str>) -> Result<Timeli
     let months = texts(Period::Month)?;
     let years = texts(Period::Year)?;
     let owner = gateway.fresh_owner()?;
-    let timeline = owner.timeline_with(person);
+    let timeline = owner.timeline_with(person, work);
     let seen = |people: Vec<Seen>| -> Vec<SeenView> {
         people
             .into_iter()

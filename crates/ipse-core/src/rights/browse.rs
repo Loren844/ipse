@@ -7,7 +7,7 @@ use serde::Serialize;
 use jiff::civil::Date;
 
 use super::{Access, Entry};
-use crate::search::{Often, next_birthday};
+use crate::search::{LeftOut, Often, next_birthday};
 use crate::vault::{EventKind, FileType, Id, LinkOrText, MemoryFile, WikiLink};
 
 /// Most entities one page of a list holds.
@@ -531,15 +531,18 @@ impl Access<'_> {
 
     /// The timeline of what this client may read (issue #133): per year and month,
     /// counts, the people seen most among the readable people, trips and celebrations.
+    /// Work meetings and crowds are left out of the people seen most (issue #264).
     #[must_use]
     pub fn timeline(&self) -> crate::search::Timeline<'_> {
-        self.timeline_with(None)
+        self.timeline_with(None, false)
     }
 
     /// The timeline of [`Access::timeline`], of the events that link to the entity
     /// `with` when one is given (issue #244); empty when this client may not read it.
+    /// With `work`, the people seen most count every event, work meetings and crowds
+    /// too.
     #[must_use]
-    pub fn timeline_with(&self, with: Option<&str>) -> crate::search::Timeline<'_> {
+    pub fn timeline_with(&self, with: Option<&str>, work: bool) -> crate::search::Timeline<'_> {
         let stem = match with {
             None => None,
             Some(id) => {
@@ -553,6 +556,11 @@ impl Access<'_> {
             }
         };
         let index = &self.gateway.index;
+        let left_out = if work {
+            LeftOut::default()
+        } else {
+            self.left_out_of_company()
+        };
         index.timeline_with(
             |c| self.reads(c.as_str()),
             |stem| {
@@ -560,8 +568,18 @@ impl Access<'_> {
                     .person_path(stem, |c| self.reads(c.as_str()))
                     .is_some()
             },
+            &left_out,
             stem.as_deref(),
         )
+    }
+
+    /// The events this client may read that do not count in "most often with": the
+    /// occurrences of a repeating work event and the crowds (issue #264).
+    #[must_use]
+    pub fn left_out_of_company(&self) -> LeftOut {
+        self.gateway
+            .index
+            .left_out_of_company(|c| self.reads(c.as_str()))
     }
 
     /// The events of `kind` this client may read, around `today`: at most `shown`
@@ -578,6 +596,12 @@ impl Access<'_> {
                 index
                     .person_path(stem, |c| self.reads(c.as_str()))
                     .is_some()
+            },
+            // The work kind's own page counts its meetings: it is what it is about.
+            &if kind == EventKind::Work {
+                LeftOut::default()
+            } else {
+                self.left_out_of_company()
             },
         );
         let details = |found: Vec<(&Id, &crate::vault::EventTime)>| -> Vec<Details> {

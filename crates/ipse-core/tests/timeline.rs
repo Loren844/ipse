@@ -132,3 +132,78 @@ fn years_and_months_with_who_and_what_marked_them() {
     assert_eq!(theirs.years[0].events, 3);
     assert_eq!(theirs.years[0].months.len(), 1);
 }
+
+/// Issue #264: a crowd does not count in "most often with", and of two people seen as
+/// often, the one seen in more different events and places comes first.
+#[test]
+fn crowds_are_left_out_and_ties_go_to_variety() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    Vault::init(
+        root,
+        "Inès Roux",
+        Settings::new(Language::Fr, "Europe/Paris").unwrap(),
+    )
+    .unwrap();
+    let names = ["anne", "bruno", "chloe", "david", "emma", "farid", "gael"];
+    for (i, name) in names.iter().enumerate() {
+        write(
+            root,
+            &format!("people/{name}.md"),
+            i + 1,
+            &format!("type: person\ncategory: people\nname: {name}"),
+        );
+    }
+    let with = |people: &[&str]| -> String {
+        let links: Vec<String> = people
+            .iter()
+            .map(|p| format!("  - \"[[{p}]]\"\n"))
+            .collect();
+        format!("participants:\n{}", links.concat())
+    };
+    // Seven at a party, twice: a crowd.
+    event(root, 20, "Fête", "2026-03-07T20:00:00+01:00", &with(&names));
+    event(root, 21, "Fête", "2026-04-07T20:00:00+02:00", &with(&names));
+    // Anne twice at the same café; Bruno twice, at two different things.
+    event(
+        root,
+        22,
+        "Café",
+        "2026-03-10T09:00:00+01:00",
+        &with(&["anne"]),
+    );
+    event(
+        root,
+        23,
+        "Café",
+        "2026-03-17T09:00:00+01:00",
+        &with(&["anne"]),
+    );
+    event(
+        root,
+        24,
+        "Cinéma",
+        "2026-03-11T20:00:00+01:00",
+        &with(&["bruno"]),
+    );
+    event(root, 25, "Randonnée", "2026-03-14", &with(&["bruno"]));
+
+    let mut gateway = Gateway::open(root).unwrap();
+    let owner = gateway.fresh_owner().unwrap();
+    let people = |timeline: &ipse_core::search::Timeline<'_>| -> Vec<(String, u32)> {
+        timeline.years[0]
+            .people
+            .iter()
+            .map(|s| (s.stem.clone(), s.events))
+            .collect()
+    };
+    assert_eq!(
+        people(&owner.timeline()),
+        [("bruno".to_owned(), 2), ("anne".to_owned(), 2)]
+    );
+    // Everything counted: Anne and Bruno are in four events, the party's others in two.
+    let all = people(&owner.timeline_with(None, true));
+    assert_eq!(all[..2], [("bruno".to_owned(), 4), ("anne".to_owned(), 4)]);
+    assert_eq!(all[2].1, 2);
+    assert_eq!(owner.left_out_of_company().len(), 2);
+}

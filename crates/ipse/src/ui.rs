@@ -592,7 +592,8 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
         "map" => map::view(gateway).map(|v| Some(to_json(&v))),
         "timeline" => {
-            timeline::view(gateway, param("person").as_deref()).map(|v| Some(to_json(&v)))
+            let work = param("work").is_some_and(|w| w == "1");
+            timeline::view(gateway, param("person").as_deref(), work).map(|v| Some(to_json(&v)))
         }
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),

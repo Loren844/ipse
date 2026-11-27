@@ -4537,6 +4537,29 @@ p.automatic a {
 	margin: 0.4rem 0 0;
 }
 
+/* "Most often with" without work meetings unless asked (issue #264). */
+.count-work {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.75rem;
+	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.count-work input {
+	accent-color: var(--thread);
+	width: 1.05rem;
+	height: 1.05rem;
+}
+
+.timeline-head .hint {
+	margin: 0.2rem 0 0;
+	color: var(--muted);
+	font-size: var(--step--1);
+	max-width: 60ch;
+}
+
 .period-link {
 	margin: 0.35rem 0 0;
 	font-size: var(--step--1);
