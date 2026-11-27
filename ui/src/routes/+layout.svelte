@@ -12,6 +12,8 @@
 	import UpdateBanner from '#lib/UpdateBanner.svelte';
 	import Mark from '#lib/Mark.svelte';
 	import { initials } from '#lib/format.ts';
+	import { api, type SearchView } from '#lib/api.ts';
+	import FoundItem from '#lib/FoundItem.svelte';
 
 	let { children } = $props();
 
@@ -103,6 +105,34 @@
 	});
 
 	let railQuery = $state('');
+	// Results while typing (issue #258): a few of each kind, Enter for all of them.
+	let railFound: SearchView | null = $state(null);
+	let railTimer: ReturnType<typeof setTimeout> | undefined;
+	let railTicket = 0;
+
+	function railTyped() {
+		clearTimeout(railTimer);
+		const q = railQuery.trim();
+		if (!q) {
+			closeRail();
+			return;
+		}
+		railTimer = setTimeout(async () => {
+			const mine = ++railTicket;
+			try {
+				const view = await api.search(q, true);
+				if (mine === railTicket && railQuery.trim()) railFound = view;
+			} catch {
+				if (mine === railTicket) railFound = null;
+			}
+		}, 80);
+	}
+
+	function closeRail() {
+		clearTimeout(railTimer);
+		railTicket++;
+		railFound = null;
+	}
 
 	/** Searches the whole memory, from any screen. */
 	function searchMemory(e: SubmitEvent) {
@@ -110,8 +140,15 @@
 		const q = railQuery.trim();
 		if (!q) return;
 		railQuery = '';
+		closeRail();
 		goto(`/memory?q=${encodeURIComponent(q)}`);
 	}
+
+	// A result opened, or another screen: the search box starts empty again.
+	afterNavigate(() => {
+		railQuery = '';
+		closeRail();
+	});
 
 	/** The section a page belongs to: a person's page is under Memory. */
 	function isCurrent(href: string): boolean {
@@ -146,6 +183,16 @@
 	</a>
 {/snippet}
 
+<svelte:window
+	onkeydown={(e) => {
+		// Escape closes the results while typing, back in the search box.
+		if (e.key === 'Escape' && railFound) {
+			closeRail();
+			document.getElementById('rail-search')?.focus();
+		}
+	}}
+/>
+
 <svelte:head>
 	<title>{app.state.kind === 'ready' ? `${app.state.info.name} · Ipse` : 'Ipse'}</title>
 </svelte:head>
@@ -158,11 +205,44 @@
 				<Mark size={30} />
 				<span class="wordmark">ipse</span>
 			</a>
-			<form class="rail-search" role="search" onsubmit={searchMemory}>
-				<label for="rail-search" class="visually-hidden">{i18n.t.searchMemory}</label>
-				<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={icons.search} /></svg>
-				<input id="rail-search" type="search" placeholder={i18n.t.searchShort} bind:value={railQuery} autocomplete="off" spellcheck="false" />
-			</form>
+			<div
+				class="rail-search-box"
+				onfocusout={(e) => {
+					if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) closeRail();
+				}}
+			>
+				<form class="rail-search" role="search" onsubmit={searchMemory}>
+					<label for="rail-search" class="visually-hidden">{i18n.t.searchMemory}</label>
+					<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={icons.search} /></svg>
+					<input
+						id="rail-search"
+						type="search"
+						placeholder={i18n.t.searchShort}
+						bind:value={railQuery}
+						oninput={railTyped}
+						autocomplete="off"
+						spellcheck="false"
+						aria-controls="rail-found"
+					/>
+				</form>
+				{#if railFound}
+					<div class="rail-found" id="rail-found" role="region" aria-label={i18n.t.foundLabel} data-testid="rail-found">
+						{#if railFound.total}
+							{#each railFound.groups as group (group.kind)}
+								<p class="rail-found-kind">{i18n.t.kinds[group.kind] ?? group.kind} <span class="found-count">{group.count}</span></p>
+								<ul class="people found">
+									{#each group.items as item (item.id)}
+										<li><FoundItem {item} compact /></li>
+									{/each}
+								</ul>
+							{/each}
+							<a class="see-all" href="/memory?q={encodeURIComponent(railQuery.trim())}">{i18n.t.seeAllFound(railFound.total)}</a>
+						{:else}
+							<p class="quiet">{i18n.t.nothingFound}</p>
+						{/if}
+					</div>
+				{/if}
+			</div>
 			<nav aria-label={i18n.t.navLabel}>
 				<ul>
 					{#each look as section (section.href)}

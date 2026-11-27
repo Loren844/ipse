@@ -597,7 +597,10 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         }
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
-        "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
+        "search" => {
+            let few = param("few").is_some_and(|f| f == "1");
+            memory::search(gateway, param("q").as_deref(), few).map(|v| Some(to_json(&v)))
+        }
         "graph" => graph::view(gateway, param("id").as_deref(), param("period").as_deref())
             .map(|v| v.map(|v| to_json(&v))),
         "around" => {

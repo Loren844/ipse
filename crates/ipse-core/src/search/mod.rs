@@ -36,7 +36,7 @@ use crate::{Error, Result};
 use document::{Document, Field, Stored};
 
 pub use company::{COMPANY_RULE, CROWD, LeftOut};
-pub use fold::{fold, stem, words};
+pub use fold::{fold, matched_words, stem, words};
 pub use graph::{Around, GraphEdge, GraphNode, Neighbour, Neighbourhood};
 pub use kinds::{Born, KindSummary, Often, next_birthday};
 pub use near::{Happened, Shared, Surroundings};
@@ -58,7 +58,7 @@ const SUMMARIES: &str = "summaries";
 const SUMMARY_PERIODS: [&str; 3] = ["day", "week", "month"];
 
 /// Version of the saved index; another version is read again from the files.
-const INDEX_FORMAT: u32 = 3;
+const INDEX_FORMAT: u32 = 4;
 
 /// Longest excerpt, in characters.
 const EXCERPT_CHARS: usize = 160;
@@ -100,8 +100,42 @@ pub struct Hit {
     pub name: String,
     /// The text that matched best, shortened.
     pub excerpt: String,
+    /// The part of the file the excerpt comes from.
+    pub matched: Matched,
     /// Higher is better.
     pub score: u32,
+}
+
+/// The part of a file a search matched best in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Matched {
+    /// Its name, or an event's title.
+    Name,
+    /// One of its other names.
+    Alias,
+    /// One of its facts; for an event, its place or one of its people.
+    Fact,
+    /// One of its relations.
+    Relation,
+    /// Its notes; for a summary, its text.
+    Notes,
+}
+
+/// What the index knows of a file found, to tell it from the others: an event's
+/// time, place and people, an entity's relations. Texts as written in the file.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Context<'i> {
+    /// When an event starts.
+    pub start: Option<&'i EventTime>,
+    /// When an event ends, exclusive, if known.
+    pub end: Option<&'i EventTime>,
+    /// An event's place, a `[[link]]` or a name.
+    pub place: Option<&'i str>,
+    /// An event's people, each a `[[link]]` or a name.
+    pub people: Vec<&'i str>,
+    /// An entity's relations that link to a file: the word, and the file's stem in
+    /// lower case.
+    pub relations: Vec<(&'i str, &'i str)>,
 }
 
 /// One entity, as a list shows it.
@@ -886,9 +920,27 @@ impl SearchIndex {
         allowed: impl Fn(&Category) -> bool,
         rewrite: impl Fn(&str) -> Option<String>,
     ) -> Results {
+        let mut hits = self.search_all(query, allowed, rewrite);
+        let limit = limit.clamp(1, MAX_LIMIT);
+        let more = hits.len() > limit;
+        hits.truncate(limit);
+        Results { hits, more }
+    }
+
+    /// Every file matching every word of `query`, best first, among the allowed
+    /// categories only, texts holding `[[links]]` matched as `rewrite` gives them (see
+    /// [`SearchIndex::search_with`]). No limit: for results grouped by kind, each
+    /// group counted in full.
+    #[must_use]
+    pub fn search_all(
+        &self,
+        query: &str,
+        allowed: impl Fn(&Category) -> bool,
+        rewrite: impl Fn(&str) -> Option<String>,
+    ) -> Vec<Hit> {
         let tokens = words(query, self.language);
         if tokens.is_empty() {
-            return Results::default();
+            return Vec::new();
         }
         let tokens: Vec<&str> = tokens.iter().map(String::as_str).collect();
         let mut hits: Vec<Hit> = self
@@ -899,10 +951,61 @@ impl SearchIndex {
             .filter_map(|d| score(d, &tokens, &rewrite, self.language))
             .collect();
         hits.sort_by(|a, b| b.score.cmp(&a.score).then_with(|| a.name.cmp(&b.name)));
-        let limit = limit.clamp(1, MAX_LIMIT);
-        let more = hits.len() > limit;
-        hits.truncate(limit);
-        Results { hits, more }
+        hits
+    }
+
+    /// The vault's language, which words are matched in.
+    #[must_use]
+    pub fn language(&self) -> Language {
+        self.language
+    }
+
+    /// What the index knows of the file with this id, to tell it from others (see
+    /// [`Context`]); `None` for an id it does not know. Rights are the caller's: it
+    /// only asks for files it found among the allowed categories.
+    #[must_use]
+    pub fn context(&self, id: &Id) -> Option<Context<'_>> {
+        let d = self.document(*self.by_id.get(id)?)?;
+        let relations = d
+            .links
+            .iter()
+            .filter_map(|l| Some((l.word.as_deref()?, l.target.as_str())))
+            .collect();
+        let Some(span) = &d.event else {
+            return Some(Context {
+                start: None,
+                end: None,
+                place: None,
+                people: Vec::new(),
+                relations,
+            });
+        };
+        let mut facts = d.facts.iter().map(|f| f.text.as_str());
+        let place = if span.placed { facts.next() } else { None };
+        Some(Context {
+            start: Some(&span.start),
+            end: span.end.as_ref(),
+            place,
+            people: facts.collect(),
+            relations,
+        })
+    }
+
+    /// The relations of the file at `path` (relative to the vault) that link to a file,
+    /// as [`Context::relations`]: none when the index does not know it.
+    #[must_use]
+    pub fn relations_at(&self, path: &Path) -> Vec<(&str, &str)> {
+        let key = path.to_string_lossy().replace('\\', "/");
+        self.by_path
+            .get(&key)
+            .and_then(|&slot| self.document(slot))
+            .map(|d| {
+                d.links
+                    .iter()
+                    .filter_map(|l| Some((l.word.as_deref()?, l.target.as_str())))
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// The slots holding, for every token, a word that starts with it: the only ones
@@ -940,6 +1043,13 @@ impl SearchIndex {
     }
 }
 
+/// The instant `time` is ordered at, days and moments together: a day counts from its
+/// first second in UTC.
+#[must_use]
+pub fn timestamp_of(time: &EventTime) -> jiff::Timestamp {
+    sort_key(time)
+}
+
 /// Orders days and moments together: a day counts from its first second in UTC.
 fn sort_key(time: &EventTime) -> jiff::Timestamp {
     match time {
@@ -965,45 +1075,33 @@ fn view<'f>(
 }
 
 /// A hit when every token matches somewhere; its score and best excerpt otherwise.
-fn score(
-    document: &Document,
+fn score<'d>(
+    document: &'d Document,
     tokens: &[&str],
     rewrite: &dyn Fn(&str) -> Option<String>,
     language: Language,
 ) -> Option<Hit> {
     let name = view(&document.name, rewrite, language);
-    let fields: Vec<(Cow<'_, Field>, (u32, u32))> = document
-        .aliases
-        .iter()
-        .map(|f| (view(f, rewrite, language), ALIAS))
-        .chain(
-            document
-                .facts
-                .iter()
-                .map(|f| (view(f, rewrite, language), FACT)),
-        )
-        .chain(
-            document
-                .relations
-                .iter()
-                .map(|f| (view(f, rewrite, language), RELATION)),
-        )
-        .chain(
-            document
-                .notes
-                .iter()
-                .map(|f| (view(f, rewrite, language), NOTES)),
-        )
-        .collect();
+    let part = |fields: &'d [Field], weights: (u32, u32), matched: Matched| {
+        fields
+            .iter()
+            .map(move |f| (view(f, rewrite, language), weights, matched))
+    };
+    let fields: Vec<(Cow<'_, Field>, (u32, u32), Matched)> =
+        part(&document.aliases, ALIAS, Matched::Alias)
+            .chain(part(&document.facts, FACT, Matched::Fact))
+            .chain(part(&document.relations, RELATION, Matched::Relation))
+            .chain(part(document.notes.as_slice(), NOTES, Matched::Notes))
+            .collect();
     let mut total = 0;
-    let mut excerpt: Option<(u32, String)> = None;
+    let mut excerpt: Option<(u32, String, Matched)> = None;
     for token in tokens {
-        let mut best: (u32, Option<&Field>) = (name.score(token, NAME), None);
-        let candidates = fields.iter().map(|(f, w)| (f.as_ref(), *w));
-        for (field, weights) in candidates {
-            let s = field.score(token, weights);
+        let mut best: (u32, Option<&Field>, Matched) =
+            (name.score(token, NAME), None, Matched::Name);
+        for (field, weights, matched) in &fields {
+            let s = field.score(token, *weights);
             if s > best.0 {
-                best = (s, Some(field));
+                best = (s, Some(field.as_ref()), *matched);
             }
         }
         if best.0 == 0 {
@@ -1011,17 +1109,19 @@ fn score(
         }
         total += best.0;
         let text = best.1.map_or(&name.text, |f| &f.text);
-        if excerpt.as_ref().is_none_or(|(s, _)| best.0 > *s) {
-            excerpt = Some((best.0, shorten(text, token)));
+        if excerpt.as_ref().is_none_or(|(s, _, _)| best.0 > *s) {
+            excerpt = Some((best.0, shorten(text, token), best.2));
         }
     }
+    let (excerpt, matched) = excerpt.map_or((String::new(), Matched::Name), |(_, e, m)| (e, m));
     Some(Hit {
         id: document.id.clone(),
         file_type: document.file_type,
         category: document.category.clone(),
         path: document.path.clone(),
         name: document.name.text.clone(),
-        excerpt: excerpt.map(|(_, e)| e).unwrap_or_default(),
+        excerpt,
+        matched,
         score: total,
     })
 }

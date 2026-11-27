@@ -7,6 +7,7 @@
 mod access;
 mod browse;
 mod clients;
+mod find;
 mod log;
 mod near;
 mod work;
@@ -20,6 +21,7 @@ pub use browse::{
     Lines, LinkOut, MAX_GRAPH, MAX_LISTED, NeighbourOut, NodeOut, RelationLink,
 };
 pub use clients::{Client, Clients, Standing, Token};
+pub use find::{Found, FoundGroup, FoundOut, MAX_PER_KIND, SeriesFound};
 pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};
 pub use near::{HappenedOut, SeenOut, SharedOut, SurroundingsOut};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};

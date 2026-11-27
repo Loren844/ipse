@@ -44,7 +44,7 @@
 			try {
 				const view = await api.search(q);
 				if (mine !== ticket) return;
-				found = view.items.filter((f) => f.kind !== 'summary' && (!kinds || kinds.includes(f.kind))).slice(0, 6);
+				found = view.groups.flatMap((g) => g.items).filter((f) => f.kind !== 'summary' && (!kinds || kinds.includes(f.kind))).slice(0, 6);
 			} catch {
 				found = [];
 			}

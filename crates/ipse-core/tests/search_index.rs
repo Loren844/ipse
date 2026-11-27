@@ -322,3 +322,65 @@ fn a_file_is_found_by_its_path_within_the_categories_allowed() {
     assert!(index.at(&relative(&hidden), |_| true).is_some());
     assert!(index.at("people/personne.md", |_| true).is_none());
 }
+
+#[test]
+fn a_result_says_what_it_is_after_the_index_is_saved() {
+    // Issue #258: an event's time, place and people; an entity's relations; and the
+    // part of the file that matched. The same from the saved index.
+    let dir = vault("fr");
+    let root = dir.path();
+    person(
+        root,
+        "people",
+        "Marie Dupont",
+        &["Joue du violon."],
+        &[("travaille chez", "atelier-nord")],
+    );
+    let event = |title: &str, day: &str, place: Option<&str>, people: &[&str]| {
+        let mut common = Common::new(FileType::Event, &TimeZone::UTC).unwrap();
+        common.category = Category::new("agenda").unwrap();
+        let start = EventTime::parse(day).unwrap();
+        let mut fields = EventFields::new(title, start);
+        fields.place = place.map(LinkOrText::parse);
+        fields.participants = people.iter().map(|p| LinkOrText::parse(p)).collect();
+        let path = naming::event_path(root, title, &start, &common.id).unwrap();
+        MemoryFile::new_event(&path, common, fields, "")
+            .write()
+            .unwrap();
+    };
+    event(
+        "Concert",
+        "2026-11-14",
+        Some("Salle Pleyel"),
+        &["[[marie-dupont]]", "Zoé"],
+    );
+    event("Répétition", "2026-11-15", None, &["Zoé"]);
+
+    for index in [
+        SearchIndex::load(root).unwrap(),
+        SearchIndex::load(root).unwrap(),
+    ] {
+        let hit = |q: &str| index.search(q, 1, |_| true).remove(0);
+        let concert = hit("concert");
+        assert_eq!(concert.matched, ipse_core::search::Matched::Name);
+        let context = index.context(&concert.id).unwrap();
+        assert_eq!(context.start.unwrap().to_string(), "2026-11-14");
+        assert_eq!(context.place, Some("Salle Pleyel"));
+        assert_eq!(context.people, ["[[marie-dupont]]", "Zoé"]);
+        let rehearsal = index.context(&hit("repetition").id).unwrap();
+        assert_eq!(rehearsal.place, None, "without a place");
+        assert_eq!(rehearsal.people, ["Zoé"]);
+
+        let marie = hit("violon");
+        assert_eq!(marie.matched, ipse_core::search::Matched::Fact);
+        assert_eq!(marie.excerpt, "Joue du violon.");
+        let context = index.context(&marie.id).unwrap();
+        assert_eq!(context.relations, [("travaille chez", "atelier-nord")]);
+        assert_eq!(context.start, None);
+        assert_eq!(hit("atelier").matched, ipse_core::search::Matched::Relation);
+    }
+    assert!(
+        root.join(INDEX_FILE).is_file(),
+        "the second came from the file"
+    );
+}

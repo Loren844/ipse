@@ -82,9 +82,57 @@ pub fn stem(word: &str, language: Language) -> std::borrow::Cow<'_, str> {
     }
 }
 
+/// Where in `text` the words that match `query` are, as a search matches them (a word
+/// starting with a word of the query, case, accents and plurals aside): byte ranges,
+/// in order, to show them.
+#[must_use]
+pub fn matched_words(text: &str, query: &str, language: Language) -> Vec<std::ops::Range<usize>> {
+    let tokens = words(query, language);
+    let mut found = Vec::new();
+    if tokens.is_empty() {
+        return found;
+    }
+    let mut start = None;
+    for (at, c) in text
+        .char_indices()
+        .chain(std::iter::once((text.len(), ' ')))
+    {
+        match (c.is_alphanumeric(), start) {
+            (true, None) => start = Some(at),
+            (false, Some(from)) => {
+                let matches = words(&text[from..at], language)
+                    .iter()
+                    .any(|w| tokens.iter().any(|t| w.starts_with(t.as_str())));
+                if matches {
+                    found.push(from..at);
+                }
+                start = None;
+            }
+            _ => {}
+        }
+    }
+    found
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn finds_the_words_that_matched() {
+        let text = "Cours de Yoga au Studio Lotus, l’Élan des châteaux";
+        let at = |q: &str| -> Vec<&str> {
+            matched_words(text, q, Language::Fr)
+                .into_iter()
+                .map(|r| &text[r])
+                .collect()
+        };
+        assert_eq!(at("yog"), ["Yoga"]);
+        assert_eq!(at("elan chateau"), ["Élan", "châteaux"]);
+        assert_eq!(at("lotus studios"), ["Studio", "Lotus"]);
+        assert!(at("piscine").is_empty());
+        assert!(at("  ").is_empty());
+    }
 
     #[test]
     fn folds_case_accents_and_punctuation() {
