@@ -59,7 +59,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             bundles: deb,appimage
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: System libraries
         if: runner.os == 'Linux'
         run: |
@@ -80,7 +80,7 @@ jobs:
           if [ "${{ runner.os }}" = "Windows" ]; then ext=".exe"; fi
           mkdir -p app/binaries
           cp "target/${{ matrix.target }}/dist/ipse$ext" "app/binaries/ipse-${{ matrix.target }}$ext"
-      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - name: macOS signing, when its secrets exist
@@ -176,7 +176,7 @@ jobs:
           pattern: installers-*
           merge-multiple: true
           path: out
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: source
       - name: The manifest of updates, when the files are signed
@@ -212,7 +212,7 @@ jobs:
     if: ${{ inputs.tag }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: The app first in the notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
