@@ -263,6 +263,7 @@ impl Journal {
         let dir = path.parent().unwrap_or(&self.root);
         let created = !path.exists();
         if created {
+            segment::forget_sealing(path)?;
             std::fs::create_dir_all(dir).map_err(|e| io("create the folder of", e))?;
         }
         let mut file = OpenOptions::new()
