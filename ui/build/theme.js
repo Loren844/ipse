@@ -8,7 +8,7 @@
 		var chosen = null;
 		try {
 			chosen = localStorage.getItem('ipse.theme');
-		} catch (e) {
+		} catch {
 			// Private windows may refuse: the system's theme then applies.
 		}
 		var dark = chosen === 'dark' || (chosen !== 'light' && media.matches);

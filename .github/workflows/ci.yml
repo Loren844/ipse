@@ -160,3 +160,26 @@ jobs:
       - name: In a real browser
         run: npx playwright test
         working-directory: ui
+
+  webkit:
+    name: Interface in WebKit
+    # The engine of the desktop app on macOS.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: npm ci
+        working-directory: ui
+      - run: cargo build -p ipse
+      - run: npx playwright install --with-deps webkit
+        working-directory: ui
+      - name: In WebKit
+        run: npx playwright test --project=webkit
+        working-directory: ui
+        env:
+          IPSE_WEBKIT: 1

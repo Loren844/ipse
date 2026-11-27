@@ -5,6 +5,11 @@ import { defineConfig } from '@playwright/test';
 // The large memory's measurement (graph-scale) runs alone, after the others: writing
 // and reading 22 000 files would slow the tests that time how fast a screen opens.
 const SCALE = /graph-scale\.spec\.ts/;
+// The desktop app shows the interface in WebKit on macOS. IPSE_WEBKIT=1 runs the suite
+// there too (CI does): `npx playwright install webkit` first.
+const webkit = process.env.IPSE_WEBKIT
+	? [{ name: 'webkit', testIgnore: SCALE, use: { browserName: 'webkit' as const } }]
+	: [];
 export default defineConfig({
 	testDir: 'tests',
 	timeout: 30_000,
@@ -15,6 +20,7 @@ export default defineConfig({
 	use: { browserName: 'chromium', locale: 'fr-FR', contextOptions: { reducedMotion: 'reduce' } },
 	projects: [
 		{ name: 'interface', testIgnore: SCALE },
-		{ name: 'scale', testMatch: SCALE, dependencies: ['interface'] }
+		{ name: 'scale', testMatch: SCALE, dependencies: ['interface'] },
+		...webkit
 	]
 });

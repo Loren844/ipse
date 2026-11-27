@@ -4,7 +4,6 @@
 	import type { AiView, CategoryView } from './api.ts';
 	import { ago, capitalize } from './format.ts';
 	import { i18n } from './i18n.svelte.ts';
-	import { icons } from './icons.ts';
 
 	let {
 		ai,

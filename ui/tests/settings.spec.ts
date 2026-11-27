@@ -180,13 +180,19 @@ test('in the desktop app, the interface is not selected or dragged, what one cop
 	});
 	await page.goto(ipse.url);
 	await expect(page.locator('html')).toHaveAttribute('data-app', '');
-	const select = (selector: string) => page.locator(selector).first().evaluate((el) => getComputedStyle(el).userSelect);
-	expect(await select('nav a')).toBe('none');
-	expect(await select('h1')).toBe('none');
+	// What a triple click selects: WebKit computes `auto` under a body that is not
+	// selectable where Chromium computes `none`, so the selection itself is checked.
+	const selected = async (selector: string) => {
+		await page.evaluate(() => getSelection()?.removeAllRanges());
+		await page.locator(selector).first().click({ clickCount: 3 });
+		return page.evaluate(() => getSelection()?.toString().trim() ?? '');
+	};
+	expect(await selected('h1')).toBe('');
 	await openSettings(page);
 	// The home page has a copy box too (first steps): wait for the settings' own.
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Réglages');
-	expect(await select('section[aria-labelledby="memory"] .copy pre')).toBe('text');
+	expect(await selected('h1')).toBe('');
+	expect(await selected('section[aria-labelledby="memory"] .copy pre')).not.toBe('');
 	// Dragging a link out of the window does not start.
 	const dragged = await page.locator('nav a').first().evaluate((el) => {
 		const event = new DragEvent('dragstart', { bubbles: true, cancelable: true });
