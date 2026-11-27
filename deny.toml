@@ -1,0 +1,64 @@
+# What `cargo deny check` refuses (issue #285): run on the workspace and on `app/`
+# (`cargo deny --manifest-path app/Cargo.toml check --config deny.toml`… see ci.yml).
+# AGENTS.md: permissive licenses compatible with Apache 2.0, no GPL or AGPL.
+
+[graph]
+all-features = true
+
+[advisories]
+# Every RustSec advisory fails the check, vulnerabilities and unmaintained or
+# unsound crates alike. An exception goes here with its reason.
+ignore = []
+
+[licenses]
+allow = [
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    # Also permissive, without the conditions of the GPL: public domain (notify),
+    # Boost (xxhash-rust), and the data license of the root certificates
+    # (webpki-roots).
+    "CC0-1.0",
+    "BSL-1.0",
+    "CDLA-Permissive-2.0",
+]
+confidence-threshold = 0.9
+# The list is the policy, not what is used today.
+unused-allowed-license = "allow"
+
+# The desktop app only: Tauri's webview code depends on Servo's CSS crates, under
+# MPL-2.0. It is a file-level license, compatible with shipping Apache-2.0 code, not
+# the GPL; it is allowed for these crates alone, so that a new one is a choice.
+[[licenses.exceptions]]
+crate = "cssparser"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "cssparser-macros"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "selectors"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "dtoa-short"
+allow = ["MPL-2.0"]
+
+[[licenses.exceptions]]
+crate = "option-ext"
+allow = ["MPL-2.0"]
+
+[bans]
+multiple-versions = "allow"
+# The crates of this workspace depend on each other by path.
+wildcards = "allow"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
