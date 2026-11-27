@@ -4295,8 +4295,9 @@ p.automatic a {
 
 /* The first steps on the home screen (issue #172): knots on the thread, past once done,
    filled for the one to do now. */
+/* The screen's gap already spaces it from what follows (issue #261). */
 .first-steps {
-	margin: 0 0 2.5rem;
+	margin: 0;
 }
 
 .first-steps-head {
@@ -4396,7 +4397,7 @@ p.automatic a {
 }
 
 .first-steps .step-text {
-	padding-left: 0;
+	padding: 0;
 }
 
 /* A note the first time a screen opens (issue #172): written on the thread. */

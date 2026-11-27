@@ -47,6 +47,9 @@ struct Words {
     dinner_notes: &'static [&'static str],
     leak: (&'static str, &'static str),
     day_summary: fn(&[String]) -> String,
+    /// Yesterday's summary, from its events' titles: more than the agenda says, so that
+    /// the home screen shows it (issue #261).
+    yesterday_summary: fn(&[String]) -> String,
     summary_reason: &'static str,
     /// Why the AI proposes kinds of events.
     kinds_reason: &'static str,
@@ -250,6 +253,21 @@ const FR: Words = Words {
                 .join(", puis ")
         ),
     },
+    yesterday_summary: |titles| {
+        let day = match titles {
+            [] => "Rien à l’agenda\u{a0}: une journée à la maison.".to_owned(),
+            [first, rest @ ..] => {
+                std::iter::once(first.clone())
+                    .chain(rest.iter().map(|t| lower(t)))
+                    .collect::<Vec<_>>()
+                    .join(", puis ")
+                    + "."
+            }
+        };
+        format!(
+            "{day}\nLe soir, un épisode des Jours de sel, avec Mira Sol en fond. Une journée sans hâte."
+        )
+    },
     summary_reason: "Le résumé de la journée, d’après votre agenda.",
     kinds_reason: "D’après le titre, le lieu et les personnes de chaque événement.",
     facts: [
@@ -438,6 +456,21 @@ const EN: Words = Words {
                 .collect::<Vec<_>>()
                 .join(", then ")
         ),
+    },
+    yesterday_summary: |titles| {
+        let day = match titles {
+            [] => "Nothing in the calendar: a day at home.".to_owned(),
+            [first, rest @ ..] => {
+                std::iter::once(first.clone())
+                    .chain(rest.iter().map(|t| lower(t)))
+                    .collect::<Vec<_>>()
+                    .join(", then ")
+                    + "."
+            }
+        };
+        format!(
+            "{day}\nIn the evening, an episode of Salt Days, with Mira Sol in the background. An unhurried day."
+        )
     },
     summary_reason: "The day's summary, from your calendar.",
     kinds_reason: "From each event's title, place and people.",
@@ -1274,19 +1307,18 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
         })
         .collect();
     days.sort();
+    // Yesterday is written apart, below, whether it had events or not.
+    let yesterday = today.saturating_sub(1.day());
+    let yesterday_task = days
+        .iter()
+        .position(|(day, _)| day.parse::<Date>().ok() == Some(yesterday))
+        .map(|i| days.remove(i).1);
     let recent = days.len().saturating_sub(7);
     for (n, (day, task)) in days[recent..].iter().enumerate() {
         let Some(date) = day.parse::<Date>().ok() else {
             continue;
         };
-        let titles: Vec<String> = index
-            .events(|_| true, |_| true)
-            .into_iter()
-            .filter(|e| e.start.date() == date)
-            .filter_map(|e| MemoryFile::read(vault.root().join(e.path)).ok())
-            .filter_map(|f| f.event().map(|e| e.title.clone()))
-            .collect();
-        let text = (words.day_summary)(&titles);
+        let text = (words.day_summary)(&titles_on(vault, &index, date));
         if text.is_empty() {
             continue;
         }
@@ -1307,6 +1339,8 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
             proposals.accept(&proposal.id)?;
         }
     }
+    let text = (words.yesterday_summary)(&titles_on(vault, &index, yesterday));
+    accepted_summary(&proposals, &by(), words, yesterday, yesterday_task, text)?;
 
     world(vault, words, people, today, &by(), &proposals)?;
     kinds(vault, words, today, &by(), &proposals)?;
@@ -1341,6 +1375,43 @@ fn claude(vault: &Vault, words: &Words, people: &People, today: Date) -> Result<
             _ => {}
         }
     }
+    Ok(())
+}
+
+/// The titles of the events of `date`.
+fn titles_on(vault: &Vault, index: &SearchIndex, date: Date) -> Vec<String> {
+    index
+        .events(|_| true, |_| true)
+        .into_iter()
+        .filter(|e| e.start.date() == date)
+        .filter_map(|e| MemoryFile::read(vault.root().join(e.path)).ok())
+        .filter_map(|f| f.event().map(|e| e.title.clone()))
+        .collect()
+}
+
+/// The summary of `day`, proposed and accepted: the home screen has a summary on the
+/// day the demo is made (issue #261).
+fn accepted_summary(
+    proposals: &Proposals<'_>,
+    by: &Author,
+    words: &Words,
+    day: Date,
+    task: Option<String>,
+    text: String,
+) -> Result<()> {
+    let proposal = proposals.submit(
+        by.clone(),
+        words.summary_reason,
+        task,
+        vec![Change::WriteSummary {
+            file: None,
+            period: "day".into(),
+            start: day.to_string(),
+            from: None,
+            text,
+        }],
+    )?;
+    proposals.accept(&proposal.id)?;
     Ok(())
 }
 

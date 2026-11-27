@@ -85,6 +85,8 @@ test('read the summaries, see a day in the agenda, correct one', async ({ page }
 	await expect(page.locator('.day-label', { hasText: 'Samedi 14 novembre' }).locator('.day-summary')).toContainText(
 		'Dîner chez Julie avec Marc.'
 	);
+	// More than a week old: in the summaries, not on the home screen (issue #261).
 	await nav(page, 'Accueil').click();
-	await expect(page.getByRole('region', { name: 'Dernier résumé' })).toContainText('Dîner chez Julie avec Marc.');
+	await expect(page.getByRole('heading', { name: 'Ce qui vient' })).toBeVisible();
+	await expect(page.getByRole('region', { name: 'Dernier résumé' })).toHaveCount(0);
 });
