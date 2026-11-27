@@ -151,12 +151,6 @@ fn sync_due(state: &State, root: &Path, all: bool) -> Option<Duration> {
         if !all && !due {
             continue;
         }
-        let options = SyncOptions {
-            command: command.clone(),
-            language: "en".to_owned(),
-            full: false,
-            now,
-        };
         // One sync at a time, also against the person's. The gateway is held only to
         // read the memory's settings: the interface keeps answering while the source
         // does, and the vault's write lock keeps the writes apart.
@@ -166,6 +160,13 @@ fn sync_due(state: &State, root: &Path, all: bool) -> Option<Duration> {
             .unwrap_or_else(PoisonError::into_inner)
             .vault()
             .clone();
+        let options = SyncOptions {
+            command: command.clone(),
+            // What the connector says is shown in the interface, in the memory's language.
+            language: vault.settings().language().code().to_owned(),
+            full: false,
+            now,
+        };
         let synced = {
             let _syncing = state.syncing.lock().unwrap_or_else(PoisonError::into_inner);
             sync_instance(&vault, instance, &*store, &options)

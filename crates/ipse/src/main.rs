@@ -168,6 +168,13 @@ enum Command {
         #[arg(long)]
         vault: Option<PathBuf>,
     },
+    /// Check that `ipse serve` answers on this computer; for the Docker health check
+    #[command(hide = true)]
+    Health {
+        /// The port it listens on
+        #[arg(default_value_t = crate::mcp::http::DEFAULT_PORT)]
+        port: u16,
+    },
     /// Run a built-in connector; started by Ipse itself
     #[command(hide = true)]
     Connector {
@@ -561,6 +568,7 @@ fn main() -> ExitCode {
         ),
         Command::Serve { listen, vault } => ui::serve::run(vault, listen.as_deref()),
         Command::AccessCode { vault } => cmd::access::run(vault),
+        Command::Health { port } => cmd::health::run(port),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {
