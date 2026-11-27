@@ -11,6 +11,7 @@
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache%202.0-9b2c3a"></a>
   <img alt="Windows, macOS, Linux" src="https://img.shields.io/badge/Windows%20%C2%B7%20macOS%20%C2%B7%20Linux-desktop%20app-9b2c3a">
   <a href="https://modelcontextprotocol.io"><img alt="Speaks MCP" src="https://img.shields.io/badge/speaks-MCP-9b2c3a"></a>
+  <a href="https://glama.ai/mcp/servers/Loren844/ipse"><img alt="Ipse MCP server on Glama" src="https://glama.ai/mcp/servers/Loren844/ipse/badges/score.svg"></a>
 </p>
 
 <p align="center">
