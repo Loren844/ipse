@@ -32,7 +32,11 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	const more = bar.getByRole('button', { name: 'Plus' });
 	await expect(more.locator('.face')).toHaveText('CL');
 	await more.click();
-	await expect(page.getByRole('dialog', { name: 'Autres sections' }).getByRole('link').first()).toHaveText('Votre fiche');
+	const sheet = page.getByRole('dialog', { name: 'Autres sections' });
+	await expect(sheet.getByRole('link').first()).toHaveText('Votre fiche');
+	// Grouped as the side bar (issue #265): what one looks at, then what one manages.
+	await expect(sheet.getByRole('list').first().getByRole('link')).toHaveText(['Votre fiche', 'Carte', 'Résumés']);
+	await expect(sheet.getByRole('list', { name: 'Gérer' }).getByRole('link')).toHaveText(['IA connectées', 'Sources', 'Historique', 'Réglages']);
 	await page.keyboard.press('Escape');
 	for (const name of ['Réglages', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
 		await more.click();

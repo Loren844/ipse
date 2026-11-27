@@ -23,6 +23,19 @@ test('the frame opens in the vault language, in under a second', async ({ page }
 	await expect(page).toHaveTitle('Inès Roux · Ipse');
 	const nav = page.getByRole('navigation', { name: 'Sections' });
 	await expect(nav.getByRole('link')).toHaveText(['Accueil', 'Mémoire', 'Agenda', 'Carte', 'Résumés', 'À revoir', 'IA connectées', 'Sources', 'Historique']);
+	// What one looks at first, To review apart, what one manages together at the bottom
+	// by the owner's name (issue #265).
+	await expect(nav.getByRole('list')).toHaveCount(3);
+	await expect(nav.getByRole('list').nth(1).getByRole('link')).toHaveText(['À revoir']);
+	const manage = nav.getByRole('list', { name: 'Gérer' });
+	await expect(manage.getByRole('link')).toHaveText(['IA connectées', 'Sources', 'Historique']);
+	const [lastLook, firstManage, owner] = await Promise.all([
+		nav.getByRole('link', { name: 'À revoir' }).boundingBox(),
+		manage.getByRole('link').first().boundingBox(),
+		page.getByRole('button', { name: /^Mémoire de/ }).boundingBox()
+	]);
+	expect(firstManage!.y - (lastLook!.y + lastLook!.height)).toBeGreaterThan(100);
+	expect(owner!.y - (firstManage!.y + firstManage!.height)).toBeLessThan(200);
 	await expect(nav.getByRole('link', { name: 'Accueil' })).toHaveAttribute('aria-current', 'page');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Ce qui vient');
 	await expect(page.getByText('Rien de prévu dans les 30 prochains jours.')).toBeVisible();
