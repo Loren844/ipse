@@ -601,7 +601,8 @@ pub(super) fn sync_now(state: &State, body: &[u8]) -> Result<SourcesChange> {
         .ok_or_else(|| Error::Refused("This source is not followed.".to_owned()))?;
     let options = SyncOptions {
         command: connector_command()?,
-        language: "en".to_owned(),
+        // What the connector says is shown in the interface, in the memory's language.
+        language: vault.settings().language().code().to_owned(),
         full: false,
         now: Timestamp::now(),
     };

@@ -66,6 +66,15 @@ fn person(
     path
 }
 
+fn set_modified(path: &Path, at: std::time::SystemTime) {
+    std::fs::File::options()
+        .write(true)
+        .open(path)
+        .unwrap()
+        .set_modified(at)
+        .unwrap();
+}
+
 fn names(index: &SearchIndex, query: &str) -> Vec<String> {
     index
         .search(query, 50, |_| true)
@@ -203,7 +212,13 @@ fn only_the_files_that_changed_are_read_again() {
         &["Joue du piano."],
         &[],
     );
+    // Written an hour ago: their dates can be trusted.
+    let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_hours(1);
+    for path in [&marie, &paul] {
+        set_modified(path, hour_ago);
+    }
     let mut index = SearchIndex::load(dir.path()).unwrap();
+    assert!(!index.changed(dir.path()).unwrap(), "nothing changed");
     assert!(!index.update(dir.path()).unwrap(), "nothing changed");
 
     // Marie's fact is edited, as in an editor.
@@ -213,12 +228,7 @@ fn only_the_files_that_changed_are_read_again() {
     let modified = std::fs::metadata(&paul).unwrap().modified().unwrap();
     let text = std::fs::read_to_string(&paul).unwrap();
     std::fs::write(&paul, text.replace("piano", "banjo")).unwrap();
-    std::fs::File::options()
-        .write(true)
-        .open(&paul)
-        .unwrap()
-        .set_modified(modified)
-        .unwrap();
+    set_modified(&paul, modified);
 
     assert!(index.changed(dir.path()).unwrap());
     assert!(index.update(dir.path()).unwrap());
@@ -383,4 +393,43 @@ fn a_result_says_what_it_is_after_the_index_is_saved() {
         root.join(INDEX_FILE).is_file(),
         "the second came from the file"
     );
+}
+
+/// On a disk whose clock counts whole seconds or two (FAT, some network shares), an
+/// edit made just after the index read a file can keep its size and its date.
+#[test]
+fn an_edit_within_the_same_tick_is_seen() {
+    let dir = vault("fr");
+    let paul = person(
+        dir.path(),
+        "people",
+        "Paul Durand",
+        &["Joue du piano."],
+        &[],
+    );
+    // A coarse clock: the date of the last whole second.
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap();
+    let tick = std::time::UNIX_EPOCH + std::time::Duration::from_secs(now.as_secs());
+    set_modified(&paul, tick);
+    let mut index = SearchIndex::load(dir.path()).unwrap();
+    assert_eq!(names(&index, "piano"), ["Paul Durand"]);
+
+    // Edited within that same second: same size, same date.
+    let text = std::fs::read_to_string(&paul).unwrap();
+    std::fs::write(&paul, text.replace("piano", "banjo")).unwrap();
+    set_modified(&paul, tick);
+
+    assert!(index.changed(dir.path()).unwrap());
+    index.update(dir.path()).unwrap();
+    assert_eq!(names(&index, "banjo"), ["Paul Durand"]);
+    assert!(names(&index, "piano").is_empty());
+
+    // Saved and opened again, it still does not trust that date.
+    index.save(dir.path()).unwrap();
+    std::fs::write(&paul, text.replace("piano", "kazoo")).unwrap();
+    set_modified(&paul, tick);
+    let index = SearchIndex::load(dir.path()).unwrap();
+    assert_eq!(names(&index, "kazoo"), ["Paul Durand"]);
 }

@@ -8,6 +8,7 @@ pub(crate) mod dav;
 pub(crate) mod demo;
 pub(crate) mod demo_dates;
 pub(crate) mod duplicates;
+pub(crate) mod health;
 pub(crate) mod homeassistant;
 pub(crate) mod immich;
 pub(crate) mod import;

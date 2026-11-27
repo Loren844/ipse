@@ -58,7 +58,7 @@ const SUMMARIES: &str = "summaries";
 const SUMMARY_PERIODS: [&str; 3] = ["day", "week", "month"];
 
 /// Version of the saved index; another version is read again from the files.
-const INDEX_FORMAT: u32 = 4;
+const INDEX_FORMAT: u32 = 5;
 
 /// Longest excerpt, in characters.
 const EXCERPT_CHARS: usize = 160;
@@ -162,6 +162,12 @@ pub struct Results {
     pub more: bool,
 }
 
+/// How close to the time the files were listed a file's modification time must be for
+/// the index not to trust it: a file system with a coarse clock (FAT, some network
+/// shares) gives an edit made within the same tick the same time, and an edit that
+/// keeps the size would go unseen.
+const RACY: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// A file's size and modification time, to tell whether it changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 struct Stamp {
@@ -186,6 +192,15 @@ impl Stamp {
             nanos: modified.subsec_nanos(),
         }
     }
+
+    /// True when the file was modified so close to `listed` that a later edit could
+    /// keep this stamp: it is read again at the next update ([`RACY`]).
+    fn racy(self, listed: SystemTime) -> bool {
+        let listed = listed
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or_default();
+        std::time::Duration::new(self.secs, self.nanos) + RACY >= listed
+    }
 }
 
 /// One file of the vault, as the index knows it.
@@ -194,6 +209,9 @@ struct Slot {
     /// `people/marie-dupont.md`.
     path: String,
     stamp: Stamp,
+    /// Modified too close to when it was read for its stamp to be trusted: read again
+    /// at the next update.
+    racy: bool,
     /// `None` for a file that could not be read: it is not searchable.
     document: Option<Document>,
 }
@@ -236,6 +254,7 @@ struct Saved {
 struct SavedFile {
     path: String,
     stamp: Stamp,
+    racy: bool,
     document: Option<Stored>,
 }
 
@@ -402,6 +421,7 @@ impl SearchIndex {
     pub fn update(&mut self, root: &Path) -> Result<bool> {
         // Noted before listing, so that a change made while listing shows next time.
         let folders = folders_fingerprint(root);
+        let listed = SystemTime::now();
         let mut fingerprint = Fingerprint::default();
         let mut seen = vec![false; self.slots.len()];
         let mut to_read: Vec<(String, PathBuf, Stamp)> = Vec::new();
@@ -410,7 +430,11 @@ impl SearchIndex {
             fingerprint.add(folder, entry, stamp);
             let path = format!("{folder}/{}", entry.file_name().to_string_lossy());
             match self.by_path.get(&path) {
-                Some(&slot) if self.slots[slot].as_ref().is_some_and(|s| s.stamp == stamp) => {
+                Some(&slot)
+                    if self.slots[slot]
+                        .as_ref()
+                        .is_some_and(|s| s.stamp == stamp && !s.racy) =>
+                {
                     seen[slot] = true;
                 }
                 _ => to_read.push((path, entry.path(), stamp)),
@@ -429,7 +453,7 @@ impl SearchIndex {
             let document = MemoryFile::read(&full)
                 .ok()
                 .and_then(|f| Document::of(root, &full, &f, self.language));
-            self.insert(path, stamp, document);
+            self.insert(path, stamp, stamp.racy(listed), document);
             changed = true;
         }
         self.files = fingerprint;
@@ -456,6 +480,7 @@ impl SearchIndex {
                 .map(|s| SavedFile {
                     path: s.path.clone(),
                     stamp: s.stamp,
+                    racy: s.racy,
                     document: s.document.as_ref().map(Document::to_stored),
                 })
                 .collect(),
@@ -482,12 +507,12 @@ impl SearchIndex {
                 None => None,
                 Some(stored) => Some(Document::from_stored(stored, language)?),
             };
-            index.insert(file.path, file.stamp, document);
+            index.insert(file.path, file.stamp, file.racy, document);
         }
         Some(index)
     }
 
-    fn insert(&mut self, path: String, stamp: Stamp, document: Option<Document>) {
+    fn insert(&mut self, path: String, stamp: Stamp, racy: bool, document: Option<Document>) {
         let slot = self.slots.len();
         let Ok(id) = u32::try_from(slot) else {
             return;
@@ -514,6 +539,7 @@ impl SearchIndex {
         self.slots.push(Some(Slot {
             path,
             stamp,
+            racy,
             document,
         }));
     }
@@ -575,7 +601,7 @@ impl SearchIndex {
         };
         fresh.slots.reserve(slots.len() - self.removed);
         for slot in slots.into_iter().flatten() {
-            fresh.insert(slot.path, slot.stamp, slot.document);
+            fresh.insert(slot.path, slot.stamp, slot.racy, slot.document);
         }
         *self = fresh;
     }
@@ -621,8 +647,9 @@ impl SearchIndex {
     }
 
     /// True when a searchable file of the vault in `root` was added, removed, renamed or
-    /// modified since this index was read. Lists the folders and looks at each file's
-    /// size and date: no file is read.
+    /// modified since this index was read, or was modified too close to it for its date
+    /// to tell ([`RACY`]). Lists the folders and looks at each file's size and date: no
+    /// file is read.
     ///
     /// # Errors
     ///
@@ -632,7 +659,7 @@ impl SearchIndex {
         searchable_files(root, |folder, entry| {
             now.add(folder, entry, Stamp::of(entry));
         })?;
-        Ok(now != self.files)
+        Ok(now != self.files || self.slots.iter().flatten().any(|s| s.racy))
     }
 
     /// How many files are searchable.
