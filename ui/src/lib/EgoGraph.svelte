@@ -116,7 +116,6 @@
 			{#each shown as n (n.file.id)}
 				{@const at = places.get(n.file.id)}
 				{#if at}
-					<!-- svelte-ignore a11y_click_events_have_key_events -->
 					<g
 						class="ego-node"
 						class:hollow={n.file.sensitive}

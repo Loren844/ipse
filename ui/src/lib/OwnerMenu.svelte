@@ -67,7 +67,6 @@
 
 <div class="owner-menu">
 	{#if open}
-		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<ul class="owner-items" transition:drop role="menu" aria-label={i18n.t.memoryOf} bind:this={menu} onkeydown={keys}>
 			{#each items as item (item.href)}
 				<li role="none">

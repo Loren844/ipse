@@ -24,7 +24,6 @@
 	let app: App = $state('claude-desktop');
 	let local = $state(false);
 	let openAll = $state(false);
-	let install = $state(true);
 	let connected: ConnectedView | null = $state(null);
 	let heading: HTMLElement | undefined = $state();
 
@@ -35,12 +34,9 @@
 		{ value: 'other', label: i18n.t.otherApp, name: '', local: false }
 	]);
 	const target = $derived(known.find((k) => k.id === app) ?? null);
+	// Offered when the app is on this computer; the person can still choose.
+	let install = $derived(target?.found ?? false);
 	const label = $derived(apps.find((a) => a.value === app)?.label ?? '');
-
-	$effect(() => {
-		// Offered when the app is on this computer; the person can still choose.
-		install = target?.found ?? false;
-	});
 
 	function pick(value: App) {
 		const before = apps.find((a) => a.value === app);

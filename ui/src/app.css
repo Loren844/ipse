@@ -1633,7 +1633,7 @@ dialog.confirm .actions {
 	font: inherit;
 	font-size: var(--step--1);
 	color: var(--thread-ink);
-	
+	background: none;
 	border: 0;
 	padding: 0;
 	text-decoration: underline;
@@ -2752,7 +2752,7 @@ dialog[open]::backdrop {
 }
 
 .graph-trail a:hover {
-	
+	background: none;
 }
 
 .graph-trail li + li::before {
@@ -2945,7 +2945,7 @@ dialog[open]::backdrop {
 	font: inherit;
 	text-align: left;
 	color: var(--text);
-	
+	background: none;
 	border: 0;
 	cursor: pointer;
 }
@@ -4220,7 +4220,7 @@ button.owner[aria-expanded='true'] .chevron {
 .knot .series .unfold {
 	padding: 0;
 	border: 0;
-	
+	background: none;
 	color: var(--thread-ink);
 	font: inherit;
 	font-weight: 600;
@@ -4312,7 +4312,7 @@ p.automatic a {
 .update-banner.failed {
 	padding: 0;
 	border: 0;
-	
+	background: none;
 }
 
 .update-banner h2 {

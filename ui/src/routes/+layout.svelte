@@ -222,7 +222,7 @@
 						oninput={railTyped}
 						autocomplete="off"
 						spellcheck="false"
-						aria-controls="rail-found"
+						aria-controls={railFound ? 'rail-found' : undefined}
 					/>
 				</form>
 				{#if railFound}
