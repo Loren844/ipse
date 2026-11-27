@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Instant;
 
-use ipse_core::proposals::{Change, Proposals, Status};
+use ipse_core::proposals::{Change, Proposal, Proposals, Status};
 use ipse_core::vault::{History, MemoryFile, Source, Vault};
 
 const IPSE: &str = env!("CARGO_BIN_EXE_ipse");
@@ -114,6 +114,8 @@ fn a_demo_memory_full_of_invented_people_and_events() {
     assert!(count(&|s| matches!(s, Status::Accepted { .. })) >= 4);
     assert!(!files(&root.join("summaries")).is_empty());
 
+    spread_over_the_last_days(&all);
+
     // The history reads like a real one: the imports, then the accepted proposals.
     let history = History::open(&root).unwrap();
     let sources: Vec<Option<Source>> = history
@@ -202,6 +204,33 @@ fn a_demo_memory_takes_no_name() {
 
 /// The music of the moment has its files, and a location history ties places to
 /// events (issue #170).
+/// Made over the last days, not all at once (issue #269): no two proposals the same
+/// time, the waiting ones within two days, the decided ones within two weeks.
+fn spread_over_the_last_days(all: &[Proposal]) {
+    let now = jiff::Timestamp::now();
+    let when = |text: &str| text.parse::<jiff::Timestamp>().unwrap();
+    let mut created: Vec<&str> = all.iter().map(|p| p.created.as_str()).collect();
+    created.sort_unstable();
+    created.dedup();
+    assert_eq!(created.len(), all.len(), "two proposals share a time");
+    for proposal in all {
+        let made = when(&proposal.created);
+        assert!(made <= now, "{proposal:#?}");
+        let days = if proposal.status == Status::Waiting {
+            3
+        } else {
+            16
+        };
+        assert!(
+            made > now - jiff::SignedDuration::from_hours(24 * days),
+            "{proposal:#?}"
+        );
+        if let Status::Accepted { at, .. } | Status::Refused { at, .. } = &proposal.status {
+            assert!(when(at) >= made && when(at) <= now, "{proposal:#?}");
+        }
+    }
+}
+
 fn music_and_places(root: &Path, events: &[PathBuf]) {
     let year = jiff::Zoned::now().date().year();
     let music = std::fs::read_to_string(root.join(format!("states/music/{year}.md"))).unwrap();
