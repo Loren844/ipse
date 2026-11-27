@@ -55,6 +55,8 @@ The code aims for the best possible performance, guided by measurement.
 
 - Add a dependency only when it saves real work, and say why in the PR.
 - Prefer well-maintained crates with permissive licenses compatible with Apache 2.0 (MIT, Apache-2.0, BSD, ISC, Zlib). No GPL or AGPL dependency.
+- CI checks it: `cargo deny check` (licenses and RustSec advisories, `deny.toml`, also on `app/`) and `.github/scripts/npm_audit.py ui`. A new license, or an advisory that cannot reach Ipse, goes in those files with its reason.
+- GitHub Actions are pinned by commit, with the tag as a comment.
 
 ## Architecture in brief
 

@@ -233,6 +233,13 @@ fn changes_to_entity_files_are_noticed() {
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
     let stem = entity(root, FileType::Person, "people", "Marie", &[], &[], None);
+    // Written an hour ago: a date just now would not be trusted, and read again.
+    std::fs::File::options()
+        .write(true)
+        .open(root.join("people").join(format!("{stem}.md")))
+        .unwrap()
+        .set_modified(std::time::SystemTime::now() - std::time::Duration::from_hours(1))
+        .unwrap();
     let index = SearchIndex::load(root).unwrap();
     assert!(!index.changed(root).unwrap());
 

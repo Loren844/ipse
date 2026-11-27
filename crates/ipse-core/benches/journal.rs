@@ -1,6 +1,7 @@
 //! The journal's throughput: appending 1 million small records in batches of 1 000, each
-//! flushed to disk as the connector protocol requires, then reading them back. Prints
-//! records per second and megabytes per second.
+//! flushed to disk as the connector protocol requires, then reading them back; then
+//! sealing a past month of as many records. Prints records per second and megabytes
+//! per second.
 #![allow(
     missing_docs,
     clippy::unwrap_used,
@@ -77,6 +78,40 @@ fn main() {
     println!(
         "re-sync, nothing changed              {:>9.0} records/s  ({resync:.2?})",
         RECORDS as f64 / resync.as_secs_f64()
+    );
+
+    // A past month of as many records, sealed at the first write of the next session.
+    let past = observed_at
+        .checked_sub(jiff::SignedDuration::from_hours(24 * 40))
+        .unwrap();
+    for chunk in (0..RECORDS).collect::<Vec<_>>().chunks(MAX_BATCH_RECORDS) {
+        let batch: Vec<Record> = chunk
+            .iter()
+            .map(|&i| Record {
+                kind: "media.playing".into(),
+                op: Op::Upsert,
+                external_id: Some(format!("old-{i}")),
+                observed_at: past,
+                data: Some(json!({"title": format!("Morceau {i}"), "artist": "Nina Simone", "seconds": i % 300})),
+            })
+            .collect();
+        journal.append("archive", &batch, None).unwrap();
+    }
+    journal.save_index();
+    let mut journal = Journal::new(dir.path());
+    let one = [Record {
+        kind: "media.playing".into(),
+        op: Op::Upsert,
+        external_id: Some("today".into()),
+        observed_at,
+        data: Some(json!({"title": "Aujourd'hui", "artist": "Nina Simone", "seconds": 1})),
+    }];
+    let start = Instant::now();
+    journal.append("archive", &one, None).unwrap();
+    let sealing = start.elapsed();
+    println!(
+        "seal a past month                     {:>9.0} records/s  ({sealing:.2?})",
+        RECORDS as f64 / sealing.as_secs_f64()
     );
 }
 

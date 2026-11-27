@@ -30,6 +30,10 @@ ENV IPSE_SECRETS_FILE=/secrets/secrets.json
 WORKDIR /vault
 VOLUME ["/vault", "/secrets"]
 EXPOSE 7420
+# Up when the server answers on its port; no shell nor curl in this image: the binary
+# asks itself. Another port given to `serve` needs the same one here.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD ["ipse", "health", "7420"]
 ENTRYPOINT ["ipse"]
 # Reached from the network: say so explicitly (decision 0019).
 CMD ["serve", "--listen", "0.0.0.0:7420"]

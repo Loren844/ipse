@@ -54,8 +54,17 @@ fn vault() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let people = dir.path().join("people");
     std::fs::create_dir(&people).unwrap();
+    // Written yesterday, as most of a vault is: a date just now is not trusted.
+    let yesterday = std::time::SystemTime::now() - std::time::Duration::from_hours(24);
     for i in 0..PEOPLE {
-        std::fs::write(people.join(format!("personne-{i}.md")), person(i)).unwrap();
+        let path = people.join(format!("personne-{i}.md"));
+        std::fs::write(&path, person(i)).unwrap();
+        std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .unwrap()
+            .set_modified(yesterday)
+            .unwrap();
     }
     dir
 }
