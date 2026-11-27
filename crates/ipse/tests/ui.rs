@@ -473,11 +473,13 @@ fn the_review_through_the_api() {
     );
     assert_eq!(waiting[0]["by"]["name"], "claude");
     assert_eq!(waiting[0]["touches"][0], "Inès Roux");
+    let what = &waiting[0]["files"][0]["changes"][0]["after"];
+    assert_eq!(what, "Lit des polars.", "the inbox says what it changes");
     assert_eq!(api(&ui, &cookie, "/api/app").1["waiting"], 4);
 
     let (status, one) = api(&ui, &cookie, "/api/proposals/01jd3k8m");
     assert_eq!(status, 200);
-    let file = &one["files"][0];
+    let file = &one["line"]["files"][0];
     assert_eq!(file["name"], "Inès Roux");
     assert!(file["id"].is_string(), "the file can be opened");
     assert_eq!(file["changes"][0]["what"], "fact");
@@ -512,10 +514,8 @@ fn the_review_through_the_api() {
     let (_, refused) = api(&ui, &cookie, "/api/proposals/01jd3k9m");
     assert_eq!(refused["line"]["status"], "refused");
     assert_eq!(refused["comment"], "Pas vrai");
-    assert_eq!(
-        refused["files"][0]["changes"][0]["after"], "Parle italien.",
-        "a decided proposal still says what it held"
-    );
+    let held = &refused["line"]["files"][0]["changes"][0]["after"];
+    assert_eq!(held, "Parle italien.", "still says what it held");
 
     // Several in one action, each still its own proposal.
     let (status, group) = post(

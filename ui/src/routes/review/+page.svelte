@@ -16,7 +16,9 @@
 	import Empty from '#lib/Empty.svelte';
 	import { ago, authorName, dayOf, periodName } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
+	import Diff from '#lib/Diff.svelte';
 	import Notice from '#lib/Notice.svelte';
+	import { single, title } from '#lib/proposal.ts';
 	import Question from '#lib/Question.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 
@@ -37,6 +39,8 @@
 	/** Those that can be accepted: a stale one can only be refused, on its own page. */
 	const acceptable = $derived(ready ? ready.waiting.filter((p) => p.status === 'waiting').map((p) => p.id) : []);
 	const allSelected = $derived(acceptable.length > 0 && acceptable.every((id) => selected.includes(id)));
+	/** The selected ones that can still be accepted. */
+	const chosen = $derived(selected.filter((id) => acceptable.includes(id)));
 
 	function byline(line: ProposalLine): string {
 		if (line.by.kind === 'source') return i18n.t.changedBy(authorName(line.by));
@@ -49,7 +53,7 @@
 	}
 
 	async function acceptSelected() {
-		const ids = selected.filter((id) => acceptable.includes(id));
+		const ids = chosen;
 		if (!ids.length) return;
 		busy = true;
 		try {
@@ -144,23 +148,27 @@
 				{#if acceptable.length}
 					<div class="toolbar">
 						<label><input type="checkbox" checked={allSelected} onchange={toggleAll} />{i18n.t.selectAll}</label>
-						{#if selected.length}
+						{#if chosen.length}
+							<!-- Its label follows the selection; while it runs, it is drawn disabled. -->
 							<button type="button" class="button primary" disabled={busy} onclick={acceptSelected}
-								>{i18n.t.acceptSelection(selected.length)}</button
+								>{i18n.t.acceptSelection(chosen.length)}</button
 							>
 						{/if}
 					</div>
 				{/if}
 				<ul class="inbox" style:margin-top="1rem">
 					{#each ready.waiting as line (line.id)}
+						{@const only = single(line)}
 						<li class="proposal" data-testid="proposal" out:leave animate:move>
 							{#if line.status === 'waiting'}
-								<input type="checkbox" bind:group={selected} value={line.id} aria-label={i18n.t.select(line.reason)} />
+								<input type="checkbox" bind:group={selected} value={line.id} aria-label={i18n.t.select(title(line))} />
 							{:else}
 								<span class="spacer"></span>
 							{/if}
 							<div class="body">
-								<a class="reason" href="/review/{line.id}">{line.reason}</a>
+								<a class="title" href="/review/{line.id}">{title(line)}</a>
+								<p class="why"><span class="visually-hidden">{`${i18n.t.why} `}</span>{line.reason}</p>
+								{#if only}<Diff file={only} heading={false} />{/if}
 								<p class="meta">
 									<span>{byline(line)}</span>
 									<span>{ago(line.created)}</span>
@@ -196,7 +204,8 @@
 					{#each ready.decided as line (line.id)}
 						<li class="proposal decided" data-testid="decided" animate:move>
 							<div class="body">
-								<a class="reason" href="/review/{line.id}">{line.reason}</a>
+								<a class="title" href="/review/{line.id}">{title(line)}</a>
+								<p class="why"><span class="visually-hidden">{`${i18n.t.why} `}</span>{line.reason}</p>
 								<p class="meta">
 									<span>{byline(line)}</span>
 									<span>{i18n.t.decidedOn(line.automatic && line.status === 'accepted' ? i18n.t.acceptedAutomatically : i18n.t.status[line.status], ago(line.decided ?? line.created))}</span>
