@@ -134,7 +134,7 @@ fn import(vault: &Vault, records: &[Record]) -> LocationSummary {
     let mut journal = Journal::new(vault.root());
     journal.append(SOURCE, records, None).unwrap();
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector(SOURCE.into()));
+    let mut change = history.change(Source::Connector(SOURCE.into())).unwrap();
     let summary = location_to_vault(vault, &journal, SOURCE, &mut change).unwrap();
     change.commit("Import location history").unwrap();
     summary

@@ -597,3 +597,46 @@ fn a_decided_proposal_is_described_as_it_was_written() {
         ]
     );
 }
+
+/// The app and `ipse mcp` accepting the same proposal at once, each with its own vault
+/// as a separate process has: it is applied once, and the other is told it was.
+#[test]
+fn two_processes_accepting_one_proposal_apply_it_once() {
+    for _ in 0..10 {
+        let dir = tempfile::tempdir().unwrap();
+        let vault = vault(dir.path());
+        let id = Proposals::new(&vault)
+            .submit(by(), "Nouveau numéro.", None, edits()[..1].to_vec())
+            .unwrap()
+            .id;
+        let start = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let accepting: Vec<_> = (0..2)
+            .map(|_| {
+                let (root, id, start) = (dir.path().to_owned(), id.clone(), start.clone());
+                std::thread::spawn(move || {
+                    let vault = Vault::open(&root).unwrap();
+                    start.wait();
+                    Proposals::new(&vault).accept(&id)
+                })
+            })
+            .collect();
+        let results: Vec<_> = accepting.into_iter().map(|t| t.join().unwrap()).collect();
+        let applied = results
+            .iter()
+            .filter(|r| matches!(r, Ok(Accepted::Applied(Some(_)))))
+            .count();
+        let told = results
+            .iter()
+            .filter(|r| matches!(r, Err(Error::Refused(m)) if m == "This proposal is already accepted."))
+            .count();
+        assert_eq!((applied, told), (1, 1), "{results:?}");
+        let accepted = History::open(dir.path())
+            .unwrap()
+            .entries(20)
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.summary == "Accept a proposal")
+            .count();
+        assert_eq!(accepted, 1);
+    }
+}

@@ -97,7 +97,7 @@ impl Proposals<'_> {
             return Err(changed_meanwhile());
         }
         let history = self.vault.history()?;
-        let mut record = history.change(Source::Person);
+        let mut record = history.change(Source::Person)?;
         // Facts written in an editor may have no identifier yet: they get one first,
         // in the same change, so that each can be edited.
         if draft.facts.is_some() && current.sections().facts.iter().any(|f| f.id.is_none()) {
@@ -190,7 +190,7 @@ impl Proposals<'_> {
         edited.common_mut().updated =
             crate::vault::DateTime::now(self.vault.settings().time_zone());
         let history = self.vault.history()?;
-        let mut record = history.change(Source::Person);
+        let mut record = history.change(Source::Person)?;
         if edited.write()? {
             record.touched(&path);
         }
@@ -224,7 +224,7 @@ impl Proposals<'_> {
         common.created = now;
         common.updated = now;
         let history = self.vault.history()?;
-        let mut record = history.change(Source::Person);
+        let mut record = history.change(Source::Person)?;
         if copy.write()? {
             record.touched(&path);
         }
@@ -268,7 +268,7 @@ impl Proposals<'_> {
             return Err(Error::Refused(reason));
         }
         let history = self.vault.history()?;
-        let mut record = history.change(Source::Person);
+        let mut record = history.change(Source::Person)?;
         apply::write(self.vault, plan.files, &mut record)?;
         let entry = record.commit("Create a file")?;
         let created = MemoryFile::read(self.vault.root().join(&rel))?;
@@ -298,7 +298,7 @@ impl Proposals<'_> {
             return Err(changed_meanwhile());
         }
         let history = self.vault.history()?;
-        let mut record = history.change(Source::Person);
+        let mut record = history.change(Source::Person)?;
         apply::write(self.vault, vec![Pending::removal(found)], &mut record)?;
         Ok(record.commit("Delete a file")?.map(|e| e.id))
     }

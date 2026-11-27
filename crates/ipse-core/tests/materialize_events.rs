@@ -52,7 +52,9 @@ fn contacts(vault: &Vault, records: &[Record]) -> PeopleSummary {
     let mut journal = Journal::new(vault.root());
     journal.append("contacts", records, None).unwrap();
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector("contacts".into()));
+    let mut change = history
+        .change(Source::Connector("contacts".into()))
+        .unwrap();
     let summary = contacts_to_people(vault, &journal, "contacts", &mut change).unwrap();
     change.commit("Import contacts").unwrap();
     summary
@@ -63,7 +65,7 @@ fn calendar(vault: &Vault, instance: &str, records: &[Record]) -> (EventsSummary
     let mut journal = Journal::new(vault.root());
     journal.append(instance, records, None).unwrap();
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector(instance.into()));
+    let mut change = history.change(Source::Connector(instance.into())).unwrap();
     let now: Timestamp = NOW.parse().unwrap();
     let summary = calendar_to_events(vault, &journal, instance, &mut change, now).unwrap();
     let committed = change.commit("Import calendar").unwrap().is_some();

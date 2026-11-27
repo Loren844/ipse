@@ -373,7 +373,9 @@ fn a_source_never_writes_over_what_the_person_edited() {
         let mut journal = Journal::new(vault.root());
         journal.append("contacts", &[record], None).unwrap();
         let history = vault.history().unwrap();
-        let mut change = history.change(Source::Connector("contacts".into()));
+        let mut change = history
+            .change(Source::Connector("contacts".into()))
+            .unwrap();
         let summary = contacts_to_people(&vault, &journal, "contacts", &mut change).unwrap();
         change.commit("Import contacts").unwrap();
         summary

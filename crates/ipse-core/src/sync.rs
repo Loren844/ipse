@@ -208,7 +208,7 @@ pub fn sync_instance(
 
     // The person's own edits are recorded first, so that the sync never hides them.
     let history = vault.history()?;
-    let mut change = history.change(Source::Connector(instance.id.clone()));
+    let mut change = history.change(Source::Connector(instance.id.clone()))?;
     let kinds = syncable.kinds;
     let events = if kinds.contains(&"calendar.event") {
         Some(calendar_to_events(

@@ -24,7 +24,7 @@ pub use person::{Created, Draft, DraftFact, version};
 
 use crate::rights::{Categories, Standing};
 use crate::tasks::{TaskKind, Tasks};
-use crate::vault::{DateTime, FileType, Id, Source, Vault, write_atomic};
+use crate::vault::{DateTime, FileType, Id, Source, Vault, WriteLock, write_atomic};
 use crate::{Error, Result};
 
 /// Version of the proposal format.
@@ -453,6 +453,9 @@ impl<'v> Proposals<'v> {
     /// [`Error::Invalid`] or [`Error::History`] when the files or the history cannot be
     /// written.
     pub fn accept(&self, id: &str) -> Result<Accepted> {
+        // Held from reading its status to saving the new one: two processes accepting
+        // the same proposal apply it once.
+        let _lock = WriteLock::acquire(self.vault.root())?;
         let mut proposal = self.get(id)?;
         if proposal.status != Status::Waiting {
             return Err(not_waiting(&proposal));
@@ -473,7 +476,7 @@ impl<'v> Proposals<'v> {
             }
             return Ok(Accepted::Stale(reason));
         }
-        let mut change = history.change(Source::Proposal(proposal.id.clone()));
+        let mut change = history.change(Source::Proposal(proposal.id.clone()))?;
         apply::write(self.vault, plan.files, &mut change)?;
         let entry = change.commit("Accept a proposal")?;
         let change = entry.map(|e| e.id);
@@ -605,6 +608,7 @@ impl<'v> Proposals<'v> {
     ///
     /// As for [`Proposals::accept`].
     pub fn accept_by_consent(&self, id: &str, consents: &[Standing]) -> Result<Option<Accepted>> {
+        let _lock = WriteLock::acquire(self.vault.root())?;
         let proposal = self.get(id)?;
         let Some(standing) = self.standing(&proposal)? else {
             return Ok(None);
@@ -675,6 +679,7 @@ impl<'v> Proposals<'v> {
     /// [`Error::Refused`] when it was already decided; [`Error::Io`] when it cannot be
     /// saved.
     pub fn refuse(&self, id: &str, comment: Option<&str>) -> Result<Proposal> {
+        let _lock = WriteLock::acquire(self.vault.root())?;
         let mut proposal = self.get(id)?;
         if !matches!(proposal.status, Status::Waiting | Status::Stale { .. }) {
             return Err(not_waiting(&proposal));
@@ -708,6 +713,7 @@ impl<'v> Proposals<'v> {
     /// since (undoing would lose that later change); [`Error::Io`] or
     /// [`Error::History`] as for [`crate::vault::History::undo`].
     pub fn undo(&self, id: &str) -> Result<Proposal> {
+        let _lock = WriteLock::acquire(self.vault.root())?;
         let mut proposal = self.get(id)?;
         let Status::Accepted { change, .. } = &proposal.status else {
             return Err(Error::Refused(format!(

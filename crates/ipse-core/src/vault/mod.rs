@@ -14,6 +14,7 @@ mod file;
 mod front;
 pub mod history;
 pub mod lang;
+mod lock;
 pub mod naming;
 pub mod settings;
 pub mod state;
@@ -31,6 +32,7 @@ pub use fields::{
 pub use file::MemoryFile;
 pub use history::{Change, History, Source};
 pub use lang::Language;
+pub use lock::WriteLock;
 pub use settings::{CustomCategory, Settings};
 pub use state::{Seen, StateLogFields, StateRow, Status, Subject, Topic};
 pub use store::{SETTINGS_FILE, Vault};

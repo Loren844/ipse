@@ -118,7 +118,7 @@ impl Vault {
         // Written last: a folder is a vault only once everything else is in place.
         write_atomic(&settings_path, settings.render().as_bytes())?;
 
-        let mut change = history.change(Source::Ipse);
+        let mut change = history.change(Source::Ipse)?;
         for path in [&owner, &settings_path, &root.join(".gitignore")] {
             change.touched(path);
         }
@@ -205,7 +205,7 @@ impl Vault {
             return Ok(&self.settings);
         }
         let history = self.history()?;
-        let mut change = history.change(Source::Person);
+        let mut change = history.change(Source::Person)?;
         let settings = Settings::change(&path, language, time_zone)?;
         change.touched(&path);
         change.commit("Change the settings")?;

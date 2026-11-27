@@ -52,7 +52,7 @@ fn import_from(vault: &Vault, instance: &str, records: &[Record]) -> PeopleSumma
     let mut journal = Journal::new(vault.root());
     journal.append(instance, records, None).unwrap();
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector(instance.into()));
+    let mut change = history.change(Source::Connector(instance.into())).unwrap();
     let summary = contacts_to_people(vault, &journal, instance, &mut change).unwrap();
     change.commit("Import contacts").unwrap();
     summary

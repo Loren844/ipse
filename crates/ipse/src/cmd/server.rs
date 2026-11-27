@@ -137,7 +137,7 @@ pub(crate) fn connect(
     let found = found(vault, &instance.id)?;
     instances.add(instance.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit(&format!("Connect {}", kind.service.name))?;
     Ok(Connected {
@@ -199,7 +199,7 @@ pub(crate) fn choose(
         .insert(kind.key.to_owned(), Value::String(who.to_owned()));
     instances.set_config(id, instance.config.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit(&format!("Choose whom to follow in {}", kind.service.name))?;
     sync_once(vault, &instance, secrets, false)
@@ -242,7 +242,7 @@ pub(crate) fn set_positions(
     }
     instances.set_config(id, instance.config.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit(if on {
         "Read the phone's positions from Home Assistant"
@@ -271,7 +271,7 @@ pub(crate) fn disconnect(
     instances.remove(id)?;
     forget(kind, root, &instance, secrets)?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit(&format!("Disconnect {}", kind.service.name))?;
     Ok(instance)
