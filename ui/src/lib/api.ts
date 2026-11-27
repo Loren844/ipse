@@ -52,6 +52,7 @@ import type { SearchView } from './types/SearchView.ts';
 export type { MemoryView, ListView, SearchView };
 export type { StateView } from './types/StateView.ts';
 export type { FoundView } from './types/FoundView.ts';
+export type { FoundGroupView } from './types/FoundGroupView.ts';
 export type { QuestionsView };
 export type { QuestionView } from './types/QuestionView.ts';
 export type { HistoryView, AccessesView, RunsView, DiagnosticsView };
@@ -197,7 +198,8 @@ export const api = {
 	settings: () => get<SettingsView>('/api/settings'),
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
-	search: (q: string) => get<SearchView>('/api/search', { q }),
+	/** The memory's files matching `q`, by kind; with `few`, a few of each kind. */
+	search: (q: string, few = false) => get<SearchView>('/api/search', { q, few: few ? 1 : undefined }),
 	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
 	/** Everything around a file; with `section`, that section's items from `offset`. */
 	around: (id: string, section?: string, offset?: number) => get<AroundView>('/api/around', { id, section, offset }),

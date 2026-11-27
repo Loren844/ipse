@@ -115,6 +115,9 @@ pub(super) struct EventSpan {
     /// For an occurrence of a repeating calendar event: a short hash of the calendar's
     /// `UID`, the same for every occurrence.
     pub(super) series: Option<String>,
+    /// True when it has a place, linked or written: then the first of its facts is
+    /// that place, and the others its participants.
+    pub(super) placed: bool,
 }
 
 impl Document {
@@ -172,6 +175,7 @@ impl Document {
                 kind: e.kind.as_deref().and_then(EventKind::parse),
                 place: e.place,
                 series: e.series,
+                placed: e.placed,
             }),
         };
         let links = links_of(&s.relations, &s.facts, event.is_some());
@@ -212,6 +216,7 @@ impl Document {
                 kind: e.kind.map(|k| k.as_str().to_owned()),
                 place: e.place.clone(),
                 series: e.series.clone(),
+                placed: e.placed,
             }),
         }
     }
@@ -231,7 +236,7 @@ pub(super) struct Stored {
     relations: Vec<String>,
     notes: Option<String>,
     event: Option<StoredEvent>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     birthday: Option<String>,
 }
 
@@ -240,12 +245,14 @@ struct StoredEvent {
     start: String,
     end: Option<String>,
     participants: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     kind: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     place: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     series: Option<String>,
+    #[serde(default)]
+    placed: bool,
 }
 
 impl Stored {
@@ -322,6 +329,7 @@ impl Stored {
                     .and_then(LinkOrText::link)
                     .map(|l| l.target.clone()),
                 series: series_of(&file.common().sources),
+                placed: event.place.is_some(),
             }),
             ..base
         }
@@ -341,4 +349,40 @@ fn series_of(sources: &[String]) -> Option<String> {
         let hash = blake3::hash(uid.as_bytes()).to_hex();
         Some(hash[..16].to_owned())
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_saved_document_reads_back_with_its_empty_fields() {
+        // The saved index is postcard, which does not name fields: a field left out
+        // when empty made every saved index unreadable, so read again from the files.
+        let event = Stored {
+            id: "01jcx8m2p4q6r8t0v2w4y6z8a0".into(),
+            file_type: "event".into(),
+            category: "agenda".into(),
+            path: "events/2026/concert.md".into(),
+            name: "Concert".into(),
+            aliases: Vec::new(),
+            facts: vec!["Salle Pleyel".into()],
+            relations: Vec::new(),
+            notes: None,
+            birthday: None,
+            event: Some(StoredEvent {
+                start: "2026-11-14".into(),
+                end: None,
+                participants: Vec::new(),
+                kind: None,
+                place: None,
+                series: None,
+                placed: true,
+            }),
+        };
+        let bytes = postcard::to_stdvec(&event).unwrap();
+        let back: Stored = postcard::from_bytes(&bytes).unwrap();
+        assert_eq!(back.event.map(|e| e.placed), Some(true));
+        assert_eq!(back.name, "Concert");
+    }
 }

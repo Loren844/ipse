@@ -63,5 +63,9 @@ harness = false
 name = "timeline"
 harness = false
 
+[[bench]]
+name = "search"
+harness = false
+
 [lints]
 workspace = true

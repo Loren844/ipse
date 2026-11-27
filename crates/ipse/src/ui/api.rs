@@ -137,6 +137,8 @@ pub(crate) struct SeriesView {
     time: Option<String>,
     /// How many occurrences it has in the whole memory.
     occurrences: u32,
+    /// The day of its first occurrence, `YYYY-MM-DD`.
+    since: String,
 }
 
 impl From<ipse_core::search::Series> for SeriesView {
@@ -146,6 +148,7 @@ impl From<ipse_core::search::Series> for SeriesView {
             weekday: s.weekday,
             time: s.time,
             occurrences: s.occurrences,
+            since: s.since.to_string(),
         }
     }
 }

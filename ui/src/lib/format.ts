@@ -39,6 +39,11 @@ export function shortDay(day: string): string {
 	return new Intl.DateTimeFormat(locale(), { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${day}T12:00:00Z`));
 }
 
+/** "mars 2025", "March 2025": the month of a day. */
+export function monthYear(day: string): string {
+	return new Intl.DateTimeFormat(locale(), { timeZone: 'UTC', month: 'long', year: 'numeric' }).format(new Date(`${day}T12:00:00Z`));
+}
+
 /** "Samedi 21 novembre, 19:30". */
 export const when = (start: string, today?: string) => `${longDay(dayOf(start), today)}, ${timeOf(start)}`;
 

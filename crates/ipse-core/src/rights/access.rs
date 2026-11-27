@@ -806,7 +806,7 @@ impl<'g> Access<'g> {
 
     /// An event time as the AI receives it: a day as is, a moment with the vault's
     /// offset.
-    fn time_text(&self, time: &EventTime) -> String {
+    pub(super) fn time_text(&self, time: &EventTime) -> String {
         match time {
             EventTime::Day(day) => day.to_string(),
             EventTime::At(at) => DateTime::at(at.timestamp(), self.time_zone()).to_string(),
@@ -814,7 +814,7 @@ impl<'g> Access<'g> {
     }
 
     /// A link this AI may follow, or plain text; `None` for a hidden link.
-    fn visible(&self, value: &LinkOrText) -> Option<String> {
+    pub(super) fn visible(&self, value: &LinkOrText) -> Option<String> {
         match value {
             LinkOrText::Link(link) => self.follows(&link.target).then(|| link.to_string()),
             LinkOrText::Text(text) => (!self.hides(text)).then(|| text.clone()),
@@ -906,7 +906,7 @@ impl<'g> Access<'g> {
 
     /// `text` without the lines that link to anything this AI may not read. A fact is
     /// one line: it is left out entirely.
-    fn strip(&self, text: &str) -> String {
+    pub(super) fn strip(&self, text: &str) -> String {
         let mut out = String::with_capacity(text.len());
         for line in text.split_inclusive('\n') {
             if !self.hides(line) {
@@ -917,7 +917,7 @@ impl<'g> Access<'g> {
     }
 
     /// True when `text` holds a `[[link]]` this AI may not follow.
-    fn hides(&self, text: &str) -> bool {
+    pub(super) fn hides(&self, text: &str) -> bool {
         let mut rest = text;
         while let Some(open) = rest.find("[[") {
             let Some(close) = rest[open..].find("]]").map(|c| open + c) else {

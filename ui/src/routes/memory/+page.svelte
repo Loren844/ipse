@@ -4,11 +4,12 @@
 	import { page } from '$app/state';
 	import { goto, replaceState } from '$app/navigation';
 	import { api, type MemoryView, type SearchView } from '#lib/api.ts';
-	import { dayOf, hrefOf } from '#lib/format.ts';
+	import { dayOf } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { icons } from '#lib/icons.ts';
-	import { iconOf, KINDS } from '#lib/kinds.ts';
+	import { KINDS } from '#lib/kinds.ts';
 	import Now from '#lib/Now.svelte';
+	import SearchResults from '#lib/SearchResults.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 
 	const memory = new Loader<MemoryView>();
@@ -103,25 +104,10 @@
 
 	{#if query.trim()}
 		{#if found.state.kind === 'ready'}
-			{@const items = found.state.value.items}
-			<p class="date" aria-live="polite">{i18n.t.found(items.length)}</p>
-			{#if items.length}
-				<ul class="people found" data-testid="found">
-					{#each items as item (item.id)}
-						{@const href = hrefOf({ id: item.id, kind: item.kind })}
-						<li>
-							<a href={href ?? '/summaries'}>
-								<span class="kind-icon" aria-hidden="true"
-									><svg viewBox="0 0 24 24" width="18" height="18"><path d={iconOf(item.kind)} /></svg></span
-								>
-								<span class="who">
-									<span class="name">{item.name}</span>
-									<span class="aliases">{i18n.t.kind[item.kind] ?? item.kind}{item.excerpt ? ` · ${item.excerpt}` : ''}</span>
-								</span>
-							</a>
-						</li>
-					{/each}
-				</ul>
+			{@const view = found.state.value}
+			<p class="date" aria-live="polite">{i18n.t.found(view.total)}</p>
+			{#if view.total}
+				<SearchResults {view} query={query.trim()} />
 			{:else}
 				<p class="lead">{i18n.t.nothingFound}</p>
 			{/if}

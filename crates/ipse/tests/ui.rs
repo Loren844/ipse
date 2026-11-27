@@ -1075,20 +1075,27 @@ fn the_whole_memory_through_the_api() {
     assert_eq!(back["word"], "travaille chez");
 
     let (_, found) = api(&ui, &cookie, "/api/search?q=atelier");
-    let names: Vec<&str> = found["items"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| f["name"].as_str().unwrap())
-        .collect();
+    let items = results(&found);
+    let names: Vec<&str> = items.iter().map(|f| f["name"].as_str().unwrap()).collect();
     assert_eq!(names, ["Atelier Nord", "Marie Durand"]);
-    let marie = &found["items"][1];
+    assert_eq!(found["groups"][0]["kind"], "organization");
+    assert_eq!(found["groups"][1]["kind"], "person");
+    assert_eq!(found["total"], 2);
+    let marie = items[1];
     assert_eq!(
-        marie["excerpt"], "travaille chez : Atelier Nord",
+        excerpt(marie),
+        "travaille chez : Atelier Nord",
         "no [[link]] syntax"
     );
+    assert_eq!(marie["matched"], "relation");
     assert_eq!(
-        api(&ui, &cookie, "/api/search").1["items"],
+        marie["excerpt"][1],
+        serde_json::json!({"text": "Atelier", "hit": true}),
+        "the word that matched is marked"
+    );
+    assert_eq!(marie["organization"]["name"], "Atelier Nord");
+    assert_eq!(
+        api(&ui, &cookie, "/api/search").1["groups"],
         serde_json::json!([])
     );
 }
@@ -1449,7 +1456,30 @@ fn found(ui: &Ui, cookie: &str, name: &str) -> String {
         cookie,
         &format!("/api/search?q={}", name.replace(' ', "%20")),
     );
-    found["items"][0]["id"].as_str().unwrap().to_owned()
+    found["groups"][0]["items"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_owned()
+}
+
+/// Every result of a search, kind after kind.
+fn results(found: &serde_json::Value) -> Vec<&serde_json::Value> {
+    found["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|g| g["items"].as_array().unwrap())
+        .collect()
+}
+
+/// A result's excerpt, as one text.
+fn excerpt(item: &serde_json::Value) -> String {
+    item["excerpt"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|p| p["text"].as_str().unwrap())
+        .collect()
 }
 
 #[test]
@@ -1552,4 +1582,82 @@ fn around_someone_through_the_api() {
     assert_eq!(api(&ui, &cookie, "/api/around").0, 404);
     let event = shown[0]["file"]["id"].as_str().unwrap();
     assert_eq!(api(&ui, &cookie, &format!("/api/around?id={event}")).0, 404);
+}
+
+#[test]
+fn search_finds_a_memory() {
+    // The demo memory (issue #258): "yoga" was 50 lines alike.
+    let ui = start_demo();
+    let cookie = login(&ui);
+    let (status, found) = api(&ui, &cookie, "/api/search?q=yoga");
+    assert_eq!(status, 200, "{found}");
+    let events = found["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["kind"] == "event")
+        .expect("events found");
+    let yoga: Vec<&serde_json::Value> = events["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|e| e["name"] == "Yoga")
+        .collect();
+    assert_eq!(yoga.len(), 1, "a series is one result: {events}");
+    let series = &yoga[0]["series"];
+    let times = series["series"]["occurrences"].as_u64().unwrap();
+    assert!(times > 10, "{series}");
+    assert_eq!(series["series"]["weekday"], 2, "every Tuesday");
+    assert_eq!(series["series"]["time"], "19:00");
+    let since = series["series"]["since"].as_str().unwrap();
+    let occurrences = series["occurrences"].as_array().unwrap();
+    assert_eq!(occurrences.len() as u64, times, "every one matched");
+    let starts: Vec<&str> = occurrences
+        .iter()
+        .map(|o| o["start"].as_str().unwrap())
+        .collect();
+    assert!(starts.windows(2).all(|w| w[0] >= w[1]), "newest first");
+    assert!(starts.last().unwrap().starts_with(since), "{since}");
+    assert_eq!(yoga[0]["start"], starts[0], "the newest stands for it");
+    assert_eq!(yoga[0]["place"]["name"], "Studio Lotus");
+    // Events newest first.
+    let all: Vec<&str> = events["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["start"].as_str().unwrap())
+        .collect();
+    assert!(all.windows(2).all(|w| w[0] >= w[1]), "{all:?}");
+
+    // A person says what they are to the owner, or where they work.
+    let first = |q: &str| {
+        let (_, found) = api(&ui, &cookie, &format!("/api/search?q={q}"));
+        found["groups"][0]["items"][0].clone()
+    };
+    let friend = first("capucine%20moreau");
+    assert_eq!(friend["kind"], "person");
+    assert_eq!(friend["relation"], "partenaire d’escalade");
+    let work = first("atelier%20nord");
+    assert_eq!(work["kind"], "organization");
+    assert_eq!(work["relation"], "travaille chez");
+    let (_, colleagues) = api(&ui, &cookie, "/api/search?q=atelier");
+    let people = colleagues["groups"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["kind"] == "person")
+        .expect("colleagues found");
+    let colleague = people["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["matched"] == "relation")
+        .expect("a colleague found by their relation");
+    assert_eq!(colleague["organization"]["name"], "Atelier Nord");
+    let (_, few) = api(&ui, &cookie, "/api/search?q=a&few=1");
+    for group in few["groups"].as_array().unwrap() {
+        let shown = group["items"].as_array().unwrap().len() as u64;
+        assert!(shown <= 3, "{group}");
+        assert!(group["count"].as_u64().unwrap() >= shown);
+    }
 }

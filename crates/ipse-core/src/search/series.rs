@@ -26,6 +26,8 @@ pub struct Series {
     pub time: Option<String>,
     /// How many occurrences it has.
     pub occurrences: u32,
+    /// The day of its first occurrence.
+    pub since: Date,
 }
 
 /// One occurrence, as the pass reads it.
@@ -148,6 +150,11 @@ fn add(out: &mut HashMap<Id, Series>, key: &str, occurrences: &[&Occurrence<'_>]
         weekday,
         time,
         occurrences: u32::try_from(occurrences.len()).unwrap_or(u32::MAX),
+        since: occurrences
+            .iter()
+            .map(|o| o.date)
+            .min()
+            .unwrap_or(occurrences[0].date),
     };
     for o in occurrences {
         out.insert(o.id.clone(), series.clone());

@@ -19,4 +19,8 @@ time: string | null,
 /**
  * How many occurrences it has in the whole memory.
  */
-occurrences: number, };
+occurrences: number, 
+/**
+ * The day of its first occurrence, `YYYY-MM-DD`.
+ */
+since: string, };
