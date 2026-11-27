@@ -15,6 +15,9 @@
 
 	let { children } = $props();
 
+	/** One entry of the navigation. */
+	type Section = { href: string; label: string; icon: string };
+
 	onMount(() => {
 		app.load();
 		if (!inApp) return;
@@ -32,38 +35,40 @@
 		document.documentElement.lang = i18n.language;
 	});
 
-	const groups = $derived([
-		[
-			{ href: '/', label: i18n.t.home, icon: icons.home },
-			{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
-			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
-			{ href: '/map', label: i18n.t.map, icon: icons.place },
-			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
-		],
-		[
-			{ href: '/review', label: i18n.t.inbox, icon: icons.inbox },
-			{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
-			{ href: '/sources', label: i18n.t.sourcesNav, icon: icons.sources },
-			{ href: '/history', label: i18n.t.history, icon: icons.history }
-		]
+	// The side bar in three (issue #265): what the person looks at; what waits for
+	// them; what they manage, at the bottom by their name. The graph is reached from a
+	// file (#244), the settings from the menu under their name (#176).
+	const look = $derived([
+		{ href: '/', label: i18n.t.home, icon: icons.home },
+		{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
+		{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
+		{ href: '/map', label: i18n.t.map, icon: icons.place },
+		{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
+	]);
+	const review = $derived({ href: '/review', label: i18n.t.inbox, icon: icons.inbox });
+	const manage = $derived([
+		{ href: '/ais', label: i18n.t.ais, icon: icons.ais },
+		{ href: '/sources', label: i18n.t.sourcesNav, icon: icons.sources },
+		{ href: '/history', label: i18n.t.history, icon: icons.history }
 	]);
 
 	/** Réglages lives in the menu under the owner's name (#176), and behind More on a phone. */
 	const settings = $derived({ href: '/settings', label: i18n.t.settings, icon: icons.settings });
 
 	// On a phone, the four sections used most stay in the bottom bar; the others wait
-	// behind More (issue #140).
+	// behind More (issue #140), grouped as in the side bar.
 	const MAIN = ['/', '/memory', '/agenda', '/review'];
-	const sections = $derived(groups.flat());
+	const sections = $derived([...look, review]);
 	const main = $derived(MAIN.map((href) => sections.find((s) => s.href === href)).filter((s) => s !== undefined));
-	// On a phone, More starts with the owner's file and the settings (#176).
-	const others = $derived([
+	// More starts with the owner's file (#176), then what else there is to look at.
+	const moreLook = $derived([
 		...(app.state.kind === 'ready' && app.state.info.me
 			? [{ href: `/people/${app.state.info.me}`, label: i18n.t.yourFile, icon: icons.people }]
 			: []),
-		settings,
-		...sections.filter((s) => !MAIN.includes(s.href))
+		...look.filter((s) => !MAIN.includes(s.href))
 	]);
+	const moreManage = $derived([...manage, settings]);
+	const others = $derived([...moreLook, ...moreManage]);
 	const inOthers = $derived(others.find((s) => isCurrent(s.href)) ?? null);
 
 	let sheet: HTMLDialogElement | undefined = $state();
@@ -118,6 +123,29 @@
 
 </script>
 
+{#snippet railLink(section: Section, info: { waiting: number; failing: number })}
+	<a href={section.href} aria-current={isCurrent(section.href) ? 'page' : undefined}>
+		<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={section.icon} /></svg>
+		<span>{section.label}</span>
+		{#if section.href === '/review' && info.waiting > 0}
+			<span class="count" aria-label={i18n.t.waiting(info.waiting)}>{info.waiting}</span>
+		{/if}
+		{#if section.href === '/sources' && info.failing > 0}
+			<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
+		{/if}
+	</a>
+{/snippet}
+
+{#snippet moreLink(section: Section, info: { failing: number })}
+	<a href={section.href} aria-current={isCurrent(section.href) ? 'page' : undefined} onclick={closeMore}>
+		<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={section.icon} /></svg>
+		<span>{section.label}</span>
+		{#if section.href === '/sources' && info.failing > 0}
+			<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
+		{/if}
+	</a>
+{/snippet}
+
 <svelte:head>
 	<title>{app.state.kind === 'ready' ? `${app.state.info.name} · Ipse` : 'Ipse'}</title>
 </svelte:head>
@@ -136,25 +164,20 @@
 				<input id="rail-search" type="search" placeholder={i18n.t.searchShort} bind:value={railQuery} autocomplete="off" spellcheck="false" />
 			</form>
 			<nav aria-label={i18n.t.navLabel}>
-				{#each groups as group, g (g)}
-					<ul>
-						{#each group as section (section.href)}
-							{@const current = isCurrent(section.href)}
-							<li>
-								<a href={section.href} aria-current={current ? 'page' : undefined}>
-									<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={section.icon} /></svg>
-									<span>{section.label}</span>
-									{#if section.href === '/review' && info.waiting > 0}
-										<span class="count" aria-label={i18n.t.waiting(info.waiting)}>{info.waiting}</span>
-									{/if}
-									{#if section.href === '/sources' && info.failing > 0}
-										<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
-									{/if}
-								</a>
-							</li>
-						{/each}
-					</ul>
-				{/each}
+				<ul>
+					{#each look as section (section.href)}
+						<li>{@render railLink(section, info)}</li>
+					{/each}
+				</ul>
+				<ul>
+					<li>{@render railLink(review, info)}</li>
+				</ul>
+				<p class="nav-group" id="nav-manage">{i18n.t.manage}</p>
+				<ul class="manage" aria-labelledby="nav-manage">
+					{#each manage as section (section.href)}
+						<li>{@render railLink(section, info)}</li>
+					{/each}
+				</ul>
 			</nav>
 			<div class="foot">
 				<OwnerMenu name={info.name} me={info.me} />
@@ -217,16 +240,14 @@
 				>
 			</div>
 			<ul>
-				{#each others as section (section.href)}
-					<li>
-						<a href={section.href} aria-current={isCurrent(section.href) ? 'page' : undefined} onclick={closeMore}>
-							<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={section.icon} /></svg>
-							<span>{section.label}</span>
-							{#if section.href === '/sources' && info.failing > 0}
-								<span class="count warn" role="img" aria-label={i18n.t.sourcesFailing(info.failing)}>!</span>
-							{/if}
-						</a>
-					</li>
+				{#each moreLook as section (section.href)}
+					<li>{@render moreLink(section, info)}</li>
+				{/each}
+			</ul>
+			<p class="nav-group" id="more-manage">{i18n.t.manage}</p>
+			<ul aria-labelledby="more-manage">
+				{#each moreManage as section (section.href)}
+					<li>{@render moreLink(section, info)}</li>
 				{/each}
 			</ul>
 			<p class="owner">

@@ -225,6 +225,41 @@ nav a[aria-current='page'] svg {
 	color: var(--warn);
 }
 
+/* What the person manages sits at the bottom of the side bar, by their name, quieter
+   than what they look at (issue #265). */
+.rail nav {
+	flex: 1;
+	min-height: 0;
+}
+
+.nav-group {
+	margin: 0;
+	padding: 0 0.65rem;
+	color: var(--muted);
+	font-size: var(--step--2);
+	font-weight: 700;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+}
+
+.rail .nav-group {
+	margin-top: auto;
+}
+
+.rail nav .nav-group + ul {
+	margin-top: -0.7rem;
+}
+
+.rail nav .manage a {
+	padding-block: 0.35rem;
+	font-size: var(--step--1);
+}
+
+dialog.more .nav-group {
+	margin: 0.9rem 0 0.3rem;
+	padding: 0 0.75rem;
+}
+
 .foot {
 	margin-top: auto;
 	display: flex;
