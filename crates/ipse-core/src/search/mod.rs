@@ -648,7 +648,7 @@ impl SearchIndex {
 
     /// True when a searchable file of the vault in `root` was added, removed, renamed or
     /// modified since this index was read, or was modified too close to it for its date
-    /// to tell ([`RACY`]). Lists the folders and looks at each file's size and date: no
+    /// to tell (within two seconds). Lists the folders and looks at each file's size and date: no
     /// file is read.
     ///
     /// # Errors
