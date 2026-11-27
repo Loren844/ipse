@@ -533,14 +533,34 @@ impl Access<'_> {
     /// counts, the people seen most among the readable people, trips and celebrations.
     #[must_use]
     pub fn timeline(&self) -> crate::search::Timeline<'_> {
+        self.timeline_with(None)
+    }
+
+    /// The timeline of [`Access::timeline`], of the events that link to the entity
+    /// `with` when one is given (issue #244); empty when this client may not read it.
+    #[must_use]
+    pub fn timeline_with(&self, with: Option<&str>) -> crate::search::Timeline<'_> {
+        let stem = match with {
+            None => None,
+            Some(id) => {
+                let Some(file) = self.file_of(id) else {
+                    return crate::search::Timeline::default();
+                };
+                let stem = std::path::Path::new(&file)
+                    .file_stem()
+                    .map(|s| s.to_string_lossy().into_owned());
+                Some(stem.unwrap_or_default())
+            }
+        };
         let index = &self.gateway.index;
-        index.timeline(
+        index.timeline_with(
             |c| self.reads(c.as_str()),
             |stem| {
                 index
                     .person_path(stem, |c| self.reads(c.as_str()))
                     .is_some()
             },
+            stem.as_deref(),
         )
     }
 

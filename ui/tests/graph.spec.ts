@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
 import { startDemo, type Running } from './ipse.ts';
 
-// The graph centred on one file (issue #213), on the demo memory: its own section, the
-// owner first, a click recentres, a trail goes back, and no event is a node.
+// The graph centred on one file (issue #213), on the demo memory: one click from the view
+// around a file (issue #244), the owner first, a click recentres, a trail goes back, and no event is a node.
 let ipse: Running;
 test.beforeEach(async () => {
 	ipse = await startDemo('fr');
@@ -11,7 +11,9 @@ test.afterEach(() => ipse.stop());
 
 test('the graph opens on the owner, recentres on a click, and goes back by the trail', async ({ page }) => {
 	await page.goto(ipse.url);
-	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Graphe' }).click();
+	// No longer in the menu (issue #244).
+	await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Graphe' })).toHaveCount(0);
+	await page.goto(`${ipse.origin}/graph`);
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Graphe');
 	const panel = page.getByTestId('graph-panel');
 	const drawing = page.getByTestId('graph');
@@ -84,11 +86,13 @@ test('filters by kind, and the period counted', async ({ page }) => {
 	expect(after).toBeGreaterThanOrEqual(before);
 });
 
-test('a file’s page opens its links; old addresses lead to the graph', async ({ page }) => {
+test('a file’s page leads around it, then to its graph; old addresses lead to the graph', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.goto(`${ipse.origin}/memory/places`);
 	await page.getByRole('link', { name: 'Cabinet dentaire du Parc' }).click();
-	await page.getByRole('link', { name: 'Voir les liens de Cabinet dentaire du Parc dans le graphe' }).click();
+	await page.getByRole('link', { name: 'Tout ce qui touche Cabinet dentaire du Parc' }).click();
+	await expect(page).toHaveURL(/\/around\?id=/);
+	await page.getByRole('link', { name: 'Voir Cabinet dentaire du Parc dans le graphe' }).click();
 	await expect(page).toHaveURL(/\/graph\?id=/);
 	const panel = page.getByTestId('graph-panel');
 	await expect(panel.getByRole('heading', { level: 2 })).toHaveText('Cabinet dentaire du Parc');

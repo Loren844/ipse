@@ -1210,6 +1210,8 @@ h1.proposal-title {
 
 .lock {
 	display: inline-flex;
+	background: none;
+	padding: 0;
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0 0.5rem;
@@ -1561,7 +1563,7 @@ dialog.confirm .actions {
 	font: inherit;
 	font-size: var(--step--1);
 	color: var(--thread-ink);
-	background: none;
+	
 	border: 0;
 	padding: 0;
 	text-decoration: underline;
@@ -2665,7 +2667,7 @@ dialog[open]::backdrop {
 }
 
 .graph-trail a:hover {
-	background: none;
+	
 }
 
 .graph-trail li + li::before {
@@ -2858,7 +2860,7 @@ dialog[open]::backdrop {
 	font: inherit;
 	text-align: left;
 	color: var(--text);
-	background: none;
+	
 	border: 0;
 	cursor: pointer;
 }
@@ -4133,7 +4135,7 @@ button.owner[aria-expanded='true'] .chevron {
 .knot .series .unfold {
 	padding: 0;
 	border: 0;
-	background: none;
+	
 	color: var(--thread-ink);
 	font: inherit;
 	font-weight: 600;
@@ -4225,7 +4227,7 @@ p.automatic a {
 .update-banner.failed {
 	padding: 0;
 	border: 0;
-	background: none;
+	
 }
 
 .update-banner h2 {
@@ -4535,4 +4537,90 @@ p.automatic a {
 .period-link {
 	margin: 0.35rem 0 0;
 	font-size: var(--step--1);
+}
+
+/* Around someone (issue #244): one file and everything around it. */
+.around-screen .person-head {
+	flex-wrap: wrap;
+}
+
+.around-facts {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.2rem;
+	margin: 0;
+	padding: 0;
+	color: var(--muted);
+}
+
+.around-list {
+	list-style: none;
+	margin: 0 0 0.5rem;
+	padding: 0;
+}
+
+.around-list li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--line);
+	min-width: 0;
+}
+
+.around-list li > a:first-child {
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.around-strip li,
+.around-strip a {
+	min-width: 0;
+}
+
+.around-strip .strip-label {
+	overflow: visible;
+	text-align: left;
+}
+
+.count-tag {
+	color: var(--muted);
+	font-size: var(--step--1);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.lock {
+	display: inline-flex;
+	background: none;
+	padding: 0;
+	color: var(--muted);
+	margin-left: -0.3rem;
+}
+
+.lock svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+}
+
+.quiet.hint {
+	font-size: var(--step--1);
+	margin: 0.25rem 0 0;
+}
+
+.timeline-with {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.6rem;
+	margin: 0.5rem 0 0;
+}
+
+.graph-open {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 1rem;
 }

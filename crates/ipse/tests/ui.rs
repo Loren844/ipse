@@ -54,6 +54,30 @@ fn start_with(fill: impl FnOnce(&std::path::Path)) -> Ui {
         .unwrap();
     assert!(out.status.success());
     fill(&vault);
+    serve(dir, vault)
+}
+
+/// Starts `ipse ui` on the demo memory (`ipse init --demo`).
+fn start_demo() -> Ui {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let out = Command::new(IPSE)
+        .args([
+            "init",
+            vault.to_str().unwrap(),
+            "--demo",
+            "--language",
+            "fr",
+        ])
+        .args(["--time-zone", "Europe/Paris"])
+        .output()
+        .unwrap();
+    assert!(out.status.success());
+    serve(dir, vault)
+}
+
+/// Starts `ipse ui` on the memory `vault`, in `dir`.
+fn serve(dir: tempfile::TempDir, vault: std::path::PathBuf) -> Ui {
     let mut child = Command::new(IPSE)
         .args(["ui", "--no-open", "--vault", vault.to_str().unwrap()])
         .stdout(Stdio::piped())
@@ -1418,4 +1442,116 @@ fn what_is_accepted_in_advance_through_the_api() {
         clients.contains("declined = [\"event_kinds\"]"),
         "{clients}"
     );
+}
+
+/// The id of the first file found for `name`.
+fn found(ui: &Ui, cookie: &str, name: &str) -> String {
+    let (_, found) = api(
+        ui,
+        cookie,
+        &format!("/api/search?q={}", name.replace(' ', "%20")),
+    );
+    found["items"][0]["id"].as_str().unwrap().to_owned()
+}
+
+#[test]
+fn around_someone_through_the_api() {
+    // The demo memory (issue #244): a close friend with something in every section.
+    let ui = start_demo();
+    let cookie = login(&ui);
+    let id = found(&ui, &cookie, "Capucine Moreau");
+    let (status, view) = api(&ui, &cookie, &format!("/api/around?id={id}"));
+    assert_eq!(status, 200, "{view}");
+    assert_eq!(view["center"]["name"], "Capucine Moreau");
+    assert_eq!(view["center"]["kind"], "person");
+    assert_eq!(view["mine"], false);
+    assert_eq!(view["relation"][0], "partenaire d’escalade");
+    let total = view["total"].as_u64().unwrap();
+    assert!(total > 5, "{view}");
+    assert!(view["first"].is_string() && view["last"].is_string());
+    let months: u64 = view["months"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["events"].as_u64().unwrap())
+        .sum();
+    assert_eq!(months, total);
+
+    // Each section capped, with how many there are; the latest event first.
+    let events = &view["events"];
+    assert_eq!(events["total"].as_u64(), Some(total));
+    let shown = events["items"].as_array().unwrap();
+    assert_eq!(shown.len(), 5);
+    assert!(shown[0]["file"]["start"].as_str() >= shown[1]["file"]["start"].as_str());
+    // Places seen together keep the mark of their sensitive category.
+    let places = view["places"]["items"].as_array().unwrap();
+    let home = places
+        .iter()
+        .find(|p| p["file"]["name"] == "Chez Capucine")
+        .unwrap_or_else(|| panic!("{view}"));
+    assert_eq!(home["file"]["sensitive"], true);
+    assert_eq!(home["events"], 1);
+    assert_eq!(view["photos"]["count"], 37);
+    assert_eq!(view["facts"][0], "Prête volontiers ses livres.");
+    assert_eq!(
+        view["reminders"]["items"][0]["file"]["name"],
+        "Rendre son livre à Capucine"
+    );
+    assert!(view["reminders"]["items"][0]["at"].is_string());
+    assert!(view["people"]["total"].as_u64().unwrap() > 0);
+    assert!(view["notes"].is_string());
+    // The owner is in the header, not among the people or the files that link here.
+    let owner = found(&ui, &cookie, "Camille Laurent");
+    for section in ["people", "linked", "remembered"] {
+        assert!(
+            view[section]["items"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .all(|i| i["file"]["id"] != owner.as_str()),
+            "{section}"
+        );
+    }
+
+    // "See all": one section, page by page.
+    let (status, rest) = api(
+        &ui,
+        &cookie,
+        &format!("/api/around?id={id}&section=events&offset=5"),
+    );
+    assert_eq!(status, 200);
+    let rest = rest["events"]["items"].as_array().unwrap();
+    assert_eq!(rest.len() as u64, total - 5);
+    assert_ne!(rest[0]["file"]["id"], shown[0]["file"]["id"]);
+
+    // The agenda's years on this person only.
+    let (status, years) = api(&ui, &cookie, &format!("/api/timeline?person={id}"));
+    assert_eq!(status, 200);
+    assert_eq!(years["with"]["name"], "Capucine Moreau");
+    let counted: u64 = years["years"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|y| y["events"].as_u64().unwrap())
+        .sum();
+    assert_eq!(counted, total);
+
+    // A place: its visits and stays, who came.
+    let lotus = found(&ui, &cookie, "Studio Lotus");
+    let (status, place) = api(&ui, &cookie, &format!("/api/around?id={lotus}"));
+    assert_eq!(status, 200, "{place}");
+    assert_eq!(place["center"]["kind"], "place");
+    assert!(place["stays"]["count"].as_u64().unwrap() > 0);
+    assert_eq!(place["stays"]["sensitive"], true);
+    assert!(place.get("photos").is_none());
+
+    // Unknown sections, missing files and events are refused.
+    assert_eq!(
+        api(&ui, &cookie, &format!("/api/around?id={id}&section=nope")).0,
+        400
+    );
+    assert_eq!(api(&ui, &cookie, "/api/around?id=nothing").0, 404);
+    assert_eq!(api(&ui, &cookie, "/api/around").0, 404);
+    let event = shown[0]["file"]["id"].as_str().unwrap();
+    assert_eq!(api(&ui, &cookie, &format!("/api/around?id={event}")).0, 404);
 }

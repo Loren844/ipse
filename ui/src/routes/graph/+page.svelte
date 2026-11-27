@@ -180,7 +180,10 @@
 					{#if graph.center.start}<span>{shortDay(dayOf(graph.center.start))}</span>{/if}
 				</p>
 				{#if hrefOf({ id: graph.center.id, kind: graph.center.kind })}
-					<p><a href={hrefOf({ id: graph.center.id, kind: graph.center.kind })}>{i18n.t.openPage}</a></p>
+					<p class="graph-open">
+						<a href={hrefOf({ id: graph.center.id, kind: graph.center.kind })}>{i18n.t.openPage}</a>
+						{#if graph.center.kind !== 'event'}<a href="/around?id={graph.center.id}">{i18n.t.around}</a>{/if}
+					</p>
 				{/if}
 				<h3>{i18n.t.graphLinks(kept.length)}</h3>
 				{#if shown.length}

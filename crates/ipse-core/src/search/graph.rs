@@ -143,7 +143,11 @@ impl SearchIndex {
     }
 
     /// The file a `[[stem]]` (in lower case) points to among the allowed categories.
-    fn resolve(&self, stem: &str, allowed: &impl Fn(&Category) -> bool) -> Option<usize> {
+    pub(super) fn resolve(
+        &self,
+        stem: &str,
+        allowed: &impl Fn(&Category) -> bool,
+    ) -> Option<usize> {
         self.by_stem
             .get(stem)?
             .iter()
@@ -393,7 +397,7 @@ impl SearchIndex {
 }
 
 /// A file of a graph, `depth` steps from its center.
-fn node_of(d: &super::document::Document, depth: u8) -> GraphNode<'_> {
+pub(super) fn node_of(d: &super::document::Document, depth: u8) -> GraphNode<'_> {
     GraphNode {
         id: &d.id,
         name: &d.name.text,

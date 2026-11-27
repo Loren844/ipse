@@ -38,7 +38,6 @@
 			{ href: '/memory', label: i18n.t.memory, icon: icons.memory },
 			{ href: '/agenda', label: i18n.t.agenda, icon: icons.agenda },
 			{ href: '/map', label: i18n.t.map, icon: icons.place },
-			{ href: '/graph', label: i18n.t.graph, icon: icons.graph },
 			{ href: '/summaries', label: i18n.t.summariesNav, icon: icons.summaries }
 		],
 		[
@@ -112,6 +111,8 @@
 	/** The section a page belongs to: a person's page is under Memory. */
 	function isCurrent(href: string): boolean {
 		const path = page.url.pathname;
+		// Around a file and its graph are reached from the memory's files (issue #244).
+		if (href === '/memory' && (path === '/around' || path === '/graph')) return true;
 		return href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`);
 	}
 

@@ -83,16 +83,26 @@ pub(crate) struct YearView {
 )]
 pub(crate) struct TimelineView {
     years: Vec<YearView>,
+    /// The file whose events these are, when the timeline is of one (issue #244).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(test, ts(optional))]
+    with: Option<LinkView>,
 }
 
-/// The timeline of the whole memory, as the person sees it.
+/// The timeline of the whole memory, as the person sees it; with `person`, of the
+/// events that link to that file only (issue #244), without the summaries, which are
+/// of the whole period.
 ///
 /// # Errors
 ///
 /// Errors reading the index or the summaries.
-pub(crate) fn view(gateway: &mut Gateway) -> Result<TimelineView> {
+pub(crate) fn view(gateway: &mut Gateway, person: Option<&str>) -> Result<TimelineView> {
+    let person = person.filter(|p| !p.is_empty());
     let root = gateway.vault().root().to_owned();
     let texts = |period: Period| -> Result<HashMap<String, String>> {
+        if person.is_some() {
+            return Ok(HashMap::new());
+        }
         let (found, _) = summaries::list(&root, period, (None, None), 0, usize::MAX)?;
         Ok(found
             .into_iter()
@@ -102,7 +112,7 @@ pub(crate) fn view(gateway: &mut Gateway) -> Result<TimelineView> {
     let months = texts(Period::Month)?;
     let years = texts(Period::Year)?;
     let owner = gateway.fresh_owner()?;
-    let timeline = owner.timeline();
+    let timeline = owner.timeline_with(person);
     let seen = |people: Vec<Seen>| -> Vec<SeenView> {
         people
             .into_iter()
@@ -113,9 +123,19 @@ pub(crate) fn view(gateway: &mut Gateway) -> Result<TimelineView> {
                 }))),
                 events: s.events,
             })
+            // On the timeline of one person, they are with them in every event.
+            .filter(|s| person.is_none() || s.person.id() != person)
             .collect()
     };
+    let with = person.and_then(|id| owner.details(id)).map(|d| {
+        LinkView::from(ipse_core::rights::LinkOut {
+            name: d.entry.name.unwrap_or_default(),
+            id: Some(d.entry.id),
+            file_type: Some(d.entry.file_type),
+        })
+    });
     Ok(TimelineView {
+        with,
         years: timeline
             .years
             .into_iter()

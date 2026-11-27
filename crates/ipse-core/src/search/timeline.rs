@@ -126,6 +126,20 @@ impl SearchIndex {
         allowed: impl Fn(&Category) -> bool,
         is_person: impl Fn(&str) -> bool,
     ) -> Timeline<'_> {
+        self.timeline_with(allowed, is_person, None)
+    }
+
+    /// The timeline of [`SearchIndex::timeline`], of the events that link to the file
+    /// `with` (a stem) when one is given (issue #244): a life with someone, or at a
+    /// place.
+    #[must_use]
+    pub fn timeline_with(
+        &self,
+        allowed: impl Fn(&Category) -> bool,
+        is_person: impl Fn(&str) -> bool,
+        with: Option<&str>,
+    ) -> Timeline<'_> {
+        let with = with.map(str::to_ascii_lowercase);
         let mut years: BTreeMap<i16, (Tally<'_>, BTreeMap<i8, Tally<'_>>)> = BTreeMap::new();
         for &slot in &self.events {
             let Some(d) = self.document(slot) else {
@@ -134,7 +148,11 @@ impl SearchIndex {
             let Some(span) = d.event.as_ref() else {
                 continue;
             };
-            if !allowed(&d.category) {
+            if !allowed(&d.category)
+                || with
+                    .as_deref()
+                    .is_some_and(|w| !d.links.iter().any(|l| l.target == w))
+            {
                 continue;
             }
             let date = span.start.date();

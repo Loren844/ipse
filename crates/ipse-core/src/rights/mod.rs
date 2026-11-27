@@ -8,6 +8,7 @@ mod access;
 mod browse;
 mod clients;
 mod log;
+mod near;
 mod work;
 
 pub use access::{
@@ -20,6 +21,7 @@ pub use browse::{
 };
 pub use clients::{Client, Clients, Standing, Token};
 pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};
+pub use near::{HappenedOut, SeenOut, SharedOut, SurroundingsOut};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
 
 use std::collections::BTreeMap;

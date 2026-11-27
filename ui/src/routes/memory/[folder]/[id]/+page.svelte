@@ -127,7 +127,7 @@
 			</div>
 			{#if !form}
 				<div class="head-actions">
-					<a class="button small" href="/graph?id={entity.id}" aria-label={i18n.t.inGraphLabel(entity.name)}>{i18n.t.inGraph}</a>
+					<a class="button small" href="/around?id={entity.id}" aria-label={i18n.t.aroundLabel(entity.name)}>{i18n.t.around}</a>
 					<button type="button" class="button small" bind:this={editButton} onclick={edit}>{i18n.t.editFile}</button>
 				</div>
 			{/if}

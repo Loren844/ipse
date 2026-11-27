@@ -34,6 +34,7 @@ use serde::Serialize;
 
 mod ais;
 mod api;
+mod around;
 mod background;
 mod edit;
 mod graph;
@@ -577,12 +578,24 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
         "map" => map::view(gateway).map(|v| Some(to_json(&v))),
-        "timeline" => timeline::view(gateway).map(|v| Some(to_json(&v))),
+        "timeline" => {
+            timeline::view(gateway, param("person").as_deref()).map(|v| Some(to_json(&v)))
+        }
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
         "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
         "graph" => graph::view(gateway, param("id").as_deref(), param("period").as_deref())
             .map(|v| v.map(|v| to_json(&v))),
+        "around" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            around::view(
+                gateway,
+                param("id").as_deref(),
+                param("section").as_deref(),
+                offset,
+            )
+            .map(|v| v.map(|v| to_json(&v)))
+        }
         "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
         "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
         "summaries" => {
