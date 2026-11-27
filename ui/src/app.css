@@ -4869,3 +4869,27 @@ p.automatic a {
 .rail-found .see-all {
 	margin: 0.6rem 0.35rem 0.1rem;
 }
+
+/* Whether the memory's disk is encrypted (issue #262). */
+.setting .disk-state {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: 0.35rem;
+}
+
+.setting .disk-state p,
+.disk-note p {
+	margin: 0;
+}
+
+.disk-note > div {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.disk-note h2 {
+	margin: 0;
+	font-size: var(--step-0);
+}

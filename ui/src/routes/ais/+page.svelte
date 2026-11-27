@@ -57,7 +57,13 @@
 
 	async function mayOpen(ai: AiView, category: CategoryView): Promise<boolean> {
 		if (!category.sensitive || ai.read.includes(category.name)) return true;
-		return ask(i18n.t.openTitle(name(category), ai.name), i18n.t.openBody(ai.name), i18n.t.openConfirm(ai.name), i18n.t.keepClosed);
+		// The first sensitive category opened to an AI, on a disk that is not encrypted
+		// (issue #262): say so before.
+		const view = screen.state.kind === 'ready' ? screen.state.value : null;
+		const sensitive = new Set(view?.categories.filter((c) => c.sensitive).map((c) => c.name));
+		const first = !view?.ais.some((a) => a.read.some((c) => sensitive.has(c)));
+		const body = view?.disk.state === 'off' && first ? `${i18n.t.openBody(ai.name)} ${i18n.t.openDiskOff}` : i18n.t.openBody(ai.name);
+		return ask(i18n.t.openTitle(name(category), ai.name), body, i18n.t.openConfirm(ai.name), i18n.t.keepClosed);
 	}
 
 	async function read(ai: AiView, category: CategoryView, on: boolean) {

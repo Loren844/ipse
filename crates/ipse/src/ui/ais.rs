@@ -75,6 +75,9 @@ pub(crate) struct AisView {
     categories: Vec<CategoryView>,
     /// The AI apps Ipse can set up itself, and whether each is on this computer.
     apps: Vec<AppView>,
+    /// Whether the memory's disk is encrypted: said when a sensitive category is
+    /// opened to an AI for the first time, if it is not (issue #262).
+    disk: super::settings::DiskView,
 }
 
 /// An AI app whose MCP configuration Ipse writes itself (issue #105).
@@ -215,6 +218,7 @@ pub(crate) fn view(gateway: &mut Gateway) -> Result<AisView> {
         ais,
         categories,
         apps: apps(),
+        disk: super::settings::disk(gateway),
     })
 }
 

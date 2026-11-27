@@ -1,4 +1,5 @@
 <script lang="ts">
+	import DiskState from '#lib/DiskState.svelte';
 	import { api, Conflict, SessionEnded, type SettingsView } from '#lib/api.ts';
 	import { app, appLinks, appSettings, inApp } from '#lib/app.svelte.ts';
 	import Copy from '#lib/Copy.svelte';
@@ -173,6 +174,13 @@
 					<a class="button" href={appLinks.switchMemory} data-sveltekit-reload aria-describedby="other-memory">{i18n.t.switchMemory}</a>
 				</div>
 			{/if}
+			<div class="setting disk" data-testid="disk" data-state={ready.disk.state}>
+				<span class="label">{i18n.t.diskTitle}</span>
+				<div class="disk-state">
+					<span class="badge" class:warn={ready.disk.state === 'off'}>{i18n.t.diskState[ready.disk.state]}</span>
+					<DiskState disk={ready.disk} />
+				</div>
+			</div>
 			<div class="setting">
 				<span class="label">{i18n.t.version}</span>
 				<span data-testid="version">Ipse {ready.version}</span>

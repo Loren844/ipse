@@ -47,6 +47,8 @@ pub(crate) fn run(
         "Your own file is {}: add there what you want your AI to know about you.",
         owner.display()
     );
+    // Once, after the memory is created (issue #262).
+    println!("{}", crate::disk::sentence(crate::disk::of(vault.root())));
     Ok(())
 }
 

@@ -392,7 +392,16 @@ fn check_says_what_to_fix() {
     );
     let ok = ipse(&["check", "--vault", vault]);
     assert!(ok.status.success());
-    assert!(String::from_utf8_lossy(&ok.stdout).contains("Every file reads well (1 file)."));
+    let said = String::from_utf8_lossy(&ok.stdout);
+    assert!(said.contains("Every file reads well (1 file)."));
+    // Issue #262: whether the disk is encrypted, whatever this machine's state.
+    assert!(
+        said.contains("The disk is encrypted")
+            || said.contains("The drive is encrypted")
+            || said.contains("is not encrypted")
+            || said.contains("could not tell"),
+        "{said}"
+    );
 
     let owner = dir.path().join("people/camille-durand.md");
     let text = std::fs::read_to_string(&owner).unwrap();

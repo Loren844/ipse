@@ -23,6 +23,32 @@ pub(crate) struct SettingsView {
     folder: String,
     /// Ipse's version.
     version: String,
+    /// Whether the disk holding the memory is encrypted (issue #262).
+    disk: DiskView,
+}
+
+/// Whether the disk holding the memory is encrypted, and on which system, for the
+/// steps to turn it on (decision 0009, issue #262).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct DiskView {
+    /// `on`, `off` or `unknown`.
+    state: String,
+    /// `macos`, `windows`, `linux` or `other`.
+    system: String,
+}
+
+/// The encryption of the disk holding the memory, as the interface shows it. Reads
+/// the system's state at most every few minutes.
+pub(crate) fn disk(gateway: &Gateway) -> DiskView {
+    DiskView {
+        state: crate::disk::of(gateway.vault().root()).as_str().to_owned(),
+        system: crate::disk::system().to_owned(),
+    }
 }
 
 /// `POST /api/settings`.
@@ -40,6 +66,7 @@ pub(crate) fn view(gateway: &Gateway) -> SettingsView {
         time_zone: settings.time_zone_name().to_owned(),
         folder: gateway.vault().root().display().to_string(),
         version: env!("CARGO_PKG_VERSION").to_owned(),
+        disk: disk(gateway),
     }
 }
 

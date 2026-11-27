@@ -46,7 +46,15 @@ async function serve(dir: string, vault: string): Promise<Running> {
 	// A home of its own: what Ipse writes into AI apps' configurations stays in the test.
 	const home = join(dir, 'home');
 	mkdirSync(home, { recursive: true });
-	const env = { ...process.env, HOME: home, USERPROFILE: home, APPDATA: join(home, 'AppData', 'Roaming') };
+	// The disk's encryption as this machine's would be unknown from one runner to the
+	// next: on, unless a test says otherwise (issue #262).
+	const env = {
+		...process.env,
+		HOME: home,
+		USERPROFILE: home,
+		APPDATA: join(home, 'AppData', 'Roaming'),
+		IPSE_DISK_ENCRYPTION: process.env.IPSE_DISK_ENCRYPTION ?? 'on'
+	};
 	const child: ChildProcess = spawn(IPSE, ['ui', '--no-open', '--vault', vault], { stdio: ['ignore', 'pipe', 'inherit'], env });
 	const url = await new Promise<string>((ok, fail) => {
 		let seen = '';

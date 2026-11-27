@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { api, type HomeView } from '#lib/api.ts';
 	import Events from '#lib/Events.svelte';
+	import DiskNote from '#lib/DiskNote.svelte';
 	import FirstSteps from '#lib/FirstSteps.svelte';
 	import { longDay } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
@@ -36,6 +37,7 @@
 			</p>
 		{/each}
 
+		<DiskNote />
 		{#if view.guide}
 			<FirstSteps guide={view.guide} />
 		{/if}

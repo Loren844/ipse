@@ -5,6 +5,7 @@
 
 mod cmd;
 mod connectors;
+mod disk;
 mod install;
 mod keychain;
 mod mcp;
