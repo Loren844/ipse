@@ -423,8 +423,10 @@ mod tests {
         assert_eq!(mount("/tmp/x").fs_type, "tmpfs");
     }
 
-    /// A fake `/sys/dev/block`: 252:1 an LVM volume on 252:0, a LUKS device on the
+    /// A fake `/sys/dev/block`, whose folders are named `major:minor` as on Linux: a
+    /// name Windows refuses, so these tests run where such names exist. 252:1 an LVM volume on 252:0, a LUKS device on the
     /// disk's partition 259:3; 8:17 a plain USB stick; 252:5 a LUKS device for btrfs.
+    #[cfg(unix)]
     fn sys() -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         let block = |name: &str, uuid: Option<&str>, slaves: &[&str]| {
@@ -457,6 +459,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)]
     fn tells_whether_a_linux_folder_is_on_luks() {
         let sys = sys();
         let state = |p: &str| {
