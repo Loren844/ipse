@@ -12,7 +12,10 @@ test.afterEach(() => ipse.stop());
 test('accept the kinds the AI proposed, then set one by hand', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /À revoir/ }).click();
-	await page.getByRole('link', { name: 'D’après le titre, le lieu et les personnes de chaque événement.' }).click();
+	// Many changes, said in one line: how many events get which kind.
+	const kinds = page.getByTestId('proposal').filter({ hasText: 'D’après le titre, le lieu et les personnes de chaque événement.' });
+	await expect(kinds.locator('.title')).toHaveText(/^\d+ événements reçoivent un type : .*Repas \(\d+\)/);
+	await kinds.locator('a.title').click();
 	const first = page.locator('.diff li').first();
 	await expect(first.locator('.what')).toHaveText('Type d’événement');
 	await expect(page.locator('.diff').filter({ hasText: 'Repas' }).first()).toBeVisible();

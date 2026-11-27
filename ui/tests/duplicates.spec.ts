@@ -31,8 +31,10 @@ async function open(page: import('@playwright/test').Page) {
 	await expect(line).toContainText('Proposée par Ipse');
 	await expect(line).toContainText('Marc Leroy');
 	await expect(line).toContainText('Marc');
-	await line.getByRole('link').click();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Même adresse email : très probablement la même personne.');
+	await expect(line.locator('.title')).toHaveText('Fusionner Marc dans Marc Leroy');
+	await line.getByRole('link', { name: 'Fusionner Marc dans Marc Leroy' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Fusionner Marc dans Marc Leroy');
+	await expect(page.locator('.page-head .why')).toContainText('Même adresse email : très probablement la même personne.');
 }
 
 test('merge two files of the same person', async ({ page }) => {

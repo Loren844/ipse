@@ -54,6 +54,10 @@ pub(crate) struct ProposalLine {
     merge: bool,
     /// Accepted by the person's standing consent for its AI (decision 0017).
     automatic: bool,
+    /// What it changes, file by file: what it would change in the files as they are
+    /// now for a waiting one, what it said for a decided or stale one. The interface
+    /// titles a proposal by its change, and shows a single change in the inbox.
+    files: Vec<FileChangesView>,
 }
 
 /// The inbox.
@@ -138,9 +142,9 @@ pub(crate) struct FileChangesView {
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
 pub(crate) struct ProposalView {
+    /// The proposal, with what it would change in the files as they are now (or did,
+    /// once accepted).
     line: ProposalLine,
-    /// What it would change in the files as they are now (or did, once accepted).
-    files: Vec<FileChangesView>,
     /// Why it no longer applies; then it can only be refused.
     stale: Option<String>,
     /// What the person said when refusing it.
@@ -201,19 +205,19 @@ pub(crate) fn list(gateway: &mut Gateway) -> Result<InboxView> {
     let names = ai_names(gateway);
     let proposals = Proposals::new(gateway.vault());
     let all = proposals.list()?;
-    // Whether each waiting one still applies, so the inbox does not offer to accept
-    // one that would only turn stale: one plan each, reading only its files.
-    let mut no_longer: Vec<bool> = Vec::with_capacity(all.len());
+    // What each one changes; for a waiting one, whether it still applies, so the inbox
+    // does not offer to accept one that would only turn stale: one plan each, reading
+    // only its files.
+    let mut previews: Vec<Preview> = Vec::with_capacity(all.len());
     for proposal in &all {
-        no_longer.push(
-            proposal.status == Status::Waiting && proposals.preview(proposal)?.stale.is_some(),
-        );
+        previews.push(preview(&proposals, proposal)?);
     }
     let owner = gateway.fresh_owner()?;
     let mut waiting = Vec::new();
     let mut decided = Vec::new();
-    for (proposal, stale) in all.iter().zip(no_longer) {
-        let mut line = line(proposal, &names, &owner);
+    for (proposal, preview) in all.iter().zip(previews) {
+        let stale = proposal.status == Status::Waiting && preview.stale.is_some();
+        let mut line = line(proposal, &names, &owner, preview);
         if stale {
             "stale".clone_into(&mut line.status);
         }
@@ -257,21 +261,7 @@ pub(crate) fn one(gateway: &mut Gateway, id: &str) -> Result<Option<ProposalView
         Err(Error::Refused(_)) => return Ok(None),
         Err(e) => return Err(e),
     };
-    // A waiting proposal shows what it would change now; a decided or stale one, what
-    // it said.
-    let preview = if proposal.status == Status::Waiting {
-        let now = proposals.preview(&proposal)?;
-        if now.stale.is_none() {
-            now
-        } else {
-            Preview {
-                stale: now.stale,
-                ..proposals.described(&proposal)
-            }
-        }
-    } else {
-        proposals.described(&proposal)
-    };
+    let preview = preview(&proposals, &proposal)?;
     let owner = gateway.fresh_owner()?;
     let (stale, comment) = match &proposal.status {
         Status::Stale { reason, .. } => (Some(reason.clone()), None),
@@ -279,13 +269,12 @@ pub(crate) fn one(gateway: &mut Gateway, id: &str) -> Result<Option<ProposalView
         Status::Waiting => (preview.stale.clone(), None),
         _ => (None, None),
     };
-    let mut line = line(&proposal, &names, &owner);
+    let mut line = line(&proposal, &names, &owner, preview);
     if stale.is_some() {
         "stale".clone_into(&mut line.status);
     }
     Ok(Some(ProposalView {
         line,
-        files: files(preview, &owner),
         stale,
         comment,
     }))
@@ -387,7 +376,29 @@ fn ai_names(gateway: &Gateway) -> Vec<(String, String)> {
         .unwrap_or_default()
 }
 
-fn line(proposal: &Proposal, names: &[(String, String)], owner: &Access<'_>) -> ProposalLine {
+/// What `proposal` changes: what it would change now for a waiting one that still
+/// applies; what it said for a decided or stale one, with why it no longer applies.
+fn preview(proposals: &Proposals<'_>, proposal: &Proposal) -> Result<Preview> {
+    if proposal.status != Status::Waiting {
+        return Ok(proposals.described(proposal));
+    }
+    let now = proposals.preview(proposal)?;
+    Ok(if now.stale.is_none() {
+        now
+    } else {
+        Preview {
+            stale: now.stale,
+            ..proposals.described(proposal)
+        }
+    })
+}
+
+fn line(
+    proposal: &Proposal,
+    names: &[(String, String)],
+    owner: &Access<'_>,
+    preview: Preview,
+) -> ProposalLine {
     let by = match &proposal.by {
         Author::Client(id) => AuthorView {
             kind: "ai".to_owned(),
@@ -438,6 +449,7 @@ fn line(proposal: &Proposal, names: &[(String, String)], owner: &Access<'_>) -> 
             .iter()
             .any(|c| matches!(c, ipse_core::proposals::Change::Merge { .. })),
         automatic: proposal.automatic,
+        files: files(preview, owner),
     }
 }
 

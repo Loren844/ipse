@@ -42,7 +42,7 @@ test('read the summaries, see a day in the agenda, correct one', async ({ page }
 	// Waiting in the inbox: pointed to, then accepted there.
 	await page.getByRole('link', { name: /3 résumés attendent votre avis/ }).click();
 	await page.getByLabel('Tout sélectionner').check();
-	await page.getByRole('button', { name: 'Accepter les 3 propositions sélectionnées' }).click();
+	await page.getByRole('button', { name: 'Accepter 3 propositions' }).click();
 	await expect(page.getByRole('status')).toContainText('3 propositions acceptées.');
 
 	await nav(page, 'Résumés').click();

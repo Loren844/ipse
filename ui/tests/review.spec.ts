@@ -46,24 +46,36 @@ test('review proposals: accept, refuse with a comment, accept several, undo', as
 	await page.getByRole('link', { name: /À revoir/ }).click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('À revoir');
 	await expect(page.getByText('5 propositions attendent votre avis.')).toBeVisible();
-	// Newest first, with who, why and what it touches.
+	// Newest first: what each changes is its title, why comes under it, smaller.
 	const lines = page.getByTestId('proposal');
-	await expect(lines.locator('.reason')).toHaveText([
-		'Marc a changé d’adresse.',
-		'Julie était au dîner.',
-		'Élodie en a parlé.',
-		'Vu dans un message d’Élodie.',
-		'Marc l’a dit pendant notre conversation.'
+	await expect(lines.locator('.title')).toHaveText([
+		'Marc Leroy, emails : marc@example.net',
+		'Nouvelle fiche : Julie Dupont',
+		'Élodie Martin : Aime le jazz.',
+		'Élodie Martin : Parle japonais.',
+		'Marc Leroy : 2 changements'
 	]);
+	await expect(lines.locator('.why')).toHaveText([
+		'Pourquoi : Marc a changé d’adresse.',
+		'Pourquoi : Julie était au dîner.',
+		'Pourquoi : Élodie en a parlé.',
+		'Pourquoi : Vu dans un message d’Élodie.',
+		'Pourquoi : Marc l’a dit pendant notre conversation.'
+	]);
+	// A single change is shown in its card, to decide without opening it.
+	await expect(lines.nth(2).locator('.diff .added')).toHaveText([/Aime le jazz\./]);
+	await expect(lines.nth(0).locator('.diff .removed')).toHaveText([/ancien@example\.org/]);
+	await expect(lines.nth(4).locator('.diff')).toHaveCount(0);
 	await expect(lines.first()).toContainText('Proposée par Claude Desktop');
 	await expect(lines.first()).toContainText('Ne s’applique plus');
 	await expect(lines.nth(1)).toContainText('Julie Dupont');
 
 	// One proposal in plain words: added in green with +, never a fact id or front matter.
-	await page.getByRole('link', { name: 'Marc l’a dit pendant notre conversation.' }).click();
-	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marc l’a dit pendant notre conversation.');
+	await page.getByRole('link', { name: 'Marc Leroy : 2 changements' }).click();
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Marc Leroy : 2 changements');
+	await expect(page.locator('.page-head .why')).toHaveText('Pourquoi : Marc l’a dit pendant notre conversation.');
 	await expect(page.getByText(/^Proposée par Claude Desktop, il y a 50 minutes$/)).toBeVisible();
-	await expect(page).toHaveTitle('Marc l’a dit pendant notre conversation. · Ipse');
+	await expect(page).toHaveTitle('Marc Leroy : 2 changements · Ipse');
 	await expect(page.getByRole('heading', { level: 2, name: 'Marc Leroy' })).toBeVisible();
 	const added = page.locator('.diff .added');
 	await expect(added).toHaveText([/Joue au tennis le jeudi\./, /\+33 6 12 34 56 78/]);
@@ -99,10 +111,19 @@ test('review proposals: accept, refuse with a comment, accept several, undo', as
 	// Several in one action, from the keyboard; each is still its own proposal.
 	await page.getByRole('navigation').getByRole('link', { name: /À revoir/ }).click();
 	await expect(lines).toHaveCount(3);
-	await page.getByLabel('Sélectionner : Julie était au dîner.').check();
-	await page.getByLabel('Sélectionner : Élodie en a parlé.').focus();
+	await page.getByLabel('Sélectionner : Nouvelle fiche : Julie Dupont').check();
+	await page.getByLabel('Sélectionner : Élodie Martin : Aime le jazz.').focus();
 	await page.keyboard.press('Space');
-	await page.getByRole('button', { name: 'Accepter les 2 propositions sélectionnées' }).click();
+	const acceptSome = page.getByRole('button', { name: 'Accepter 2 propositions' });
+	await expect(acceptSome).toBeEnabled();
+	// Disabled while it runs, it is drawn flat and grey, never as a paler red.
+	const look = () => acceptSome.evaluate((b) => getComputedStyle(b).backgroundColor);
+	const enabled = await look();
+	await acceptSome.evaluate((b) => ((b as HTMLButtonElement).disabled = true));
+	expect(await look()).not.toBe(enabled);
+	expect(await acceptSome.evaluate((b) => getComputedStyle(b).opacity)).toBe('1');
+	await acceptSome.evaluate((b) => ((b as HTMLButtonElement).disabled = false));
+	await acceptSome.click();
 	await expect(page.getByRole('status')).toContainText('2 propositions acceptées.');
 	await expect(lines).toHaveCount(1);
 	await expect(count(page)).toHaveText('1');
@@ -114,7 +135,7 @@ test('review proposals: accept, refuse with a comment, accept several, undo', as
 	await expect(decided.filter({ hasText: 'Vu dans un message d’Élodie.' })).toContainText('Refusée');
 
 	// Undo the first one accepted: Marc's file is back as it was.
-	await decided.getByRole('link', { name: 'Marc l’a dit pendant notre conversation.' }).click();
+	await decided.getByRole('link', { name: 'Marc Leroy : 2 changements' }).click();
 	await page.getByRole('button', { name: 'Annuler' }).click();
 	await expect(page.getByRole('status')).toContainText('Proposition annulée');
 	await expect(page.locator('.badge')).toHaveText('Annulée');
@@ -146,7 +167,9 @@ test('a summary the AI wrote, accepted from the inbox', async ({ page }) => {
 		await page.goto(summary.url);
 		await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: /À revoir/ }).click();
 		await expect(page.getByTestId('proposal')).toContainText('Samedi 14 novembre 2026');
-		await page.getByRole('link', { name: 'Résumé de samedi.' }).click();
+		await expect(page.getByTestId('proposal').locator('.title')).toHaveText('Résumé : Samedi 14 novembre 2026');
+		await page.getByRole('link', { name: 'Résumé : Samedi 14 novembre 2026' }).click();
+		await expect(page.getByRole('heading', { level: 1 })).toHaveText('Résumé : Samedi 14 novembre 2026');
 		await expect(page.getByRole('heading', { level: 2 })).toHaveText(/Résumé : Samedi 14 novembre 2026/);
 		await expect(page.locator('.diff .what')).toHaveText(['Résumé']);
 		await expect(page.locator('.diff .added')).toHaveText([/Dîner chez Julie avec Marc\./]);
