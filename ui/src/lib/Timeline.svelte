@@ -14,9 +14,12 @@
 	const remote = new Loader<TimelineView>();
 	// `person`: the events of one file only, from the view around it (issue #244).
 	const person = $derived(page.url.searchParams.get('person') || null);
+	// `work`: "most often with" counts work meetings and crowds too (issue #264).
+	const work = $derived(page.url.searchParams.get('work') === '1');
 	$effect(() => {
 		const asked = person ?? undefined;
-		remote.load(() => api.timeline(asked), true);
+		const counted = work;
+		remote.load(() => api.timeline(asked, counted), true);
 	});
 	const view = $derived(remote.state.kind === 'ready' ? remote.state.value : null);
 
@@ -48,11 +51,20 @@
 		if (next.year) query.set('year', String(next.year));
 		if (next.year && next.month) query.set('month', next.month.slice(5));
 		if (person) query.set('person', person);
+		if (work) query.set('work', '1');
 		return `/agenda?${query}`;
 	}
 
 	function open(next: { year?: number | null; month?: string | null }) {
 		goto(at(next), { reset: false });
+	}
+
+	/** Counts work meetings and crowds in "most often with", or no longer. */
+	function countWork(on: boolean) {
+		const url = new URL(page.url.href);
+		if (on) url.searchParams.set('work', '1');
+		else url.searchParams.delete('work');
+		goto(`${url.pathname}${url.search}`, { reset: false, replace: true });
 	}
 </script>
 
@@ -107,6 +119,11 @@
 				<a href={(() => { const url = new URL(page.url.href); url.searchParams.delete('person'); return `${url.pathname}${url.search}`; })()}>{i18n.t.timelineAll}</a>
 			</p>
 		{/if}
+		<label class="count-work">
+			<input type="checkbox" checked={work} onchange={(e) => countWork(e.currentTarget.checked)} aria-describedby="count-work-hint" />
+			{i18n.t.includeWork}
+		</label>
+		<p class="hint" id="count-work-hint">{i18n.t.includeWorkHint}</p>
 		{#if year}
 			<h2 class="period">{chosenMonth ? monthTitle(chosenMonth.month) : chosenYear ? chosenYear.year : i18n.t.timeline}</h2>
 		{:else}

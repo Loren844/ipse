@@ -258,3 +258,84 @@ fn music_and_places(root: &Path, events: &[PathBuf]) {
         "yoga classes linked to their studio"
     );
 }
+
+/// Issue #264: the weekly team meeting of the demo, five colleagues every Monday, does
+/// not fill "most often with"; counting work again brings them back, and the AI's
+/// answer agrees with the timeline.
+#[test]
+fn most_often_with_is_not_the_weekly_meeting() {
+    use ipse_core::rights::Gateway;
+    use ipse_core::vault::EventTime;
+
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("demo");
+    demo(&root, "fr");
+    // The meeting's people, as its files link them.
+    let mut team: Vec<String> = Vec::new();
+    for path in files(&root.join("events")) {
+        let file = MemoryFile::read(&path).unwrap();
+        let event = file.event().unwrap();
+        if event.title == "Point d’équipe" {
+            team = event
+                .participants
+                .iter()
+                .filter_map(|p| match p {
+                    ipse_core::vault::LinkOrText::Link(link) => {
+                        Some(link.target.to_ascii_lowercase())
+                    }
+                    ipse_core::vault::LinkOrText::Text(_) => None,
+                })
+                .collect();
+            break;
+        }
+    }
+    team.sort();
+    assert_eq!(team.len(), 5, "{team:?}");
+
+    let mut gateway = Gateway::open(&root).unwrap();
+    let owner = gateway.fresh_owner().unwrap();
+    let top = |people: &[ipse_core::search::Seen]| -> Vec<String> {
+        let mut stems: Vec<String> = people.iter().map(|s| s.stem.clone()).collect();
+        stems.sort();
+        stems
+    };
+    let timeline = owner.timeline();
+    let year = timeline
+        .years
+        .iter()
+        .max_by_key(|y| y.events)
+        .expect("the demo has events");
+    assert_eq!(year.people.len(), 5);
+    assert_ne!(
+        top(&year.people),
+        team,
+        "the top of {} is not the team",
+        year.year
+    );
+    let colleagues = year
+        .people
+        .iter()
+        .filter(|s| team.contains(&s.stem))
+        .count();
+    assert!(colleagues < 3, "{:?}", year.people);
+
+    // The switch "include work" counts every event: the team is back on top.
+    let with_work = owner.timeline_with(None, true);
+    let same = with_work
+        .years
+        .iter()
+        .find(|y| y.year == year.year)
+        .unwrap();
+    assert_eq!(top(&same.people), team);
+
+    // The AI's answer for that year follows the timeline's rule.
+    let from = EventTime::Day(jiff::civil::date(year.year, 1, 1));
+    let to = EventTime::Day(jiff::civil::date(year.year, 12, 31));
+    let seen: Vec<(String, u32)> = owner
+        .seen_most(&from, &to, 5)
+        .into_iter()
+        .map(|(link, events)| (link.name, events))
+        .collect();
+    let counts: Vec<u32> = year.people.iter().map(|s| s.events).collect();
+    assert_eq!(seen.iter().map(|(_, n)| *n).collect::<Vec<u32>>(), counts);
+}

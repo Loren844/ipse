@@ -11,6 +11,7 @@
 //! - Rights are applied inside the query: a file outside the allowed categories is
 //!   never scored, so it can neither be returned nor change the order of the results.
 
+mod company;
 mod document;
 mod fold;
 mod graph;
@@ -34,6 +35,7 @@ use crate::vault::{
 use crate::{Error, Result};
 use document::{Document, Field, Stored};
 
+pub use company::{COMPANY_RULE, CROWD, LeftOut};
 pub use fold::{fold, stem, words};
 pub use graph::{Around, GraphEdge, GraphNode, Neighbour, Neighbourhood};
 pub use kinds::{Born, KindSummary, Often, next_birthday};

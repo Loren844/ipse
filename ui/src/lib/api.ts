@@ -171,7 +171,7 @@ export const api = {
 	runs: () => get<RunsView>('/api/runs'),
 	map: () => get<MapView>('/api/map'),
 	/** The years, of the events that link to the file `person` when given. */
-	timeline: (person?: string) => get<TimelineView>('/api/timeline', { person }),
+	timeline: (person?: string, work = false) => get<TimelineView>('/api/timeline', { person, work: work ? '1' : undefined }),
 	kind: (kind: string) => get<EventKindView>(`/api/kinds/${encodeURIComponent(kind)}`),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,

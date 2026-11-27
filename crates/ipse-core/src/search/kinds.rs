@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use jiff::civil::Date;
 
 use super::SearchIndex;
+use super::company::{Company, LeftOut};
 use crate::vault::{Birthday, Category, EventKind, EventTime, FileType, Id};
 
 /// A file stem, and in how many events of the kind it is linked.
@@ -46,7 +47,8 @@ pub struct Born<'i> {
 
 impl SearchIndex {
     /// The events of `kind` among the allowed categories, around `today`: at most
-    /// `shown` next and last ones, people (among those `is_person` keeps) and places.
+    /// `shown` next and last ones, people (among those `is_person` keeps, in the events
+    /// not `left_out`: see [`SearchIndex::left_out_of_company`]) and places.
     #[must_use]
     pub fn kind_summary(
         &self,
@@ -55,10 +57,11 @@ impl SearchIndex {
         shown: usize,
         allowed: impl Fn(&Category) -> bool,
         is_person: impl Fn(&str) -> bool,
+        left_out: &LeftOut,
     ) -> KindSummary<'_> {
         let mut events = 0;
         let mut found: Vec<(&Id, &EventTime)> = Vec::new();
-        let mut people: HashMap<String, u32> = HashMap::new();
+        let mut people = Company::default();
         let mut places: HashMap<String, u32> = HashMap::new();
         for &slot in &self.events {
             let Some(d) = self.document(slot) else {
@@ -72,8 +75,8 @@ impl SearchIndex {
             }
             events += 1;
             found.push((&d.id, &span.start));
-            for person in &span.participants {
-                *people.entry(person.to_ascii_lowercase()).or_default() += 1;
+            if !left_out.contains(&d.id) {
+                people.add(d, span);
             }
             if let Some(place) = &span.place {
                 *places.entry(place.to_ascii_lowercase()).or_default() += 1;
@@ -87,7 +90,11 @@ impl SearchIndex {
             events,
             next,
             last,
-            people: most(people.into_iter().filter(|(p, _)| is_person(p)), shown),
+            people: people
+                .top(shown, is_person)
+                .into_iter()
+                .map(|(stem, events)| Often { stem, events })
+                .collect(),
             places: most(places.into_iter(), shown),
         }
     }

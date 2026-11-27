@@ -68,3 +68,22 @@ test('the old address of the timeline leads to the Years view, at the same month
 	await page.goto(`${ipse.origin}/timeline?year=${thisYear}&month=01`);
 	await expect(page).toHaveURL(new RegExp(`/agenda\\?view=years&year=${thisYear}&month=01$`));
 });
+
+test('most often with leaves out the weekly team meeting, unless work is counted', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.goto(`${ipse.origin}/agenda?view=years`);
+	const counts = page.locator('.year-row').first().locator('.seen-count');
+	await expect(counts.first()).toBeVisible();
+	const without = await page.locator('.year-row').first().locator('.seen').textContent();
+	const box = page.getByLabel('Compter aussi le travail');
+	await expect(box).not.toBeChecked();
+	await box.check();
+	await expect(page).toHaveURL(/work=1/);
+	// The colleagues of every Monday are back on top, seen more than anyone else.
+	await expect(page.locator('.year-row').first().locator('.seen')).not.toHaveText(without ?? '');
+	const top = Number(await counts.first().textContent());
+	expect(top).toBeGreaterThan(30);
+	await box.uncheck();
+	await expect(page).not.toHaveURL(/work=1/);
+	await expect(page.locator('.year-row').first().locator('.seen')).toHaveText(without ?? '');
+});

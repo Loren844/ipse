@@ -36,7 +36,7 @@ test('home and the agenda list show a series once, and unfold it', async ({ page
 	await expect(page.getByRole('link', { name: '19:00 Yoga' }).nth(3)).toBeVisible();
 });
 
-test('a person and a place show a series once; it still counts among who one sees most', async ({ page }) => {
+test('a person and a place show a series once; a work series counts among who one sees most only with work', async ({ page }) => {
 	await page.goto(ipse.url);
 	await page.goto(`${ipse.origin}/memory/places`);
 	await page.getByRole('link', { name: 'Studio Lotus' }).click();
@@ -51,5 +51,9 @@ test('a person and a place show a series once; it still counts among who one see
 
 	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
 	await page.getByRole('button', { name: 'Années' }).click();
+	// The weekly team meeting does not fill "most often with" (issue #264), unless work counts.
+	await expect(page.locator('.seen').first()).toBeVisible();
+	await expect(page.locator('.seen').first().getByRole('link', { name: /Elsa Girard/ })).toHaveCount(0);
+	await page.getByLabel('Compter aussi le travail').check();
 	await expect(page.locator('.seen').first().getByRole('link', { name: /Elsa Girard/ })).toBeVisible();
 });

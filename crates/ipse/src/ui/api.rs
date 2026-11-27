@@ -453,9 +453,15 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         .collect();
     let back = today.saturating_sub(RECENT_DAYS.days());
     let past = owner.events(&EventTime::Day(back), &EventTime::Day(today), None, 200);
+    // The same rule as the timeline's "most often with" (issue #264): a weekly work
+    // meeting or a crowd does not say who the person has seen.
+    let left_out = owner.left_out_of_company();
     let mut seen = HashSet::new();
     let mut recent = Vec::new();
     for event in past.events.iter().rev() {
+        if left_out.contains_text(&event.id) {
+            continue;
+        }
         for person in &event.participants {
             let link = owner.link(&LinkOrText::parse(person));
             let Some(id) = link.id.clone() else {
