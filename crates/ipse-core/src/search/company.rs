@@ -65,7 +65,7 @@ impl SearchIndex {
     /// repeating event one of whose occurrences is of the `work` kind (the recent ones
     /// of a weekly meeting often have no kind yet). A repeating event is a calendar's
     /// series, or the same title on the same weekday at the same time, at least
-    /// [`WORK_REPEATS`] times. Two passes over the events, the second only when some
+    /// 3 times. Two passes over the events, the second only when some
     /// event is of the `work` kind; local times are worked out only for the events
     /// titled as one of those.
     #[must_use]
