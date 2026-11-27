@@ -6,7 +6,7 @@ use std::path::{Component, Path};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::key::{ENTITY_KEYS, EVENT_KEYS};
+use super::key::{ENTITY_KEYS, EVENT_KEYS, REMINDER_KEYS};
 use crate::summaries::{self, Span};
 use crate::vault::naming::{entity_path, event_path};
 use crate::vault::{Category, EventTime, FactId, FileType, Id, MemoryFile, Vault, WikiLink};
@@ -21,8 +21,8 @@ pub enum Change {
         /// Its path, chosen when the proposal is submitted.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         file: Option<String>,
-        /// `person`, `place`, `organization`, `project`, `thing`, `topic`, `work` or
-        /// `event`.
+        /// `person`, `place`, `organization`, `project`, `thing`, `topic`, `work`,
+        /// `reminder` or `event`.
         #[serde(rename = "type")]
         file_type: String,
         /// Its category; the type's default when left out.
@@ -200,13 +200,13 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
         } => {
             let Some(kind) = FileType::parse(file_type).filter(|t| writable(*t)) else {
                 return refused(format!(
-                    "`{file_type}` is not a type of file a proposal can create: use person, place, organization, project, thing, topic, work or event."
+                    "`{file_type}` is not a type of file a proposal can create: use person, place, organization, project, thing, topic, work, reminder or event."
                 ));
             };
-            let allowed: &[&str] = if kind == FileType::Event {
-                &EVENT_KEYS
-            } else {
-                &ENTITY_KEYS
+            let allowed: &[&str] = match kind {
+                FileType::Event => &EVENT_KEYS,
+                FileType::Reminder => &REMINDER_KEYS,
+                _ => &ENTITY_KEYS,
             };
             if let Some(key) = keys.keys().find(|k| !allowed.contains(&k.as_str())) {
                 return refused(format!("`{key}` cannot be set on a new {file_type}."));
@@ -260,6 +260,8 @@ pub(super) fn check(vault: &Vault, change: &mut Change, planned: &[String]) -> R
             let found = existing(vault, file)?;
             let allowed: &[&str] = if found.event().is_some() {
                 &EVENT_KEYS
+            } else if found.common().file_type == FileType::Reminder {
+                &REMINDER_KEYS
             } else {
                 &ENTITY_KEYS
             };

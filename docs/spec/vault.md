@@ -30,6 +30,7 @@ Settled on 2026-11-12. These choices are hard to undo after 1.0.
 ├── things/                 objects and devices: a car, a lamp, a laptop
 ├── topics/                 interests and themes: "jazz", "climbing"
 ├── works/                  films, series, books, albums
+├── reminders/              what to remind the person of, once or again and again
 ├── events/<YYYY>/          one file per dated event
 ├── states/<topic>/<YYYY>.md   "right now" states, one file per topic and year
 ├── summaries/
@@ -63,7 +64,7 @@ Every memory file starts with a YAML front matter block. These keys are common t
 
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
-| `id` | string | yes | Stable identifier, a [ULID](https://github.com/ulid/spec) in lowercase. Never changes, even when the file is renamed or moved. |
+| `id` | string | yes | Stable identifier, a [ULID](https://github.com/ulid/spec) in lowercase. Never changes, even when the file is renamed or moved. A file that holds another's `id` (a copy made by hand) is reported by `ipse check` and in the interface, which gives it an id of its own as the person's change; the oldest by `created`, then the shortest path, keeps it. |
 | `type` | string | yes | `person`, `place`, `organization`, `project`, `thing`, `topic`, `work`, `event`, `state-log`, `summary`. |
 | `category` | string | yes | Rights category (see `rights.md`). Defaults per type are listed there. |
 | `created` | datetime | yes | RFC 3339 with offset, e.g. `2026-11-12T19:30:00+01:00`. |
@@ -99,7 +100,7 @@ Text outside known sections, and the `Notes` section, is free text: Ipse indexes
 
 ## 3. Entities
 
-Entities are the files under `people/`, `places/`, `organizations/`, `projects/`, `things/`, `topics/` and `works/`.
+Entities are the files under `people/`, `places/`, `organizations/`, `projects/`, `things/`, `topics/`, `works/` and `reminders/`.
 
 ### 3.1 Entity front matter
 
@@ -115,6 +116,11 @@ In addition to the common keys:
 | `address` | string | place, person, organization | Free text. |
 | `geo` | `[lat, lon]` | place | WGS 84, decimal degrees. |
 | `located_in` | wikilink | place, thing | Containing place: a room in a home, a city. |
+| `at` | date or date-time | reminder | When it is due, the first time when it comes back: `2026-11-26`, or `2026-11-26T18:00:00+01:00`. Without it, the reminder is never due. |
+| `every` | `day`, `week`, `month` or `year` | reminder | It comes back, on the day and at the hour of `at` (a missing day of month falls on the month's last day). |
+| `done` | date | reminder | The day it was last done. Once without `every`; for one that comes back, an occurrence is done when `done` is its day or later. |
+
+A **reminder** (type `reminder`, category `agenda` by default, issue #206) says in its `name` what to remind the person of; its relations link what it is about. Ipse never rings: the person's AI reads the reminders due when it calls `now` (`rights.md`, section 4.1), at the start of a conversation or from its own app's scheduled run. On another type, `at`, `every` and `done` are the person's own keys, kept as written.
 
 Well-known attributes live here because connectors fill them and duplicate detection compares them.
 
@@ -199,7 +205,7 @@ A state is true only while it is recent: listening to an artist, watching a seri
 
 ### 5.1 Files
 
-Path: `states/<topic>/<YYYY>.md`, one file per topic and year. Topics in format version 1: `music`, `watching`, `reading`, `home`, `location`. Connectors may add topics; a topic name matches `[a-z0-9-]+`.
+Path: `states/<topic>/<YYYY>.md`, one file per topic and year. Topics in format version 1: `music`, `watching`, `reading`, `home`, `location`, `photos`. Connectors may add topics; a topic name matches `[a-z0-9-]+`.
 
 ```markdown
 ---
@@ -222,6 +228,9 @@ year: 2026
 - One row per subject. A subject is a wikilink when an entity exists (an artist under `people/` or `organizations/`, a series under `works/`), plain text otherwise.
 - `First seen` and `Last seen` are dates in the vault's time zone (or datetimes for topics whose window is under a day, such as `home`).
 - `Count` is how many raw observations support the row.
+- In the `photos` topic, a subject is a person of the photos, linked to their file of `people/` only when Ipse is sure (`docs/connectors/immich.md`); `First seen` and `Last seen` are the days of the first and the last photo, and `Count` is how many photos.
+- In the `watching` topic from Jellyfin, a subject is a series or a film, linked to its file of `works/` when one has its name; `First seen` and `Last seen` are days, and `Count` is how many plays (`docs/connectors/jellyfin.md`).
+- In the `home` topic, a subject is the person's home (`Domicile`, `Home`) or a zone of their Home Assistant, as text; `First seen` and `Last seen` are moments, and `Count` is how many stays; the log is rewritten from every stay of the year (`docs/connectors/homeassistant.md`).
 - In the `location` topic, a subject is a place (`places/`), `First seen` and `Last seen` are days, and `Count` is how many stays; the log is rewritten from every visit of the year (`docs/connectors/location.md`).
 - Cells are trimmed. A row with another number of columns, or a value of the wrong form, is reported with its line and never guessed. A `|` inside plain text is written `\|`.
 - Rows are ordered by `Last seen`, most recent first. Ipse rewrites the table from the raw journal; a person may delete a row, and Ipse then ignores those observations for that row.
@@ -246,6 +255,7 @@ Default windows, which the person may change in `.ipse/vault.toml`:
 | `music` | 21 days |
 | `watching` | 30 days |
 | `reading` | 30 days |
+| `photos` | 30 days |
 | `location` | 1 day |
 | `home` | 15 minutes |
 
@@ -308,7 +318,7 @@ The vault is a git repository, invisible to the person: no git word appears in t
     - The owner's own contact card completes the owner's file instead of making a second one: Ipse only adds what the card brought since it last read it, never replaces or removes anything.
     - Relations taken from the owner's own contact card are added once: `.ipse/added-relations.toml` lists them, so that one the person removes is not added again (`docs/connectors/contacts.md`).
 - `ipse init` in a folder that already holds notes records them first, as the person's, then its own files as one change. A vault created before its history starts one, its files recorded as `ipse`.
-- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/connectors/`, `.ipse/materialized.toml`, `.ipse/added-relations.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/tasks/`, `.ipse/access/`, `.ipse/clients.toml`, `.ipse/guide.json` (the first steps and screen notes the person put away), and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
+- The vault's `.gitignore` lists what is not memory: `journal/`, `.ipse/connectors/`, `.ipse/materialized.toml`, `.ipse/added-relations.toml`, `.ipse/sync.toml`, `.ipse/index/`, `.ipse/proposals/`, `.ipse/tasks/`, `.ipse/access/`, `.ipse/clients.toml`, `.ipse/interface.toml` (the hash of the interface's access code for `ipse serve`), `.ipse/guide.json` (the first steps and screen notes the person put away), and editors' scratch files (`.obsidian/workspace*`, `.trash/`, `.DS_Store`). Lines the person added are kept.
 - After each commit the git index is rewritten, so that a person who opens the folder with git sees a clean state.
 - "Undo" in the interface reverts one change by creating a new commit; history is never rewritten.
 

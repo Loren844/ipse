@@ -12,14 +12,11 @@ test.afterEach(() => ipse.stop());
 test('home and the agenda list show a series once, and unfold it', async ({ page }) => {
 	await page.goto(ipse.url);
 	const home = page.locator('ol.thread').first();
-	const yoga = home.locator('.knot').filter({ has: page.getByRole('link', { name: 'Yoga', exact: true }) });
-	await expect(yoga).toHaveCount(1);
-	await expect(yoga).toContainText('chaque mardi, 19:00');
-	await expect(home.locator('.knot').filter({ hasText: 'Point d’équipe' })).toHaveCount(1);
-	await yoga.getByRole('button', { name: /Voir les \d+/ }).click();
-	await expect(home.getByRole('link', { name: 'Yoga', exact: true }).nth(1)).toBeVisible();
-	await home.getByRole('button', { name: 'Replier' }).first().click();
+	// Home lists the next 6 events: whether they hold one yoga class or two depends on
+	// the day the test runs, so home only checks that each series shows once. The agenda
+	// list below holds weeks of them, and checks the folding.
 	await expect(home.getByRole('link', { name: 'Yoga', exact: true })).toHaveCount(1);
+	await expect(home.locator('.knot').filter({ hasText: 'Point d’équipe' })).toHaveCount(1);
 
 	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
 	const list = page.locator('ol.thread.agenda');
@@ -31,6 +28,8 @@ test('home and the agenda list show a series once, and unfold it', async ({ page
 	expect(count).toBeGreaterThan(5);
 	await button.click();
 	await expect(list.getByRole('link', { name: 'Yoga', exact: true })).toHaveCount(count);
+	await list.getByRole('button', { name: 'Replier' }).first().click();
+	await expect(list.getByRole('link', { name: 'Yoga', exact: true })).toHaveCount(1);
 
 	// The month keeps every occurrence: that is its job.
 	await page.getByRole('button', { name: 'Mois' }).click();
@@ -50,6 +49,7 @@ test('a person and a place show a series once; it still counts among who one see
 	await expect(page.locator('ol.thread').getByRole('link', { name: 'Point d’équipe' })).toHaveCount(1);
 	await expect(page.locator('ol.thread')).toContainText('chaque lundi, 09:30');
 
-	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Frise' }).click();
+	await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Agenda' }).click();
+	await page.getByRole('button', { name: 'Années' }).click();
 	await expect(page.locator('.seen').first().getByRole('link', { name: /Elsa Girard/ })).toBeVisible();
 });

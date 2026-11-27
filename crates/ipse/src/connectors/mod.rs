@@ -5,6 +5,11 @@ pub(crate) mod calendar;
 pub(crate) mod contacts;
 mod content_line;
 pub(crate) mod dav;
+pub(crate) mod homeassistant;
+pub(crate) mod immich;
+pub(crate) mod jellyfin;
+pub(crate) mod rest;
+pub(crate) mod stays;
 pub(crate) mod timeline;
 
 use ipse_core::{Error, Result};
@@ -17,6 +22,9 @@ pub(crate) fn run(name: &str) -> Result<()> {
         calendar::ID => calendar::run(stdin, stdout),
         contacts::ID => contacts::run(stdin, stdout),
         dav::ID => dav::run(stdin, stdout),
+        homeassistant::ID => homeassistant::run(stdin, stdout),
+        jellyfin::ID => jellyfin::run(stdin, stdout),
+        immich::ID => immich::run(stdin, stdout),
         timeline::ID => timeline::run(stdin, stdout),
         _ => {
             return Err(Error::Refused(format!(

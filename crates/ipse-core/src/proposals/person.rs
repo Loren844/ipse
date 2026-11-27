@@ -120,6 +120,118 @@ impl Proposals<'_> {
         Ok(record.commit("Edit a file")?.map(|e| e.id))
     }
 
+    /// Writes `text` as the whole of `file` (relative to the vault), read at `version`,
+    /// as one change of the history by the person (issue #142): the file as the person
+    /// typed it, in Markdown. The text must read back as a memory file of the same id
+    /// and type; facts without an identifier get one. Returns that change; `None` when
+    /// the file already said so.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] with a plain-language message when the file changed since
+    /// `version`, when the text does not read as a memory file ("Line 4: …"), or when
+    /// it changes `id`, `type` or `owner`, or names a category the memory does not
+    /// have; [`Error::Io`] or [`Error::History`] when the file or the history cannot be
+    /// written.
+    pub fn edit_text(&self, file: &str, version_read: &str, text: &str) -> Result<Option<String>> {
+        let path = memory_path(self.vault.root(), file)?;
+        let current = existing(self.vault, file)?;
+        let kind = current.common().file_type;
+        if !kind.is_entity() && kind != crate::vault::FileType::Event {
+            return Err(Error::Refused(
+                "Only a person, a place, an event… is edited here.".to_owned(),
+            ));
+        }
+        if version(&path)? != version_read {
+            return Err(changed_meanwhile());
+        }
+        let mut edited = MemoryFile::parse(&path, text).map_err(|e| match e {
+            Error::Invalid { line, problem, .. } => {
+                let problem = if let Some(line) = line {
+                    format!("Line {line}: {problem}.")
+                } else {
+                    let mut chars = problem.chars();
+                    let first = chars.next().map(|c| c.to_uppercase().to_string());
+                    format!("{}{}.", first.unwrap_or_default(), chars.as_str())
+                };
+                Error::Refused(problem)
+            }
+            other => other,
+        })?;
+        let (was, now) = (current.common(), edited.common());
+        if now.id != was.id {
+            return Err(Error::Refused("The `id` cannot be changed.".to_owned()));
+        }
+        if now.file_type != was.file_type {
+            return Err(Error::Refused(
+                "The `type` cannot be changed: create a new file instead.".to_owned(),
+            ));
+        }
+        if current.entity().map(|e| e.owner) != edited.entity().map(|e| e.owner) {
+            return Err(Error::Refused("The `owner` cannot be changed.".to_owned()));
+        }
+        if now.category != was.category {
+            let known = crate::rights::Categories::of(self.vault.settings());
+            if !known.all().contains(&now.category.as_str()) {
+                return Err(Error::Refused(format!(
+                    "The `category` must be one of this memory's categories: {}.",
+                    known.all().join(", ")
+                )));
+            }
+        }
+        let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
+        let typed = text
+            .strip_prefix('\u{feff}')
+            .unwrap_or(text)
+            .replace("\r\n", "\n");
+        if on_disk.replace("\r\n", "\n") == typed {
+            return Ok(None);
+        }
+        edited.common_mut().updated =
+            crate::vault::DateTime::now(self.vault.settings().time_zone());
+        let history = self.vault.history()?;
+        let mut record = history.change(Source::Person);
+        if edited.write()? {
+            record.touched(&path);
+        }
+        Ok(record.commit("Edit a file as Markdown")?.map(|e| e.id))
+    }
+
+    /// Gives the file `file`, a copy that holds another file's `id` (issue #230), an id
+    /// of its own, as the person's change in one change of the history. Returns the new
+    /// id.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when `file` is not a memory file, or not such a copy (its id
+    /// is its own, or it is the file kept as the one with that id); errors writing the
+    /// file or the history.
+    pub fn own_id(&self, file: &str) -> Result<String> {
+        let path = memory_path(self.vault.root(), file)?;
+        let is_copy = crate::vault::copies(self.vault.root())?
+            .iter()
+            .any(|c| c.path.to_string_lossy().replace('\\', "/") == file);
+        if !is_copy {
+            return Err(Error::Refused(format!(
+                "{file} has an id of its own already."
+            )));
+        }
+        let mut copy = MemoryFile::read(&path)?;
+        let id = crate::vault::Id::generate();
+        let now = crate::vault::DateTime::now(self.vault.settings().time_zone());
+        let common = copy.common_mut();
+        common.id = id.clone();
+        common.created = now;
+        common.updated = now;
+        let history = self.vault.history()?;
+        let mut record = history.change(Source::Person);
+        if copy.write()? {
+            record.touched(&path);
+        }
+        record.commit("Give a copied file an id of its own")?;
+        Ok(id.to_string())
+    }
+
     /// Creates the file `change` describes (a [`Change::Create`]) as the person's, in
     /// one change of the history. With `stem`, the file is named so when that name is
     /// free: to create the file a link already points to.

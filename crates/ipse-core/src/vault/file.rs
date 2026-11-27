@@ -9,7 +9,8 @@ use super::atomic::{write_atomic, write_atomic_unsynced};
 use super::emit::{self, Out};
 use super::event::{EventFields, EventKind, EventStatus, EventTime};
 use super::fields::{
-    Birthday, Category, Common, DateTime, EntityFields, FileType, Geo, Id, LinkOrText, WikiLink,
+    Birthday, Category, Common, DateTime, EntityFields, Every, FileType, Geo, Id, LinkOrText,
+    WikiLink,
 };
 use super::front::{self, RawEntry};
 use super::state::{StateLogFields, Topic};
@@ -220,7 +221,7 @@ impl MemoryFile {
         };
         let common = reader.common()?;
         let entity = if common.file_type.is_entity() {
-            Some(reader.entity()?)
+            Some(reader.entity(common.file_type)?)
         } else {
             None
         };
@@ -499,6 +500,9 @@ fn is_known_key(key: &str) -> bool {
             | "address"
             | "geo"
             | "located_in"
+            | "at"
+            | "every"
+            | "done"
             | "title"
             | "start"
             | "end"
@@ -548,8 +552,18 @@ impl<'n> Reader<'_, 'n> {
         })
     }
 
-    fn entity(&self) -> Result<EntityFields> {
+    fn entity(&self, file_type: FileType) -> Result<EntityFields> {
+        // Only a reminder owns `at`, `every` and `done`: on another file, they are the
+        // person's own keys, kept as written.
+        let reminder = file_type == FileType::Reminder;
         Ok(EntityFields {
+            at: if reminder {
+                self.event_time("at")?
+            } else {
+                None
+            },
+            every: if reminder { self.every()? } else { None },
+            done: if reminder { self.day("done")? } else { None },
             name: self.optional_text("name")?,
             aliases: self.list("aliases")?,
             owner: self.owner()?,
@@ -737,6 +751,27 @@ impl<'n> Reader<'_, 'n> {
             Some("false") => Ok(false),
             _ => Err(self.wrong(node, "`owner` must be true or false")),
         }
+    }
+
+    fn every(&self) -> Result<Option<Every>> {
+        let Some(node) = self.get("every") else {
+            return Ok(None);
+        };
+        node.as_text()
+            .and_then(Every::parse)
+            .map(Some)
+            .ok_or_else(|| self.wrong(node, "`every` must be one of: day, week, month, year"))
+    }
+
+    fn day(&self, key: &str) -> Result<Option<jiff::civil::Date>> {
+        let Some(node) = self.get(key) else {
+            return Ok(None);
+        };
+        node.as_text()
+            .filter(|t| t.len() == 10)
+            .and_then(|t| t.parse().ok())
+            .map(Some)
+            .ok_or_else(|| self.wrong(node, format!("`{key}` must be a day like 2026-11-14")))
     }
 
     fn birthday(&self) -> Result<Option<Birthday>> {

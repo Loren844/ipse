@@ -184,7 +184,9 @@ test('in the desktop app, the interface is not selected or dragged, what one cop
 	expect(await select('nav a')).toBe('none');
 	expect(await select('h1')).toBe('none');
 	await openSettings(page);
-	expect(await select('.copy pre')).toBe('text');
+	// The home page has a copy box too (first steps): wait for the settings' own.
+	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Réglages');
+	expect(await select('section[aria-labelledby="memory"] .copy pre')).toBe('text');
 	// Dragging a link out of the window does not start.
 	const dragged = await page.locator('nav a').first().evaluate((el) => {
 		const event = new DragEvent('dragstart', { bubbles: true, cancelable: true });

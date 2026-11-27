@@ -5,7 +5,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use ipse_core::proposals::{Proposals, Status};
+use ipse_core::proposals::{Change, Proposals, Status};
 use ipse_core::rights::{Details, Gateway, LinkOut};
 use ipse_core::vault::{EventTime, LinkOrText};
 use ipse_core::{Error, Result};
@@ -65,6 +65,11 @@ pub(crate) struct LinkView {
 }
 
 impl LinkView {
+    /// The linked file's id.
+    pub(crate) fn id(&self) -> Option<&str> {
+        self.id.as_deref()
+    }
+
     /// A name as written, linking nowhere.
     pub(crate) fn text(name: &str) -> Self {
         Self {
@@ -176,6 +181,12 @@ pub(crate) struct EntityView {
     aliases: Vec<String>,
     /// `YYYY-MM-DD`, or `--MM-DD` without the year.
     birthday: Option<String>,
+    /// For a reminder: when it is due, a day or a date and time with its offset.
+    at: Option<String>,
+    /// For a reminder: `day`, `week`, `month` or `year`.
+    every: Option<String>,
+    /// For a reminder: the day it was last done.
+    done: Option<String>,
     emails: Vec<String>,
     phones: Vec<String>,
     address: Option<String>,
@@ -278,9 +289,9 @@ pub(crate) struct EventsView {
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
 pub(crate) struct AutomaticView {
-    /// `summaries` or `event_kinds`.
+    /// `summaries`, `event_kinds` or `creations`.
     standing: String,
-    /// How many proposals.
+    /// How many: proposals, or for `creations` the files created.
     count: u32,
 }
 
@@ -381,20 +392,27 @@ fn proposals_waiting(gateway: &Gateway) -> Result<(usize, Vec<AutomaticView>)> {
         if ipse_core::vault::DateTime::parse(at).is_none_or(|at| at.timestamp() < since) {
             continue;
         }
-        let standing = if proposal
-            .changes
-            .iter()
-            .all(|c| matches!(c, ipse_core::proposals::Change::WriteSummary { .. }))
-        {
-            "summaries"
+        let only = |f: fn(&Change) -> bool| proposal.changes.iter().all(f);
+        let (standing, count) = if only(|c| matches!(c, Change::WriteSummary { .. })) {
+            ("summaries", 1)
+        } else if only(|c| matches!(c, Change::SetKey { .. })) {
+            ("event_kinds", 1)
         } else {
-            "event_kinds"
+            let created = proposal
+                .changes
+                .iter()
+                .filter(|c| matches!(c, Change::Create { .. }))
+                .count();
+            ("creations", u32::try_from(created).unwrap_or(u32::MAX))
         };
+        if count == 0 {
+            continue;
+        }
         match automatic.iter_mut().find(|a| a.standing == standing) {
-            Some(a) => a.count += 1,
+            Some(a) => a.count += count,
             None => automatic.push(AutomaticView {
                 standing: standing.to_owned(),
-                count: 1,
+                count,
             }),
         }
     }
@@ -633,6 +651,9 @@ pub(crate) fn file(gateway: &mut Gateway, id: &str) -> Result<Option<FileView>> 
         name: entry.name.unwrap_or_default(),
         aliases: entry.aliases,
         birthday: entry.birthday,
+        at: entry.at,
+        every: entry.every,
+        done: entry.done,
         emails: entry.emails,
         phones: entry.phones,
         address: entry.address,

@@ -15,6 +15,7 @@ mod document;
 mod fold;
 mod graph;
 mod kinds;
+mod near;
 mod places;
 mod series;
 mod timeline;
@@ -34,8 +35,9 @@ use crate::{Error, Result};
 use document::{Document, Field, Stored};
 
 pub use fold::{fold, stem, words};
-pub use graph::{GraphEdge, GraphNode, Neighbourhood, WholeGraph};
+pub use graph::{Around, GraphEdge, GraphNode, Neighbour, Neighbourhood};
 pub use kinds::{Born, KindSummary, Often, next_birthday};
+pub use near::{Happened, Shared, Surroundings};
 pub use places::{Met, Visited};
 pub use series::Series;
 pub use timeline::{Mark, MonthLine, Seen, Timeline, YearLine};
@@ -540,6 +542,26 @@ impl SearchIndex {
             fresh.insert(slot.path, slot.stamp, slot.document);
         }
         *self = fresh;
+    }
+
+    /// The files that share their id with another, by id, each group sorted by path:
+    /// most often copies made by hand (issue #230). Cheap: read from the index.
+    #[must_use]
+    pub fn shared_ids(&self) -> Vec<Vec<PathBuf>> {
+        let mut by_id: HashMap<&Id, Vec<PathBuf>> = HashMap::new();
+        for d in self.documents() {
+            by_id.entry(&d.id).or_default().push(d.path.clone());
+        }
+        let mut groups: Vec<Vec<PathBuf>> = by_id
+            .into_values()
+            .filter(|g| g.len() > 1)
+            .map(|mut g| {
+                g.sort();
+                g
+            })
+            .collect();
+        groups.sort();
+        groups
     }
 
     fn documents(&self) -> impl Iterator<Item = &Document> {

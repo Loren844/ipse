@@ -8,6 +8,7 @@ mod access;
 mod browse;
 mod clients;
 mod log;
+mod near;
 mod work;
 
 pub use access::{
@@ -15,11 +16,12 @@ pub use access::{
     StateOut, States,
 };
 pub use browse::{
-    Backlink, BirthdayOut, Details, ENTITY_KINDS, EdgeOut, GraphOut, KindOut, Line, Lines, LinkOut,
-    MAX_GRAPH, MAX_LISTED, NodeOut, RelationLink, WholeGraphOut,
+    AroundOut, Backlink, BirthdayOut, Details, ENTITY_KINDS, EdgeOut, GraphOut, KindOut, Line,
+    Lines, LinkOut, MAX_GRAPH, MAX_LISTED, NeighbourOut, NodeOut, RelationLink,
 };
 pub use clients::{Client, Clients, Standing, Token};
 pub use log::{ACCESS_DIR, AccessDay, KEEP_MONTHS, access_days, last_access};
+pub use near::{HappenedOut, SeenOut, SharedOut, SurroundingsOut};
 pub use work::{ItemOut, MAX_CHANGES, MAX_TASKS, ProposalOut, Proposed, TaskLine, TaskOut};
 
 use std::collections::BTreeMap;

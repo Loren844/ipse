@@ -32,6 +32,7 @@ const words = {
 			work: 'Œuvres',
 			thing: 'Objets',
 			topic: 'Sujets',
+			reminder: 'Rappels',
 			event: 'Événements',
 			summary: 'Résumés'
 		} as Record<string, string>,
@@ -43,6 +44,7 @@ const words = {
 			work: 'Œuvre',
 			thing: 'Objet',
 			topic: 'Sujet',
+			reminder: 'Rappel',
 			event: 'Événement',
 			summary: 'Résumé'
 		} as Record<string, string>,
@@ -55,8 +57,16 @@ const words = {
 			project: 'Ce que vous menez sur la durée : votre IA les note quand vous lui en parlez.',
 			work: 'Les livres, films, séries et albums : avec vos sources de musique et de vidéo, ou par votre IA.',
 			thing: 'Les objets qui comptent : votre IA les note quand vous lui en parlez.',
-			topic: 'Les sujets qui vous occupent : votre IA les note quand vous lui en parlez.'
+			topic: 'Les sujets qui vous occupent : votre IA les note quand vous lui en parlez.',
+			reminder: 'Dites à votre IA « rappelle-moi… » : elle note le rappel ici, et vous le redit quand c’est le moment.'
 		} as Record<string, string>,
+		reminderAt: 'Quand',
+		reminderDone: 'Fait le',
+		reminderEvery: { day: 'tous les jours', week: 'toutes les semaines', month: 'tous les mois', year: 'tous les ans' } as Record<string, string>,
+		copiesTitle: (n: number) => plural(n, 'Une fiche semble copiée', '# fiches semblent copiées'),
+		copiesLead: 'Une copie faite à la main, par exemple avec « Faire une copie » d’Obsidian, garde l’identifiant de l’original : Ipse les confond. Donnez-lui le sien, ou supprimez-la si elle ne sert pas.',
+		copyLine: (file: string, original: string) => `${file} a le même identifiant que ${original}`,
+		copyFix: 'Lui donner son propre identifiant',
 		nowTitle: 'En ce moment',
 		topics: {
 			music: 'Musique',
@@ -109,11 +119,26 @@ const words = {
 		followGo: 'Suivre cet agenda',
 		following: 'Vérification de l’agenda…',
 		yourSources: 'Vos sources',
+		addSource: 'Ajouter une source',
+		backToSources: 'Retour aux sources',
+		sourceConnected: 'Connectée',
+		sourceCategories: { calendars: 'Agendas et contacts', home: 'Maison et lieux', media: 'Photos et médias' },
+		sourceCards: {
+			file: { name: 'Un fichier', line: 'Contacts, agenda ou historique des positions, exportés d’une autre app.' },
+			link: { name: 'Un agenda par son lien', line: 'Le lien iCal secret d’un agenda Google, iCloud ou Outlook.' },
+			account: { name: 'Un compte d’agendas et de contacts', line: 'iCloud, Fastmail, Nextcloud ou tout serveur CalDAV et CardDAV.' },
+			homeassistant: { name: 'Home Assistant', line: 'Quand vous êtes à la maison, et où va votre téléphone.' },
+			immich: { name: 'Immich', line: 'Qui est sur vos photos.' },
+			jellyfin: { name: 'Jellyfin', line: 'Les films et les séries que vous regardez.' }
+		},
 		noSources: 'Rien encore. Importez un fichier ou suivez un agenda pour commencer.',
 		sourceKinds: {
 			contacts: 'Contacts',
 			calendar: 'Agenda',
 			dav: 'Compte d’agendas et de contacts',
+			homeassistant: 'Home Assistant',
+			jellyfin: 'Jellyfin',
+			immich: 'Immich',
 			'google-timeline': 'Historique des positions'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -144,8 +169,13 @@ const words = {
 			failed: 'L’agenda n’a pas pu être lu.',
 			keychain:
 				'Ipse n’a pas pu utiliser le trousseau de votre système pour garder le lien. Sur Linux, un trousseau comme GNOME Keyring doit être installé et déverrouillé.',
-			synced: 'Synchronisé.'
+			synced: 'Synchronisé.',
+			positions: 'Ipse lit maintenant les positions de votre téléphone : les lieux et les visites arrivent dans la catégorie « position ».',
+			noPositions: 'Ipse ne lit plus les positions de votre téléphone. Les lieux et les visites déjà lus restent dans votre mémoire.'
 		} as Record<string, string>,
+		positionsLabel: 'Lire aussi où va mon téléphone',
+		positionsHint:
+			'Les positions GPS que l’application Home Assistant de votre téléphone envoie à votre serveur deviennent des lieux et des visites, dans la catégorie « position », fermée aux IA tant que vous ne l’ouvrez pas. Elles ne vont nulle part ailleurs.',
 		alreadyFollowed: (name: string) => `Cet agenda est déjà suivi, sous le nom « ${name} ».`,
 		followedNow: (name: string) => `« ${name} » est suivi.`,
 		keptNow: (name: string) => `« ${name} » est suivi, mais l’agenda n’a pas pu être joint pour l’instant : Ipse réessaiera.`,
@@ -199,6 +229,124 @@ const words = {
 			unavailable: 'Le serveur n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
 			rate_limited: 'Le serveur demande de ralentir : réessayez dans quelques minutes.'
 		} as Record<string, string>,
+		servers: {
+			homeassistant: {
+				title: 'Connecter Home Assistant',
+				hint: 'Votre propre Home Assistant dit à Ipse quand vous êtes à la maison et dans quelles zones. Cela reste dans la catégorie « maison », fermée aux IA tant que vous ne l’ouvrez pas. Ipse ne fait que lire, et garde le jeton dans le trousseau de votre système.',
+				name: 'Nom de la source',
+				address: 'Adresse de Home Assistant',
+				token: 'Jeton d’accès longue durée',
+				go: 'Connecter Home Assistant',
+				connecting: 'Connexion à Home Assistant…',
+				help: 'Où trouver l’adresse et créer un jeton',
+				steps: [
+					{
+						title: 'L’adresse',
+						lines: [
+							'Celle que vous ouvrez dans votre navigateur, souvent homeassistant.local:8123, ou votre adresse https:// depuis l’extérieur.',
+							'En http://, Ipse se connecte seulement à une adresse de votre réseau local, et le dit.'
+						]
+					},
+					{
+						title: 'Le jeton',
+						lines: [
+							'Dans Home Assistant : votre profil (en bas à gauche) → Sécurité → Jetons d’accès longue durée → Créer un jeton.',
+							'Copiez-le tout de suite : Home Assistant ne le montre qu’une fois.'
+						]
+					}
+				],
+				chooseHint: 'Ipse lit seulement la présence de la personne choisie, en général vous-même.',
+				follow: 'Suivre cette personne',
+				nobody: 'Aucune personne trouvée dans ce Home Assistant. Ajoutez-vous dans Paramètres → Personnes, puis synchronisez.',
+				plain: 'Cette adresse est en http:// : le jeton circule sans chiffrement sur votre réseau local. Utilisez https:// si votre Home Assistant le propose.',
+				unfollowBody: 'Ipse ne le synchronisera plus et oubliera son jeton. Ce qu’il a apporté reste dans votre mémoire.',
+				badAddress:
+					'Home Assistant ne peut pas être connecté : il faut son adresse (https://, ou http:// sur votre réseau local) et un jeton d’accès longue durée.',
+				problems: {
+					auth: 'Home Assistant a refusé le jeton d’accès. Créez-en un nouveau dans votre profil Home Assistant.',
+					bad_input: 'Aucun Home Assistant n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :8123.',
+					unavailable: 'Home Assistant n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+					rate_limited: 'Home Assistant demande de ralentir : réessayez dans quelques minutes.'
+				} as Record<string, string>
+			},
+			jellyfin: {
+				title: 'Connecter Jellyfin',
+				hint: 'Votre propre Jellyfin dit à Ipse les films et les séries que vous regardez. Ipse ne fait que lire, et garde la clé dans le trousseau de votre système.',
+				name: 'Nom de la source',
+				address: 'Adresse de Jellyfin',
+				token: 'Clé d’API',
+				go: 'Connecter Jellyfin',
+				connecting: 'Connexion à Jellyfin…',
+				help: 'Où trouver l’adresse et créer une clé',
+				steps: [
+					{
+						title: 'L’adresse',
+						lines: [
+							'Celle que vous ouvrez dans votre navigateur, souvent nas.local:8096, ou votre adresse https:// depuis l’extérieur.',
+							'En http://, Ipse se connecte seulement à une adresse de votre réseau local, et le dit.'
+						]
+					},
+					{
+						title: 'La clé',
+						lines: ['Dans Jellyfin, en administrateur : Tableau de bord → Clés API → +, avec le nom « Ipse ».']
+					}
+				],
+				chooseHint: 'Ipse lit seulement ce que regarde l’utilisateur choisi, en général vous-même.',
+				follow: 'Suivre cet utilisateur',
+				nobody: 'Aucun utilisateur trouvé dans ce Jellyfin.',
+				plain: 'Cette adresse est en http:// : la clé circule sans chiffrement sur votre réseau local. Utilisez https:// si votre Jellyfin le propose.',
+				unfollowBody: 'Ipse ne le synchronisera plus et oubliera sa clé. Ce qu’il a apporté reste dans votre mémoire.',
+				badAddress:
+					'Jellyfin ne peut pas être connecté : il faut son adresse (https://, ou http:// sur votre réseau local) et une clé d’API.',
+				problems: {
+					auth: 'Jellyfin a refusé la clé d’API. Créez-en une nouvelle dans Tableau de bord → Clés API.',
+					bad_input: 'Aucun Jellyfin n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :8096.',
+					unavailable: 'Jellyfin n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+					rate_limited: 'Jellyfin demande de ralentir : réessayez dans quelques minutes.'
+				} as Record<string, string>
+			},
+			immich: {
+				title: 'Connecter Immich',
+				hint: 'Votre propre Immich dit à Ipse qui est sur vos photos, et quand vous en avez pris une ensemble pour la dernière fois. Ipse ne lie une personne de vos photos à une fiche que s’il en est sûr, et vous demande sinon. Ipse ne fait que lire, et garde la clé dans le trousseau de votre système.',
+				name: 'Nom de la source',
+				address: 'Adresse d’Immich',
+				token: 'Clé d’API',
+				go: 'Connecter Immich',
+				connecting: 'Connexion à Immich…',
+				help: 'Où trouver l’adresse et créer une clé',
+				steps: [
+					{
+						title: 'L’adresse',
+						lines: [
+							'Celle que vous ouvrez dans votre navigateur, souvent nas.local:2283, ou votre adresse https:// depuis l’extérieur.',
+							'En http://, Ipse se connecte seulement à une adresse de votre réseau local, et le dit.'
+						]
+					},
+					{
+						title: 'La clé',
+						lines: [
+							'Dans Immich : votre photo (en haut à droite) → Paramètres du compte → Clés API → Nouvelle clé API, avec le nom « Ipse ».',
+							'Ipse lit seulement les personnes que vous avez nommées dans Immich.'
+						]
+					}
+				],
+				chooseHint: 'Ipse lit seulement la photothèque de l’utilisateur à qui appartient la clé.',
+				follow: 'Suivre cet utilisateur',
+				nobody: 'Cette clé n’appartient à aucun utilisateur d’Immich.',
+				plain: 'Cette adresse est en http:// : la clé circule sans chiffrement sur votre réseau local. Utilisez https:// si votre Immich le propose.',
+				unfollowBody: 'Ipse ne le synchronisera plus et oubliera sa clé. Ce qu’il a apporté reste dans votre mémoire.',
+				badAddress: 'Immich ne peut pas être connecté : il faut son adresse (https://, ou http:// sur votre réseau local) et une clé d’API.',
+				problems: {
+					auth: 'Immich a refusé la clé d’API. Créez-en une nouvelle dans Paramètres du compte → Clés API.',
+					bad_input: 'Aucun Immich n’a été trouvé à cette adresse : vérifiez-la, elle finit souvent par :2283.',
+					unavailable: 'Immich n’a pas pu être joint. Vérifiez son adresse et votre connexion.',
+					rate_limited: 'Immich demande de ralentir : réessayez dans quelques minutes.'
+				} as Record<string, string>
+			}
+		},
+		serverConnectedNow: (name: string) => `« ${name} » est connecté. Choisissez qui suivre.`,
+		chooseWho: 'Choisissez qui suivre',
+		followedWho: (name: string) => `Suit ${name}.`,
 		thisApp: 'Affichage',
 		thisAppHint: 'Ces choix restent sur cet ordinateur.',
 		inTheBackground: 'En arrière-plan',
@@ -260,16 +408,17 @@ const words = {
 		map: 'Carte',
 		mapLead: 'Les lieux où vous êtes allé, plus grands quand vous y allez souvent. Un lieu montre vos passages et les personnes que vous y voyez.',
 		mapEmpty: 'Aucun lieu n’a encore de position. Importez votre historique des positions depuis Sources pour remplir la carte.',
-		mapLabel: 'Carte de vos lieux. Glissez pour vous déplacer, molette ou + et − pour zoomer.',
+		mapLabel: 'Carte de vos lieux. Glissez pour vous déplacer, molette ou + et − pour zoomer, flèches pour vous déplacer au clavier.',
 		mapPick: 'Choisissez un lieu sur la carte ou dans la liste.',
 		mapAll: 'Tout voir',
 		zoomIn: 'Zoomer',
 		zoomOut: 'Dézoomer',
 		tilesOffer:
-			'Sans fond de carte, vos lieux sont des points sur fond uni et rien ne quitte cet ordinateur. Le fond de carte vient d’OpenStreetMap : leurs serveurs voient quelles zones vous regardez, pas vos lieux ni votre mémoire.',
+			'Sans fond de carte, vos lieux sont des points sur fond uni et rien ne quitte cet ordinateur. Le fond de carte vient d’OpenFreeMap, avec les données d’OpenStreetMap : leurs serveurs voient quelles zones vous regardez, pas vos lieux ni votre mémoire.',
 		tilesShow: 'Afficher le fond de carte',
 		tilesHide: 'Masquer le fond de carte',
-		tilesOn: 'Fond de carte OpenStreetMap affiché : leurs serveurs voient les zones que vous regardez.',
+		tilesOn: 'Fond de carte OpenFreeMap affiché : leurs serveurs voient les zones que vous regardez.',
+		mapNoWebgl: 'Cet ordinateur ne peut pas dessiner la carte. Vos lieux restent dans la liste ci-dessous.',
 		osmContributors: 'les contributeurs d’OpenStreetMap',
 		visitsCount: (n: number) => plural(n, '1 passage', '# passages'),
 		noVisits: 'aucun passage noté',
@@ -278,7 +427,7 @@ const words = {
 		visitsThere: 'Vos passages',
 		placesByVisits: 'Vos lieux, les plus fréquentés d’abord',
 		withoutPosition: (n: number) => plural(n, '1 lieu n’a pas de position : il n’est pas sur la carte.', '# lieux n’ont pas de position : ils ne sont pas sur la carte.'),
-		timeline: 'Frise',
+		timeline: 'Années',
 		timelineLead: 'Votre vie par années et par mois : ce qui a marqué chaque période, et les personnes que vous avez vues le plus.',
 		timelineEmpty: 'Rien encore : la frise se remplit avec votre agenda.',
 		whereInTimeline: 'Où vous êtes dans la frise',
@@ -288,7 +437,8 @@ const words = {
 		whatMarked: 'Ce qui a marqué ce mois',
 		monthInAgenda: 'Voir ce mois dans l’agenda',
 		agendaViews: 'Affichage de l’agenda',
-		agendaView: { list: 'Liste', week: 'Semaine', month: 'Mois' } as Record<string, string>,
+		agendaView: { list: 'Liste', week: 'Semaine', month: 'Mois', years: 'Années' } as Record<string, string>,
+		monthInTimeline: 'Ce qui a marqué ce mois',
 		kindFilter: 'Type',
 		allKinds: 'Tous les types',
 		kindFilterLabel: 'Montrer un type d’événement',
@@ -413,10 +563,10 @@ const words = {
 			sources: 'Pour commencer, importez le fichier de vos contacts (.vcf) ou de votre agenda (.ics), ou suivez un agenda par son lien secret : Ipse le relit de lui-même tant que l’app tourne. Ce qui vient d’une source est recopié tel quel.',
 			ais: 'Connectez votre IA ici, en un clic pour Claude Desktop. Les catégories sensibles (santé, localisation, maison, privé) restent fermées tant que vous ne les ouvrez pas à une IA, une par une.',
 			review: 'Ce que votre IA voudrait changer attend ici. Rien n’est écrit tant que vous n’avez pas accepté, et un changement accepté s’annule plus tard en un clic.',
-			agenda: 'Votre agenda, en liste, par semaine ou par mois. Ouvrez un événement pour voir qui y était et où, et donnez-lui un genre (repas, sport, voyage…) pour le retrouver plus tard.',
-			timeline: 'Choisissez une année, puis un mois, pour voir ce qui l’a marqué. Les résumés sont écrits par votre IA, et vous pouvez les corriger.',
+			agenda: 'Votre agenda, en liste, par semaine, par mois ou par années. Ouvrez un événement pour voir qui y était et où, et donnez-lui un genre (repas, sport, voyage…) pour le retrouver. Années montre votre vie mois par mois : ce qui l’a marquée et les personnes vues le plus.',
 			map: 'Les lieux viennent de votre historique de localisation et des adresses de votre agenda. Le fond de carte n’est chargé depuis internet que si vous l’allumez.',
-			memory: 'Toute votre mémoire, fiche par fiche, ou en graphe autour de vous. Chaque fiche est un fichier Markdown de votre dossier : modifiez-la ici ou dans n’importe quel éditeur.'
+			memory: 'Toute votre mémoire, fiche par fiche. Chaque fiche est un fichier Markdown de votre dossier : modifiez-la ici ou dans n’importe quel éditeur.',
+			graph: 'Le graphe part de vous. Les événements ne sont pas dessinés : deux fiches vues aux mêmes événements sont reliées par un trait d’autant plus épais qu’elles le sont souvent. La liste à côté dit chaque lien en mots.'
 		} as Record<string, string>,
 		waitingBanner: (proposals: number, questions: number) => {
 			const p = plural(proposals, '1 proposition', '# propositions');
@@ -490,9 +640,9 @@ const words = {
 		decidedRecently: 'Décidées récemment',
 		autoTitle: 'Accepter automatiquement',
 		autoLead: (ai: string) =>
-			`Ce que ${ai} fait de ces sortes, pour une tâche d’Ipse, est accepté sans vous attendre, comme si vous l’aviez accepté vous-même : chaque changement reste dans l’historique et s’annule en un clic dans À revoir. Jamais pour les personnes, les faits ou les liens.`,
-		standings: { summaries: 'Résumés', event_kinds: 'Types d’événements' } as Record<string, string>,
-		standingsOf: { summaries: 'résumés', event_kinds: 'types d’événements' } as Record<string, string>,
+			`Ce que ${ai} fait de ces sortes est accepté sans vous attendre, comme si vous l’aviez accepté vous-même : chaque changement reste dans l’historique et s’annule en un clic dans À revoir. Les résumés et les types, pour une tâche d’Ipse ; les nouvelles fiches, pour un objet, un sujet, un projet, une organisation ou une œuvre dans une catégorie non sensible, et ce que ${ai} ajoute ensuite à ces fiches. Jamais pour les personnes, les lieux, les événements ni les fiches que ${ai} n’a pas créées.`,
+		standings: { summaries: 'Résumés', event_kinds: 'Types d’événements', creations: 'Nouvelles fiches (objets, sujets, projets…)' } as Record<string, string>,
+		standingsOf: { summaries: 'résumés', event_kinds: 'types d’événements', creations: 'ajouts' } as Record<string, string>,
 		autoSwitch: (ai: string, what: string) => `Accepter automatiquement les ${what} de ${ai}`,
 		autoOn: (ai: string, what: string) => `Les ${what} de ${ai} sont maintenant acceptés automatiquement.`,
 		autoOff: (ai: string, what: string) => `Les ${what} de ${ai} vous attendront de nouveau.`,
@@ -508,7 +658,9 @@ const words = {
 		automaticHome: (n: number, standing: string) =>
 			standing === 'summaries'
 				? `${n} résumé${n > 1 ? 's' : ''} accepté${n > 1 ? 's' : ''} automatiquement`
-				: `${n} type${n > 1 ? 's' : ''} d’événement accepté${n > 1 ? 's' : ''} automatiquement`,
+				: standing === 'creations'
+					? `${n} fiche${n > 1 ? 's' : ''} créée${n > 1 ? 's' : ''} par votre IA ces derniers jours`
+					: `${n} type${n > 1 ? 's' : ''} d’événement accepté${n > 1 ? 's' : ''} automatiquement`,
 		see: 'Voir',
 		proposedBy: (name: string) => `Proposée par ${name}`,
 		changedBy: (name: string) => `${capitalizeFirst(name)} a changé une fiche que vous aviez modifiée`,
@@ -672,6 +824,7 @@ const words = {
 			'Change the settings': 'Réglages modifiés',
 			'Answer a question': 'Réponse à une question',
 			'Edit a file': 'Fiche modifiée',
+			'Edit a file as Markdown': 'Fiche modifiée en Markdown',
 			'Create a file': 'Fiche créée',
 			'Delete a file': 'Fiche supprimée'
 		} as Record<string, string>,
@@ -737,6 +890,19 @@ const words = {
 		endedHint: 'Pour rouvrir Ipse, lancez « ipse ui » sur cet ordinateur.',
 		endedHintApp: 'Fermez Ipse et rouvrez-le.',
 		editFile: 'Modifier',
+		editAs: 'Modifier comme',
+		editAsForm: 'Fiche',
+		editAsMarkdown: 'Markdown',
+		switchTitle: 'Changer d’onglet ?',
+		switchBody: 'Vos modifications ne sont pas enregistrées. Restez pour les enregistrer, ou abandonnez-les pour changer d’onglet.',
+		switchYes: 'Abandonner et changer',
+		switchNo: 'Rester',
+		markdownLabel: 'La fiche telle qu’elle est écrite',
+		markdownHint: 'Le fichier Markdown entier, son en-tête compris. L’identifiant (id), le type et owner ne peuvent pas changer ici.',
+		markdownLine: (line: number) => `Ligne ${line} : Ipse ne peut pas lire ce texte comme une fiche. Vérifiez l’en-tête entre les deux lignes ---.`,
+		markdownFixed: (key: string) => `« ${key} » ne peut pas changer ici : remettez la valeur d’avant.`,
+		markdownCategory: 'Cette catégorie n’existe pas dans votre mémoire : choisissez-en une de vos réglages.',
+		markdownFront: 'Le texte doit commencer par l’en-tête de la fiche, entre deux lignes ---.',
 		editTitle: (name: string) => `Modifier « ${name} »`,
 		addKind: {
 			person: 'Ajouter une personne',
@@ -746,6 +912,7 @@ const words = {
 			work: 'Ajouter une œuvre',
 			thing: 'Ajouter un objet',
 			topic: 'Ajouter un sujet',
+			reminder: 'Ajouter un rappel',
 			event: 'Ajouter un événement'
 		} as Record<string, string>,
 		kindOfFile: 'C’est…',
@@ -785,28 +952,32 @@ const words = {
 		createMissingLabel: (name: string) => `Créer la fiche de ${name}`,
 		required: 'Obligatoire.',
 		graph: 'Graphe',
-		graphView: 'Vue graphe',
-		graphLabel: (files: number, links: number) =>
-			`Graphe de votre mémoire : ${plural(files, '1 fiche', '# fiches')}, ${plural(links, '1 lien', '# liens')}. Choisissez une fiche dans la liste ou dans le panneau pour suivre ses liens.`,
-		graphKeys: 'Glisser pour se déplacer, molette ou pincement pour zoomer ; au clavier, les flèches, + et −, 0 pour tout voir.',
+		graphLead: 'Une fiche et ce qui la relie au reste, les liens les plus forts au plus près. Cliquez sur un nom pour aller vers ses liens.',
 		graphKinds: 'Montrer',
-		graphCategories: 'Catégories',
+		graphPeriod: 'Compter les événements',
+		graphYear: 'Sur 12 mois',
+		graphAlways: 'Depuis toujours',
 		graphLegend: 'Légende',
-		graphFilters: 'Filtres',
-		graphFiltered: 'certaines fiches sont masquées',
+		graphTrail: 'Fiches parcourues',
 		graphYou: 'Vous',
-		zoomAll: 'Tout voir',
-		graphChoose: 'Choisissez une fiche, dans le graphe ou dans la liste, pour voir ses liens.',
+		graphYourFile: 'Votre fiche',
+		graphHint: 'Survolez un lien pour le lire, cliquez sur un nom pour le mettre au centre.',
+		graphBack: (word: string, mine: boolean, center: string) =>
+			mine ? `vous êtes « ${word} » dans sa fiche` : `${center} est « ${word} » dans sa fiche`,
+		graphTogether: (n: number, mine: boolean, year: boolean) =>
+			`${plural(n, '1 événement', '# événements')} ${mine ? 'avec vous' : 'en commun'}${year ? ' sur 12 mois' : ''}`,
+		graphLast: (day: string) => `le dernier le ${day}`,
+		graphLinked: 'lié',
 		graphLinks: (n: number) => (n ? plural(n, '1 lien', '# liens') : 'Aucun lien'),
-		graphLinksHidden: 'Ses liens vers des fiches masquées par les filtres ne sont pas montrés.',
-		graphMoreLinks: (n: number) => plural(n, 'Et 1 autre.', 'Et # autres.'),
+		graphLinksHidden: 'Certains liens sont masqués par les filtres.',
+		graphShowMore: (n: number) => `Afficher ${plural(n, '1 lien de plus', '# liens de plus')}`,
+		graphMissing: 'Cette fiche n’existe pas, ou plus.',
+		graphEmpty: 'Votre mémoire est encore vide : ajoutez une source pour voir ses liens.',
 		openPage: 'Ouvrir sa fiche',
 		centerOn: (name: string) => `Centrer le graphe sur ${name}`,
-		chooseInGraph: (name: string) => `Choisir ${name}`,
-		closeGraph: 'Fermer le graphe',
 		graphLoading: 'Le graphe se dessine…',
-		inGraph: 'Graphe',
-		inGraphLabel: (name: string) => `Voir ${name} dans le graphe`,
+		inGraph: 'Voir ses liens',
+		inGraphLabel: (name: string) => `Voir les liens de ${name} dans le graphe`,
 		eventKinds: {
 			meal: 'Repas',
 			celebration: 'Fête',
@@ -827,6 +998,42 @@ const words = {
 		closePanel: 'Fermer',
 		youAreIn: (name: string) => `Vous êtes dans : ${name}`,
 		placesTogether: 'Où vous vous voyez',
+		around: 'Tout voir autour',
+		aroundLabel: (name: string) => `Tout ce qui touche ${name}`,
+		aroundTitle: (name: string) => `Autour de ${name}`,
+		aroundLead: 'Tout ce que votre mémoire garde autour de cette fiche, par genre et par date.',
+		aroundCount: (total: number, year: number) =>
+			`${plural(total, '1 événement', '# événements')} en tout, ${plural(year, '1', '#')} cette année`,
+		aroundSeen: (first: string, last: string, person: boolean) =>
+			first === last ? `${person ? 'Vus ensemble' : 'Une fois'} le ${first}` : `${person ? 'Vus ensemble' : 'Des événements'} du ${first} au ${last}`,
+		aroundNext: (day: string) => `Prochain le ${day}`,
+		aroundNothing: 'Rien encore autour de cette fiche : ni événement, ni lien.',
+		aroundStrip: (person: boolean) => (person ? 'Ensemble au fil du temps' : 'Au fil du temps'),
+		aroundStripHint: 'Chaque barre ouvre l’agenda à cette date, sur les seuls événements de cette fiche.',
+		aroundEvents: 'Événements',
+		aroundVisits: 'Visites',
+		aroundStays: (n: number, first: string, last: string) =>
+			`${plural(n, '1 séjour', '# séjours')} d’après votre historique, du ${first} au ${last}.`,
+		aroundPlaces: 'Lieux où vous vous voyez',
+		aroundPhotos: 'Photos',
+		aroundPhotosCount: (n: number, first: string, last: string) =>
+			`${plural(n, '1 photo', '# photos')} dans Immich, du ${first} au ${last}.`,
+		aroundPhotosHint: 'Les photos restent dans Immich : Ipse n’en garde que le nombre et les dates.',
+		aroundRemembered: 'Ce que votre IA retient',
+		aroundReminders: 'Rappels',
+		aroundDue: (day: string) => `Pour le ${day}`,
+		aroundDone: (day: string) => `Fait le ${day}`,
+		aroundNotes: 'Notes et fiches liées',
+		aroundPeople: (person: boolean) => (person ? 'Souvent là aussi' : 'Qui y est venu'),
+		aroundTimes: (n: number) => plural(n, '1 fois', '# fois'),
+		aroundSeeAll: (n: number) => `Tout voir (${n})`,
+		aroundShowMore: 'Afficher la suite',
+		aroundInGraph: 'Voir dans le graphe',
+		aroundInGraphLabel: (name: string) => `Voir ${name} dans le graphe`,
+		aroundOpenFile: 'Ouvrir la fiche',
+		aroundMissing: 'Cette fiche n’existe pas, ou plus.',
+		timelineWith: 'Avec',
+		timelineAll: 'Toute votre vie',
 		installFor: (app: string) => `Ajouter Ipse à ${app} pour moi`,
 		installHint: (app: string) => `Ipse écrit sa configuration avec le code, sans le montrer, et garde une copie du fichier d’avant.`,
 		notFoundHere: (app: string) => `${app} ne semble pas installé sur cet ordinateur : vous pouvez quand même le faire, ou copier la configuration à la main.`,
@@ -870,6 +1077,7 @@ const words = {
 			work: 'Works',
 			thing: 'Things',
 			topic: 'Topics',
+			reminder: 'Reminders',
 			event: 'Events',
 			summary: 'Summaries'
 		} as Record<string, string>,
@@ -881,6 +1089,7 @@ const words = {
 			work: 'Work',
 			thing: 'Thing',
 			topic: 'Topic',
+			reminder: 'Reminder',
 			event: 'Event',
 			summary: 'Summary'
 		} as Record<string, string>,
@@ -893,8 +1102,16 @@ const words = {
 			project: 'What you pursue over time: your AI notes them when you tell it.',
 			work: 'Books, films, series and albums: with your music and video sources, or through your AI.',
 			thing: 'Things that matter: your AI notes them when you tell it.',
-			topic: 'Topics on your mind: your AI notes them when you tell it.'
+			topic: 'Topics on your mind: your AI notes them when you tell it.',
+			reminder: 'Tell your AI "remind me…": it notes the reminder here, and tells you again when it is time.'
 		} as Record<string, string>,
+		reminderAt: 'When',
+		reminderDone: 'Done on',
+		reminderEvery: { day: 'every day', week: 'every week', month: 'every month', year: 'every year' } as Record<string, string>,
+		copiesTitle: (n: number) => plural(n, 'A file looks copied', '# files look copied'),
+		copiesLead: 'A copy made by hand, for instance with Obsidian’s “Make a copy”, keeps the id of the original, and Ipse mixes them up. Give it its own, or delete it if you do not need it.',
+		copyLine: (file: string, original: string) => `${file} has the same id as ${original}`,
+		copyFix: 'Give it its own id',
 		nowTitle: 'Right now',
 		topics: {
 			music: 'Music',
@@ -944,11 +1161,26 @@ const words = {
 		followGo: 'Follow this calendar',
 		following: 'Checking the calendar…',
 		yourSources: 'Your sources',
+		addSource: 'Add a source',
+		backToSources: 'Back to sources',
+		sourceConnected: 'Connected',
+		sourceCategories: { calendars: 'Calendars and contacts', home: 'Home and places', media: 'Photos and media' },
+		sourceCards: {
+			file: { name: 'A file', line: 'Contacts, a calendar or your location history, exported from another app.' },
+			link: { name: 'A calendar by its link', line: 'The secret iCal link of a Google, iCloud or Outlook calendar.' },
+			account: { name: 'A calendars and contacts account', line: 'iCloud, Fastmail, Nextcloud or any CalDAV and CardDAV server.' },
+			homeassistant: { name: 'Home Assistant', line: 'When you are at home, and where your phone goes.' },
+			immich: { name: 'Immich', line: 'Who is on your photos.' },
+			jellyfin: { name: 'Jellyfin', line: 'The films and series you watch.' }
+		},
 		noSources: 'Nothing yet. Import a file or follow a calendar to start.',
 		sourceKinds: {
 			contacts: 'Contacts',
 			calendar: 'Calendar',
 			dav: 'Calendars and contacts account',
+			homeassistant: 'Home Assistant',
+			jellyfin: 'Jellyfin',
+			immich: 'Immich',
 			'google-timeline': 'Location history'
 		} as Record<string, string>,
 		followedEvery: (minutes: number) =>
@@ -975,8 +1207,13 @@ const words = {
 			failed: 'The calendar could not be read.',
 			keychain:
 				'Ipse could not use your system’s keychain to keep the link. On Linux, a keyring such as GNOME Keyring must be installed and unlocked.',
-			synced: 'Synced.'
+			synced: 'Synced.',
+			positions: 'Ipse now reads your phone’s positions: places and visits come into the “location” category.',
+			noPositions: 'Ipse no longer reads your phone’s positions. The places and visits already read stay in your memory.'
 		} as Record<string, string>,
+		positionsLabel: 'Also read where my phone goes',
+		positionsHint:
+			'The GPS positions the Home Assistant app of your phone sends to your server become places and visits, in the “location” category, closed to AIs until you open it. They go nowhere else.',
 		alreadyFollowed: (name: string) => `This calendar is already followed, as “${name}”.`,
 		followedNow: (name: string) => `“${name}” is followed.`,
 		keptNow: (name: string) => `“${name}” is followed, but the calendar could not be reached for now: Ipse will try again.`,
@@ -1030,6 +1267,123 @@ const words = {
 			unavailable: 'The server could not be reached. Check its address and your connection.',
 			rate_limited: 'The server asks to slow down: try again in a few minutes.'
 		} as Record<string, string>,
+		servers: {
+			homeassistant: {
+				title: 'Connect Home Assistant',
+				hint: 'Your own Home Assistant tells Ipse when you are at home and in which zones. It stays in the “home” category, closed to AIs until you open it. Ipse only reads, and keeps the token in your system’s keychain.',
+				name: 'Name of the source',
+				address: 'Home Assistant’s address',
+				token: 'Long-lived access token',
+				go: 'Connect Home Assistant',
+				connecting: 'Connecting to Home Assistant…',
+				help: 'Where to find the address and create a token',
+				steps: [
+					{
+						title: 'The address',
+						lines: [
+							'The one you open in your browser, often homeassistant.local:8123, or your https:// address from outside.',
+							'With http://, Ipse connects only to an address of your home network, and says so.'
+						]
+					},
+					{
+						title: 'The token',
+						lines: [
+							'In Home Assistant: your profile (bottom left) → Security → Long-lived access tokens → Create token.',
+							'Copy it right away: Home Assistant shows it only once.'
+						]
+					}
+				],
+				chooseHint: 'Ipse only reads the presence of the person you choose, usually yourself.',
+				follow: 'Follow this person',
+				nobody: 'No person found in this Home Assistant. Add yourself in Settings → People, then sync.',
+				plain: 'This address uses http://: the token goes unencrypted over your home network. Use https:// if your Home Assistant offers it.',
+				unfollowBody: 'Ipse will no longer sync it and forgets its token. What it brought stays in your memory.',
+				badAddress:
+					'Home Assistant cannot be connected: it needs its address (https://, or http:// on your home network) and a long-lived access token.',
+				problems: {
+					auth: 'Home Assistant refused the access token. Create a new one in your Home Assistant profile.',
+					bad_input: 'No Home Assistant was found at this address: check it, it often ends with :8123.',
+					unavailable: 'Home Assistant could not be reached. Check its address and your connection.',
+					rate_limited: 'Home Assistant asks to slow down: try again in a few minutes.'
+				} as Record<string, string>
+			},
+			jellyfin: {
+				title: 'Connect Jellyfin',
+				hint: 'Your own Jellyfin tells Ipse the films and series you watch. Ipse only reads, and keeps the key in your system’s keychain.',
+				name: 'Name of the source',
+				address: 'Jellyfin’s address',
+				token: 'API key',
+				go: 'Connect Jellyfin',
+				connecting: 'Connecting to Jellyfin…',
+				help: 'Where to find the address and create a key',
+				steps: [
+					{
+						title: 'The address',
+						lines: [
+							'The one you open in your browser, often nas.local:8096, or your https:// address from outside.',
+							'With http://, Ipse connects only to an address of your home network, and says so.'
+						]
+					},
+					{
+						title: 'The key',
+						lines: ['In Jellyfin, as an administrator: Dashboard → API Keys → +, named “Ipse”.']
+					}
+				],
+				chooseHint: 'Ipse only reads what the user you choose watches, usually yourself.',
+				follow: 'Follow this user',
+				nobody: 'No user found in this Jellyfin.',
+				plain: 'This address uses http://: the key goes unencrypted over your home network. Use https:// if your Jellyfin offers it.',
+				unfollowBody: 'Ipse will no longer sync it and forgets its key. What it brought stays in your memory.',
+				badAddress: 'Jellyfin cannot be connected: it needs its address (https://, or http:// on your home network) and an API key.',
+				problems: {
+					auth: 'Jellyfin refused the API key. Create a new one in Dashboard → API Keys.',
+					bad_input: 'No Jellyfin was found at this address: check it, it often ends with :8096.',
+					unavailable: 'Jellyfin could not be reached. Check its address and your connection.',
+					rate_limited: 'Jellyfin asks to slow down: try again in a few minutes.'
+				} as Record<string, string>
+			},
+			immich: {
+				title: 'Connect Immich',
+				hint: 'Your own Immich tells Ipse who is on your photos, and when you last took one together. Ipse links someone of your photos to a file only when it is sure, and asks you otherwise. Ipse only reads, and keeps the key in your system’s keychain.',
+				name: 'Name of the source',
+				address: 'Immich’s address',
+				token: 'API key',
+				go: 'Connect Immich',
+				connecting: 'Connecting to Immich…',
+				help: 'Where to find the address and create a key',
+				steps: [
+					{
+						title: 'The address',
+						lines: [
+							'The one you open in your browser, often nas.local:2283, or your https:// address from outside.',
+							'With http://, Ipse connects only to an address of your home network, and says so.'
+						]
+					},
+					{
+						title: 'The key',
+						lines: [
+							'In Immich: your picture (top right) → Account Settings → API Keys → New API Key, named “Ipse”.',
+							'Ipse only reads the people you named in Immich.'
+						]
+					}
+				],
+				chooseHint: 'Ipse only reads the library of the user the key belongs to.',
+				follow: 'Follow this user',
+				nobody: 'This key belongs to no user of Immich.',
+				plain: 'This address uses http://: the key goes unencrypted over your home network. Use https:// if your Immich offers it.',
+				unfollowBody: 'Ipse will no longer sync it and forgets its key. What it brought stays in your memory.',
+				badAddress: 'Immich cannot be connected: it needs its address (https://, or http:// on your home network) and an API key.',
+				problems: {
+					auth: 'Immich refused the API key. Create a new one in Account Settings → API Keys.',
+					bad_input: 'No Immich was found at this address: check it, it often ends with :2283.',
+					unavailable: 'Immich could not be reached. Check its address and your connection.',
+					rate_limited: 'Immich asks to slow down: try again in a few minutes.'
+				} as Record<string, string>
+			}
+		},
+		serverConnectedNow: (name: string) => `“${name}” is connected. Choose whom to follow.`,
+		chooseWho: 'Choose whom to follow',
+		followedWho: (name: string) => `Follows ${name}.`,
 		thisApp: 'Display',
 		thisAppHint: 'These choices stay on this computer.',
 		inTheBackground: 'In the background',
@@ -1091,16 +1445,17 @@ const words = {
 		map: 'Map',
 		mapLead: 'The places you have been, larger when you go often. A place shows your visits and the people you see there.',
 		mapEmpty: 'No place has a position yet. Import your location history from Sources to fill the map.',
-		mapLabel: 'Map of your places. Drag to move, wheel or + and − to zoom.',
+		mapLabel: 'Map of your places. Drag to move, wheel or + and − to zoom, arrows to move with the keyboard.',
 		mapPick: 'Pick a place on the map or in the list.',
 		mapAll: 'Show all',
 		zoomIn: 'Zoom in',
 		zoomOut: 'Zoom out',
 		tilesOffer:
-			'Without a base map, your places are points on a plain background and nothing leaves this computer. The base map comes from OpenStreetMap: their servers see which areas you look at, not your places or your memory.',
+			'Without a base map, your places are points on a plain background and nothing leaves this computer. The base map comes from OpenFreeMap, with OpenStreetMap’s data: their servers see which areas you look at, not your places or your memory.',
 		tilesShow: 'Show the base map',
 		tilesHide: 'Hide the base map',
-		tilesOn: 'OpenStreetMap base map shown: their servers see the areas you look at.',
+		tilesOn: 'OpenFreeMap base map shown: their servers see the areas you look at.',
+		mapNoWebgl: 'This computer cannot draw the map. Your places stay in the list below.',
 		osmContributors: 'OpenStreetMap contributors',
 		visitsCount: (n: number) => plural(n, '1 visit', '# visits'),
 		noVisits: 'no visit noted',
@@ -1109,7 +1464,7 @@ const words = {
 		visitsThere: 'Your visits',
 		placesByVisits: 'Your places, the most visited first',
 		withoutPosition: (n: number) => plural(n, '1 place has no position: it is not on the map.', '# places have no position: they are not on the map.'),
-		timeline: 'Timeline',
+		timeline: 'Years',
 		timelineLead: 'Your life by years and months: what marked each period, and the people you saw most.',
 		timelineEmpty: 'Nothing yet: the timeline fills with your calendar.',
 		whereInTimeline: 'Where you are in the timeline',
@@ -1119,7 +1474,8 @@ const words = {
 		whatMarked: 'What marked this month',
 		monthInAgenda: 'See this month in the agenda',
 		agendaViews: 'Agenda view',
-		agendaView: { list: 'List', week: 'Week', month: 'Month' } as Record<string, string>,
+		agendaView: { list: 'List', week: 'Week', month: 'Month', years: 'Years' } as Record<string, string>,
+		monthInTimeline: 'What marked this month',
 		kindFilter: 'Kind',
 		allKinds: 'All kinds',
 		kindFilterLabel: 'Show one kind of event',
@@ -1244,10 +1600,10 @@ const words = {
 			sources: 'To begin, import the file of your contacts (.vcf) or of your calendar (.ics), or follow a calendar by its secret link: Ipse reads it again on its own while the app runs. What comes from a source is copied as it is.',
 			ais: 'Connect your AI here, in one click for Claude Desktop. Sensitive categories (health, location, home, private) stay closed until you open them to an AI, one by one.',
 			review: 'What your AI would like to change waits here. Nothing is written until you accept, and an accepted change can be undone later in one click.',
-			agenda: 'Your agenda, as a list, by week or by month. Open an event to see who was there and where, and give it a kind (meal, sport, trip…) to find it later.',
-			timeline: 'Pick a year, then a month, to see what marked it. The summaries are written by your AI, and you can correct them.',
+			agenda: 'Your agenda, as a list, by week, by month or by years. Open an event to see who was there and where, and give it a kind (meal, sport, trip…) to find it later. Years shows your life month by month: what marked it and the people you saw most.',
 			map: 'The places come from your location history and the addresses in your agenda. The base map is loaded from the internet only if you turn it on.',
-			memory: 'Your whole memory, file by file, or as a graph around you. Each file is a Markdown file in your folder: change it here or in any editor.'
+			memory: 'Your whole memory, file by file. Each file is a Markdown file in your folder: change it here or in any editor.',
+			graph: 'The graph starts from you. Events are not drawn: two files seen at the same events are linked by a line that is thicker the more often they are. The list beside it says each link in words.'
 		} as Record<string, string>,
 		waitingBanner: (proposals: number, questions: number) => {
 			const p = plural(proposals, '1 proposal', '# proposals');
@@ -1321,9 +1677,9 @@ const words = {
 		decidedRecently: 'Decided recently',
 		autoTitle: 'Accept automatically',
 		autoLead: (ai: string) =>
-			`What ${ai} does of these kinds, for a task from Ipse, is accepted without waiting for you, as if you had accepted it yourself: each change stays in the history and is undone in one click in Review. Never for people, facts or links.`,
-		standings: { summaries: 'Summaries', event_kinds: 'Event kinds' } as Record<string, string>,
-		standingsOf: { summaries: 'summaries', event_kinds: 'event kinds' } as Record<string, string>,
+			`What ${ai} does of these kinds is accepted without waiting for you, as if you had accepted it yourself: each change stays in the history and is undone in one click in Review. Summaries and kinds, for a task from Ipse; new files, for a thing, a topic, a project, an organization or a work in a category that is not sensitive, and what ${ai} adds to those files later. Never for people, places, events or files ${ai} did not create.`,
+		standings: { summaries: 'Summaries', event_kinds: 'Event kinds', creations: 'New files (things, topics, projects…)' } as Record<string, string>,
+		standingsOf: { summaries: 'summaries', event_kinds: 'event kinds', creations: 'additions' } as Record<string, string>,
 		autoSwitch: (ai: string, what: string) => `Accept ${ai}’s ${what} automatically`,
 		autoOn: (ai: string, what: string) => `${ai}’s ${what} are now accepted automatically.`,
 		autoOff: (ai: string, what: string) => `${ai}’s ${what} will wait for you again.`,
@@ -1337,7 +1693,11 @@ const words = {
 		undoNow: 'Undo',
 		undoneNow: 'Undone.',
 		automaticHome: (n: number, standing: string) =>
-			standing === 'summaries' ? `${n} ${n > 1 ? 'summaries' : 'summary'} accepted automatically` : `${n} event kind${n > 1 ? 's' : ''} accepted automatically`,
+			standing === 'summaries'
+				? `${n} ${n > 1 ? 'summaries' : 'summary'} accepted automatically`
+				: standing === 'creations'
+					? `${n} file${n > 1 ? 's' : ''} created by your AI these last days`
+					: `${n} event kind${n > 1 ? 's' : ''} accepted automatically`,
 		see: 'See',
 		proposedBy: (name: string) => `Proposed by ${name}`,
 		changedBy: (name: string) => `${capitalizeFirst(name)} changed a file you had edited`,
@@ -1501,6 +1861,7 @@ const words = {
 			'Change the settings': 'Settings changed',
 			'Answer a question': 'Question answered',
 			'Edit a file': 'File edited',
+			'Edit a file as Markdown': 'File edited as Markdown',
 			'Create a file': 'File created',
 			'Delete a file': 'File deleted'
 		} as Record<string, string>,
@@ -1566,6 +1927,19 @@ const words = {
 		endedHint: 'To open Ipse again, run “ipse ui” on this computer.',
 		endedHintApp: 'Quit Ipse and open it again.',
 		editFile: 'Edit',
+		editAs: 'Edit as',
+		editAsForm: 'Form',
+		editAsMarkdown: 'Markdown',
+		switchTitle: 'Switch tabs?',
+		switchBody: 'Your changes are not saved. Stay to save them, or drop them to switch tabs.',
+		switchYes: 'Drop and switch',
+		switchNo: 'Stay',
+		markdownLabel: 'The file as written',
+		markdownHint: 'The whole Markdown file, its header included. The id, the type and owner cannot change here.',
+		markdownLine: (line: number) => `Line ${line}: Ipse cannot read this text as a file. Check the header between the two --- lines.`,
+		markdownFixed: (key: string) => `“${key}” cannot change here: put back the value it had.`,
+		markdownCategory: 'This category does not exist in your memory: choose one from your settings.',
+		markdownFront: 'The text must start with the file’s header, between two --- lines.',
 		editTitle: (name: string) => `Edit “${name}”`,
 		addKind: {
 			person: 'Add a person',
@@ -1575,6 +1949,7 @@ const words = {
 			work: 'Add a work',
 			thing: 'Add a thing',
 			topic: 'Add a topic',
+			reminder: 'Add a reminder',
 			event: 'Add an event'
 		} as Record<string, string>,
 		kindOfFile: 'It is…',
@@ -1614,28 +1989,32 @@ const words = {
 		createMissingLabel: (name: string) => `Create the file of ${name}`,
 		required: 'Required.',
 		graph: 'Graph',
-		graphView: 'Graph view',
-		graphLabel: (files: number, links: number) =>
-			`Graph of your memory: ${plural(files, '1 file', '# files')}, ${plural(links, '1 link', '# links')}. Choose a file in the list or in the panel to follow its links.`,
-		graphKeys: 'Drag to move, wheel or pinch to zoom; with the keyboard, the arrows, + and −, 0 to see everything.',
+		graphLead: 'A file and what links it to the rest, the strongest links nearest. Click a name to go to its links.',
 		graphKinds: 'Show',
-		graphCategories: 'Categories',
+		graphPeriod: 'Count the events',
+		graphYear: 'Over 12 months',
+		graphAlways: 'Since always',
 		graphLegend: 'Legend',
-		graphFilters: 'Filters',
-		graphFiltered: 'some files are hidden',
+		graphTrail: 'Files visited',
 		graphYou: 'You',
-		zoomAll: 'See everything',
-		graphChoose: 'Choose a file, in the graph or in the list, to see its links.',
+		graphYourFile: 'Your file',
+		graphHint: 'Hover a link to read it, click a name to put it in the middle.',
+		graphBack: (word: string, mine: boolean, center: string) =>
+			mine ? `you are “${word}” in their file` : `${center} is “${word}” in their file`,
+		graphTogether: (n: number, mine: boolean, year: boolean) =>
+			`${plural(n, '1 event', '# events')} ${mine ? 'with you' : 'together'}${year ? ' over 12 months' : ''}`,
+		graphLast: (day: string) => `the last on ${day}`,
+		graphLinked: 'linked',
 		graphLinks: (n: number) => (n ? plural(n, '1 link', '# links') : 'No links'),
-		graphLinksHidden: 'Its links to files the filters hide are not shown.',
-		graphMoreLinks: (n: number) => plural(n, 'And 1 more.', 'And # more.'),
+		graphLinksHidden: 'Some links are hidden by the filters.',
+		graphShowMore: (n: number) => `Show ${plural(n, '1 more link', '# more links')}`,
+		graphMissing: 'This file does not exist, or no longer.',
+		graphEmpty: 'Your memory is still empty: add a source to see its links.',
 		openPage: 'Open its file',
 		centerOn: (name: string) => `Center the graph on ${name}`,
-		chooseInGraph: (name: string) => `Choose ${name}`,
-		closeGraph: 'Close the graph',
 		graphLoading: 'Drawing the graph…',
-		inGraph: 'Graph',
-		inGraphLabel: (name: string) => `See ${name} in the graph`,
+		inGraph: 'See its links',
+		inGraphLabel: (name: string) => `See the links of ${name} in the graph`,
 		eventKinds: {
 			meal: 'Meal',
 			celebration: 'Celebration',
@@ -1656,6 +2035,42 @@ const words = {
 		closePanel: 'Close',
 		youAreIn: (name: string) => `You are in: ${name}`,
 		placesTogether: 'Where you meet',
+		around: 'See all around',
+		aroundLabel: (name: string) => `Everything about ${name}`,
+		aroundTitle: (name: string) => `Around ${name}`,
+		aroundLead: 'Everything your memory keeps around this file, by kind and by date.',
+		aroundCount: (total: number, year: number) =>
+			`${plural(total, '1 event', '# events')} in all, ${plural(year, '1', '#')} this year`,
+		aroundSeen: (first: string, last: string, person: boolean) =>
+			first === last ? `${person ? 'Seen together' : 'Once'} on ${first}` : `${person ? 'Seen together' : 'Events'} from ${first} to ${last}`,
+		aroundNext: (day: string) => `Next on ${day}`,
+		aroundNothing: 'Nothing around this file yet: no event, no link.',
+		aroundStrip: (person: boolean) => (person ? 'Together through time' : 'Through time'),
+		aroundStripHint: 'Each bar opens the agenda at that date, on this file’s events only.',
+		aroundEvents: 'Events',
+		aroundVisits: 'Visits',
+		aroundStays: (n: number, first: string, last: string) =>
+			`${plural(n, '1 stay', '# stays')} in your history, from ${first} to ${last}.`,
+		aroundPlaces: 'Where you meet',
+		aroundPhotos: 'Photos',
+		aroundPhotosCount: (n: number, first: string, last: string) =>
+			`${plural(n, '1 photo', '# photos')} in Immich, from ${first} to ${last}.`,
+		aroundPhotosHint: 'The photos stay in Immich: Ipse only keeps how many and when.',
+		aroundRemembered: 'What your AI remembers',
+		aroundReminders: 'Reminders',
+		aroundDue: (day: string) => `For ${day}`,
+		aroundDone: (day: string) => `Done on ${day}`,
+		aroundNotes: 'Notes and linked files',
+		aroundPeople: (person: boolean) => (person ? 'Often there too' : 'Who came'),
+		aroundTimes: (n: number) => plural(n, 'once', '# times'),
+		aroundSeeAll: (n: number) => `See all (${n})`,
+		aroundShowMore: 'Show more',
+		aroundInGraph: 'See in the graph',
+		aroundInGraphLabel: (name: string) => `See ${name} in the graph`,
+		aroundOpenFile: 'Open the file',
+		aroundMissing: 'This file does not exist, or no longer does.',
+		timelineWith: 'With',
+		timelineAll: 'Your whole life',
 		installFor: (app: string) => `Add Ipse to ${app} for me`,
 		installHint: (app: string) => `Ipse writes its configuration with the code, without showing it, and keeps a copy of the file as it was.`,
 		notFoundHere: (app: string) => `${app} does not seem to be installed on this computer: you can still do it, or copy the configuration by hand.`,

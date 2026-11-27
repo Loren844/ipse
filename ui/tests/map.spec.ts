@@ -30,19 +30,29 @@ test.beforeEach(async () => {
 });
 test.afterEach(() => ipse.stop());
 
-test('the places on a map, a place with its visits and people, no tiles until accepted', async ({ page }) => {
-	const tiles: string[] = [];
-	page.on('request', (request) => {
-		if (request.url().includes('tile.openstreetmap.org')) tiles.push(request.url());
+/** OpenFreeMap, answered on the runner: a TileJSON, then empty tiles and letters. */
+async function fakeTiles(page: import('@playwright/test').Page, asked: string[]) {
+	await page.route('https://tiles.openfreemap.org/**', (route) => {
+		const url = route.request().url();
+		asked.push(url);
+		if (url.endsWith('/planet'))
+			return route.fulfill({
+				json: { tilejson: '3.0.0', tiles: ['https://tiles.openfreemap.org/planet/{z}/{x}/{y}.pbf'], minzoom: 0, maxzoom: 14 }
+			});
+		return route.fulfill({ status: 204 });
 	});
-	await page.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ status: 204 }));
+}
+
+test('the places on a map, a place with its visits and people, no base map until accepted', async ({ page }) => {
+	const tiles: string[] = [];
+	await fakeTiles(page, tiles);
 	await page.goto(ipse.url);
 	await page.getByRole('link', { name: 'Carte' }).first().click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Carte');
 	// The places came from location history: closed to AIs, and said so.
 	await expect(page.getByRole('note').first()).toContainText('« position » leur est fermée');
 	const map = page.getByRole('application', { name: /Carte de vos lieux/ });
-	await expect(map.locator('circle')).not.toHaveCount(0);
+	await expect(map).toHaveAttribute('data-drawn', /^[1-9]/);
 	await expect(page.getByText('1 lieu n’a pas de position : il n’est pas sur la carte.')).toBeVisible();
 
 	// Most visited first; a place opens its visits and who was there.
@@ -54,27 +64,52 @@ test('the places on a map, a place with its visits and people, no tiles until ac
 	await expect(side.getByRole('link', { name: 'Julie Moreau' })).toBeVisible();
 	await expect(side.getByRole('link', { name: 'Dîner chez Julie' })).toBeVisible();
 
-	// A circle of the map chooses its place too.
-	await map.locator('circle').first().click({ force: true });
-	await expect(side.getByRole('heading', { level: 2 })).not.toBeEmpty();
+	// A place drawn on the map chooses its place too.
+	await page.getByRole('button', { name: 'Tout voir' }).click();
+	await expect(map).toHaveAttribute('data-first', /,/);
+	const [x, y, id] = ((await map.getAttribute('data-first')) ?? '').split(',');
+	await map.locator('canvas').click({ position: { x: Number(x), y: Number(y) } });
+	await expect(side.getByRole('heading', { level: 2 }).getByRole('link')).toHaveAttribute('href', `/memory/places/${id}`);
 
-	// Zoom from the keyboard and the buttons.
+	// Zoom from the buttons and the keyboard.
 	await page.getByRole('button', { name: 'Zoomer', exact: true }).click();
-	await map.focus();
+	await map.locator('canvas').focus();
 	await page.keyboard.press('-');
 	await page.keyboard.press('ArrowLeft');
 
-	// No tile was asked for until the person accepts; then they come from OpenStreetMap.
+	// Nothing was asked for until the person accepts; then the base map comes from
+	// OpenFreeMap.
 	expect(tiles).toEqual([]);
 	await page.getByRole('button', { name: 'Afficher le fond de carte' }).click();
-	await expect(map.locator('image').first()).toBeAttached();
 	await expect.poll(() => tiles.length).toBeGreaterThan(0);
+	expect(tiles.every((url) => url.startsWith('https://tiles.openfreemap.org/'))).toBe(true);
 	await expect(page.getByRole('link', { name: 'les contributeurs d’OpenStreetMap' })).toBeVisible();
+	await expect(page.getByRole('link', { name: 'OpenFreeMap' })).toBeVisible();
 	// The choice stays in this browser; it can be undone.
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Masquer le fond de carte' })).toBeVisible();
 	await page.getByRole('button', { name: 'Masquer le fond de carte' }).click();
-	await expect(map.locator('image')).toHaveCount(0);
+	await expect(page.getByRole('link', { name: 'OpenFreeMap' })).toHaveCount(0);
+});
+
+test('the map follows the theme, light or dark', async ({ page }) => {
+	const tiles: string[] = [];
+	await fakeTiles(page, tiles);
+	await page.goto(ipse.url);
+	await page.goto(`${ipse.origin}/map`);
+	const map = page.getByRole('application', { name: /Carte de vos lieux/ });
+	await expect(map).toHaveAttribute('data-drawn', /^[1-9]/);
+	const surface = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--surface').trim());
+	const light = await surface();
+	await expect(map).toHaveAttribute('data-ground', light);
+	await page.evaluate(() => {
+		localStorage.setItem('ipse.theme', 'dark');
+		window.dispatchEvent(new Event('ipse-theme'));
+	});
+	await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+	const dark = await surface();
+	expect(dark).not.toBe(light);
+	await expect(map).toHaveAttribute('data-ground', dark);
 });
 
 test('without any position, the map says how to fill it', async ({ page }) => {

@@ -60,6 +60,22 @@ enum Command {
         #[command(subcommand)]
         action: DavAction,
     },
+    /// Connect your Home Assistant, to know when you are at home and in which zones; list or remove it
+    #[command(name = "homeassistant")]
+    HomeAssistant {
+        #[command(subcommand)]
+        action: HomeAssistantAction,
+    },
+    /// Connect your Jellyfin, to know the films and series you watch; list or remove it
+    Jellyfin {
+        #[command(subcommand)]
+        action: JellyfinAction,
+    },
+    /// Connect your Immich, to know who is on your photos; list or remove it
+    Immich {
+        #[command(subcommand)]
+        action: ImmichAction,
+    },
     /// Sync the calendars and accounts you follow
     Sync {
         /// Only those whose interval has passed: for a job the system runs every few minutes
@@ -117,6 +133,23 @@ enum Command {
         /// Serve over HTTP on this computer instead, at this port (default: 7420)
         #[arg(long, value_name = "PORT", num_args = 0..=1, default_missing_value = "7420")]
         http: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Serve the memory on a home server: the interface, AI apps over MCP and the sync
+    /// of the followed sources, in one process (see docs/guide/self-hosting.md)
+    Serve {
+        /// Where to listen: a port on this computer (default: 7420), or an address, like
+        /// 0.0.0.0:7420 to be reached from your network
+        #[arg(long, value_name = "ADDRESS")]
+        listen: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Make a new access code for the interface of `ipse serve`, replacing the old one
+    AccessCode {
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -202,6 +235,120 @@ enum DavAction {
     /// Stop syncing an account; its events and contacts stay in your memory
     Remove {
         /// The account's id, as `ipse dav list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum HomeAssistantAction {
+    /// Connect Home Assistant and follow a person's presence; asks a long-lived access token
+    Add {
+        /// Its address, like homeassistant.local:8123 or ha.example.org
+        address: String,
+        /// Whom to follow, like person.ines (default: the only person of Home Assistant)
+        #[arg(long)]
+        person: Option<String>,
+        /// A name for this source, like "Maison"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 5m or 15m (default: 5m)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Also read where your phone has been, from the Home Assistant app on it; kept
+    /// in the location category, closed to AIs until you open it
+    Positions {
+        /// The source's id, as `ipse homeassistant list` shows it
+        id: String,
+        /// Stop reading them; the places and visits already read stay
+        #[arg(long)]
+        off: bool,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Home Assistants you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Home Assistant; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse homeassistant list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum JellyfinAction {
+    /// Connect Jellyfin and follow a user's films and episodes; asks an API key
+    Add {
+        /// Its address, like nas.local:8096 or media.example.org
+        address: String,
+        /// Whom to follow, by user id (default: the only user of Jellyfin)
+        #[arg(long)]
+        user: Option<String>,
+        /// A name for this source, like "Films"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 1h or 30m (default: 1h)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Jellyfins you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Jellyfin; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse jellyfin list` shows it
+        id: String,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ImmichAction {
+    /// Connect Immich and read the people of your photos; asks an API key
+    Add {
+        /// Its address, like nas.local:2283 or photos.example.org
+        address: String,
+        /// A name for this source, like "Photos"
+        #[arg(long)]
+        name: Option<String>,
+        /// How often to sync it, like 6h or 1d (default: 6h)
+        #[arg(long)]
+        every: Option<String>,
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// List the Immichs you connected
+    List {
+        /// Folder of the memory (default: the current folder)
+        #[arg(long)]
+        vault: Option<PathBuf>,
+    },
+    /// Stop syncing Immich; what it brought stays in your memory
+    Remove {
+        /// The source's id, as `ipse immich list` shows it
         id: String,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
@@ -354,17 +501,10 @@ fn main() -> ExitCode {
             CalendarAction::List { vault } => cmd::calendar::list(vault),
             CalendarAction::Unsubscribe { id, vault } => cmd::calendar::unsubscribe(&id, vault),
         },
-        Command::Dav { action } => match action {
-            DavAction::Add {
-                address,
-                user,
-                name,
-                every,
-                vault,
-            } => cmd::dav::add(&address, &user, name.as_deref(), every.as_deref(), vault),
-            DavAction::List { vault } => cmd::dav::list(vault),
-            DavAction::Remove { id, vault } => cmd::dav::remove(&id, vault),
-        },
+        Command::HomeAssistant { action } => home_assistant(action),
+        Command::Jellyfin { action } => jellyfin(action),
+        Command::Immich { action } => immich(action),
+        Command::Dav { action } => dav(action),
         Command::Sync { due, full, vault } => cmd::sync::run(due, full, vault),
         Command::Check { vault } => cmd::check::run(vault),
         Command::Duplicates { vault } => cmd::duplicates::run(vault),
@@ -418,6 +558,8 @@ fn main() -> ExitCode {
                 ui::Start::Browser
             },
         ),
+        Command::Serve { listen, vault } => ui::serve::run(vault, listen.as_deref()),
+        Command::AccessCode { vault } => cmd::access::run(vault),
         Command::Connector { name } => connectors::run(&name),
     };
     match result {
@@ -426,6 +568,93 @@ fn main() -> ExitCode {
             eprintln!("{err}");
             ExitCode::FAILURE
         }
+    }
+}
+
+/// `ipse dav`.
+fn dav(action: DavAction) -> ipse_core::Result<()> {
+    match action {
+        DavAction::Add {
+            address,
+            user,
+            name,
+            every,
+            vault,
+        } => cmd::dav::add(&address, &user, name.as_deref(), every.as_deref(), vault),
+        DavAction::List { vault } => cmd::dav::list(vault),
+        DavAction::Remove { id, vault } => cmd::dav::remove(&id, vault),
+    }
+}
+
+/// `ipse homeassistant`.
+fn home_assistant(action: HomeAssistantAction) -> ipse_core::Result<()> {
+    match action {
+        HomeAssistantAction::Add {
+            address,
+            person,
+            name,
+            every,
+            vault,
+        } => cmd::server::add(
+            &cmd::homeassistant::KIND,
+            &address,
+            person.as_deref(),
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        HomeAssistantAction::Positions { id, off, vault } => {
+            cmd::homeassistant::positions(&id, !off, vault)
+        }
+        HomeAssistantAction::List { vault } => cmd::server::list(&cmd::homeassistant::KIND, vault),
+        HomeAssistantAction::Remove { id, vault } => {
+            cmd::server::remove(&cmd::homeassistant::KIND, &id, vault)
+        }
+    }
+}
+
+/// `ipse jellyfin`.
+fn jellyfin(action: JellyfinAction) -> ipse_core::Result<()> {
+    let kind = &cmd::jellyfin::KIND;
+    match action {
+        JellyfinAction::Add {
+            address,
+            user,
+            name,
+            every,
+            vault,
+        } => cmd::server::add(
+            kind,
+            &address,
+            user.as_deref(),
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        JellyfinAction::List { vault } => cmd::server::list(kind, vault),
+        JellyfinAction::Remove { id, vault } => cmd::server::remove(kind, &id, vault),
+    }
+}
+
+/// `ipse immich`.
+fn immich(action: ImmichAction) -> ipse_core::Result<()> {
+    let kind = &cmd::immich::KIND;
+    match action {
+        ImmichAction::Add {
+            address,
+            name,
+            every,
+            vault,
+        } => cmd::server::add(
+            kind,
+            &address,
+            None,
+            name.as_deref(),
+            every.as_deref(),
+            vault,
+        ),
+        ImmichAction::List { vault } => cmd::server::list(kind, vault),
+        ImmichAction::Remove { id, vault } => cmd::server::remove(kind, &id, vault),
     }
 }
 

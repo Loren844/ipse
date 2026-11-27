@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ipse: the memory of your life, on your own computer</title>
+<meta name="description" content="Ipse keeps your people, your days and your places in a folder of Markdown files you own. Your AI reads what you open to it through MCP, and changes nothing without your yes. Free and open source.">
+<meta name="theme-color" content="#9b2c3a">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Ipse">
+<meta property="og:title" content="Ipse: the memory of your life, on your own computer">
+<meta property="og:description" content="Your people, days and places as files you own. Your AI reads what you allow through MCP. Nothing is written until you say yes.">
+<meta property="og:image" content="https://loren844.github.io/ipse/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Ipse: the memory of your life, on your own computer">
+<meta name="twitter:card" content="summary_large_image">
+<!-- GoatCounter: privacy-friendly visit counts, no cookies. Create the "ipse" site at goatcounter.com, or change the code below. -->
+<script data-goatcounter="https://ipse.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;700&family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&display=swap">
+<style>
+/* Layout: one column hung on a vertical thread; each section is a knot on it. Tokens from docs/design/charter.md. */
+:root {
+	--ground: #fbfaf8; --surface: #ffffff; --text: #231d1e; --muted: #6e6466;
+	--line: #eee9e7; --line-strong: #e5dedc; --thread: #9b2c3a; --thread-ink: #94313f;
+	--thread-soft: #f6e9ea; --thread-faint: #e8c9cd; --on-thread: #ffffff;
+	--added: #2f6f4f; --added-soft: #e6f2eb;
+	--display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+	--text-font: 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif;
+	--step--2: 0.75rem; --step--1: 0.875rem; --step-0: 1rem; --step-1: 1.125rem; --step-2: 1.3125rem;
+	--step-3: clamp(1.9rem, 4vw, 2.75rem); --step-hero: clamp(2.6rem, 6.2vw, 4.75rem);
+	--radius: 12px; --radius-pill: 999px; --col: 72rem; --rail: 3rem;
+	--motion-quick: 150ms; --motion-ease: cubic-bezier(0.2, 0, 0, 1);
+	--pad: clamp(2.75rem, 6vw, 4.5rem);
+}
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--ground: #171314; --surface: #211b1c; --text: #f0eaea; --muted: #ada2a3; --line: #2e2627; --line-strong: #3a3132;
+		--thread: #cf6874; --thread-ink: #f3c5ca; --thread-soft: #3a2226; --thread-faint: #5a3238; --on-thread: #171314;
+		--added: #8fd1ad; --added-soft: #1c3127; color-scheme: dark;
+	}
+}
+:root[data-theme='dark'] {
+	--ground: #171314; --surface: #211b1c; --text: #f0eaea; --muted: #ada2a3; --line: #2e2627; --line-strong: #3a3132;
+	--thread: #cf6874; --thread-ink: #f3c5ca; --thread-soft: #3a2226; --thread-faint: #5a3238; --on-thread: #171314;
+	--added: #8fd1ad; --added-soft: #1c3127; color-scheme: dark;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+	margin: 0; background: var(--ground); color: var(--text);
+	font-family: var(--text-font); font-size: var(--step-0); line-height: 1.55;
+	padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+	overflow-x: hidden;
+}
+a { color: var(--thread-ink); text-underline-offset: 3px; }
+:focus-visible { outline: 2.5px solid var(--thread); outline-offset: 3px; border-radius: 6px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; }
+p { margin: 0; }
+img { display: block; max-width: 100%; height: auto; }
+.wrap { max-width: var(--col); margin: 0 auto; }
+.small { color: var(--muted); font-size: var(--step--1); }
+
+/* Header */
+body::before { content: ''; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--ground); }
+.top {
+	position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+	background: color-mix(in srgb, var(--ground) 94%, transparent); border-bottom: 1px solid var(--line);
+	margin-inline: calc(-1 * max(16px, env(safe-area-inset-left, 0px)));
+	padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.top .wrap { display: flex; align-items: center; gap: 1.25rem; padding-block: 0.8rem; }
+.brand { display: inline-flex; align-items: center; gap: 0.5rem; color: var(--text); text-decoration: none; }
+.brand svg { color: var(--thread); }
+.wordmark { font-family: var(--display); font-weight: 800; font-size: 1.5rem; letter-spacing: -0.03em; line-height: 1; }
+.top nav { display: flex; gap: 1.3rem; margin-left: auto; align-items: center; }
+.top nav a { color: var(--muted); text-decoration: none; font-weight: 700; font-size: var(--step--1); }
+.top nav a:hover { color: var(--text); }
+.top nav a.button { color: var(--on-thread); }
+@media (max-width: 860px) { .top nav a.link { display: none; } }
+.lang {
+	font: inherit; font-size: var(--step--1); font-weight: 700; color: var(--text);
+	background-color: transparent; border: 1.5px solid var(--line-strong); border-radius: var(--radius-pill);
+	padding: 0.35rem 2rem 0.35rem 0.85rem; appearance: none; cursor: pointer;
+	background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+	background-position: calc(100% - 1rem) 55%, calc(100% - 0.7rem) 55%; background-size: 0.3rem 0.3rem; background-repeat: no-repeat;
+}
+
+/* Buttons */
+.button {
+	display: inline-flex; align-items: center; gap: 0.5rem; font: inherit; font-weight: 700; text-decoration: none; cursor: pointer;
+	padding: 0.7rem 1.35rem; border-radius: var(--radius-pill); border: 1.5px solid var(--line-strong); background: transparent; color: var(--text);
+	transition: background-color var(--motion-quick) var(--motion-ease), border-color var(--motion-quick) var(--motion-ease);
+}
+.button:hover { border-color: var(--thread); }
+.button.primary { background: var(--thread); border-color: var(--thread); color: var(--on-thread); }
+.button.primary:hover { background: var(--thread-ink); border-color: var(--thread-ink); }
+.top .button { padding: 0.45rem 1rem; font-size: var(--step--1); }
+.actions { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; }
+
+/* The thread down the page */
+.story { position: relative; padding-left: var(--rail); }
+.story::before { content: ''; position: absolute; left: 0.55rem; top: 3rem; bottom: 5rem; width: 2px; border-radius: 2px; background: var(--thread-faint); }
+.knot { position: relative; padding-block: var(--pad); display: grid; gap: 1.5rem; }
+.knot::before {
+	content: ''; position: absolute; left: calc(-1 * var(--rail)); top: calc(var(--pad) + 0.5rem);
+	width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 3px solid var(--thread); background: var(--ground);
+	transition: background-color 200ms var(--motion-ease); z-index: 1;
+}
+.knot.here::before { background: var(--thread); }
+.knot + .knot:not(.band):not(.band + .knot) { border-top: 1px solid var(--line); }
+.kicker { color: var(--thread-ink); font-size: var(--step--1); font-weight: 700; }
+.knot h2 { font-size: var(--step-3); font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; max-width: 22ch; }
+.say { font-size: var(--step-1); color: var(--muted); max-width: 56ch; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: clamp(1.5rem, 4vw, 4rem); align-items: start; }
+.split > div { display: grid; gap: 1.25rem; min-width: 0; align-content: start; }
+@media (max-width: 860px) { .split { grid-template-columns: minmax(0, 1fr); } }
+
+/* Full-bleed bands break the rhythm: paper, then a white band, then ink. */
+.band { box-shadow: 0 0 0 100vmax var(--band-bg); clip-path: inset(0 -100vmax); background: var(--band-bg); }
+.band.white { --band-bg: var(--surface); }
+.band.ink {
+	--ground: #171314; --surface: #211b1c; --text: #f0eaea; --muted: #ada2a3; --line: #2e2627; --line-strong: #3a3132;
+	--thread: #cf6874; --thread-ink: #f3c5ca; --thread-soft: #3a2226; --thread-faint: #5a3238; --on-thread: #171314;
+	--band-bg: #171314; color: var(--text);
+}
+:root[data-theme='dark'] .band.ink { --band-bg: #0f0c0d; --ground: #0f0c0d; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) .band.ink { --band-bg: #0f0c0d; --ground: #0f0c0d; } }
+
+/* Opening */
+.opening { grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: clamp(1.5rem, 4vw, 4rem); align-items: center; padding-top: clamp(2.5rem, 5vw, 4rem); }
+.opening > .lead { display: grid; gap: 1.4rem; }
+@media (max-width: 900px) { .opening { grid-template-columns: minmax(0, 1fr); } }
+.opening h1 { font-size: var(--step-hero); font-weight: 800; letter-spacing: -0.04em; line-height: 0.98; }
+.opening .say { font-size: var(--step-2); line-height: 1.45; max-width: 36ch; }
+
+/* The life card: a week on the thread, with what the AI noted */
+.life-card { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); padding: 1.4rem 1.5rem 1.5rem; display: grid; gap: 1rem; min-width: 0; }
+.life-card header { display: flex; justify-content: space-between; align-items: baseline; gap: 0.25rem 1rem; flex-wrap: wrap; }
+.life-card header b { white-space: nowrap; }
+.life-card header b { font-family: var(--display); font-size: var(--step-2); font-weight: 800; letter-spacing: -0.02em; }
+.life { list-style: none; margin: 0; padding: 0 0 0 1.7rem; position: relative; display: grid; gap: 1rem; }
+.life::before { content: ''; position: absolute; left: 0.45rem; top: 0.45rem; bottom: 0.45rem; width: 2px; background: var(--thread-faint); transform-origin: top; }
+@media (prefers-reduced-motion: no-preference) {
+	.life::before { animation: draw 900ms var(--motion-ease) both; }
+	@keyframes draw { from { transform: scaleY(0.1); } to { transform: scaleY(1); } }
+}
+.life li { position: relative; display: grid; gap: 0.1rem; }
+.life li::before { content: ''; position: absolute; left: -1.7rem; top: 0.25rem; width: 1rem; height: 1rem; border-radius: 50%; border: 3px solid var(--thread); background: var(--surface); }
+.life li.past::before { border-color: var(--thread-faint); }
+.life li.now::before { background: var(--thread); }
+.life .d { font-size: var(--step--1); color: var(--muted); }
+.life .now .d { color: var(--thread-ink); font-weight: 700; }
+.life .t { font-weight: 700; }
+.life .who { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.25rem; }
+.chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: var(--step--1); font-weight: 700; color: var(--thread-ink); background: var(--thread-soft); border-radius: var(--radius-pill); padding: 0.05rem 0.6rem 0.05rem 0.15rem; }
+.chip i { font-style: normal; width: 1.3rem; height: 1.3rem; border-radius: 50%; background: var(--thread); color: var(--on-thread); font-size: 0.6rem; display: grid; place-items: center; }
+.noted { margin-top: 0.35rem; border-left: 2px solid var(--thread); padding-left: 0.75rem; font-size: var(--step--1); }
+.noted span { color: var(--muted); display: block; }
+
+/* Works with */
+.with { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem 1.75rem; padding-block: 1.25rem; border-block: 1px solid var(--line); margin-left: var(--rail); }
+.with b { font-size: var(--step--1); color: var(--muted); font-weight: 700; margin-right: 0.25rem; }
+.with span { font-family: var(--display); font-weight: 700; font-size: var(--step-1); letter-spacing: -0.01em; }
+
+/* The problem */
+.chat { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+@media (max-width: 720px) { .chat { grid-template-columns: minmax(0, 1fr); } }
+.chat figure { margin: 0; display: grid; gap: 0.75rem; align-content: start; }
+.chat figcaption { font-weight: 700; font-size: var(--step--1); color: var(--muted); }
+.bubble { padding: 0.85rem 1rem; border-radius: var(--radius); border: 1px solid var(--line-strong); background: var(--surface); }
+.bubble.me { justify-self: end; background: var(--thread-soft); border-color: transparent; max-width: 90%; }
+.bubble.ai { max-width: 95%; justify-self: start; }
+.bubble.ai b { color: var(--thread-ink); }
+
+/* Memory: the AI writes */
+.remember { display: grid; gap: 0.9rem; min-width: 0; }
+.convo { display: grid; gap: 0.6rem; }
+.kinds-of { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--text); }
+.kinds-of li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.25rem 1rem; padding: 0.8rem 0.1rem; border-bottom: 1px solid var(--line-strong); }
+.kinds-of b { font-weight: 700; }
+.kinds-of span { color: var(--muted); font-size: var(--step--1); grid-column: 1 / -1; }
+.proposal { margin: 0; padding: 1.25rem 1.4rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); display: grid; gap: 0.8rem; }
+.proposal figcaption { display: grid; gap: 0.15rem; }
+.proposal figcaption b { font-family: var(--display); font-size: var(--step-2); font-weight: 800; letter-spacing: -0.02em; }
+.proposal figcaption span, .proposal .field { color: var(--muted); font-size: var(--step--1); }
+.proposal .field b { color: var(--text); border-bottom: 2px solid var(--thread-faint); }
+.proposal .add { background: var(--added-soft); padding: 0.45rem 0.75rem; border-radius: 6px; transition: background-color 200ms ease, color 200ms ease, padding 200ms ease; }
+.proposal[data-state='accepted'] .add { background: transparent; padding-left: 0; }
+.proposal[data-state='accepted'] .sign { display: none; }
+.proposal[data-state='refused'] .add { background: transparent; color: var(--muted); text-decoration: line-through; }
+.proposal[data-state='accepted'] .decide, .proposal[data-state='refused'] .decide { display: none; }
+.decide { display: flex; gap: 0.6rem; }
+.decided { color: var(--muted); font-size: var(--step--1); }
+.undo { font: inherit; font-weight: 700; color: var(--thread-ink); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+
+/* Sources */
+.sources { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+.sources li { display: grid; gap: 0.5rem; align-content: start; padding-top: 1rem; border-top: 1.5px solid var(--text); }
+.sources b { font-family: var(--display); font-weight: 800; font-size: var(--step-2); letter-spacing: -0.02em; }
+.sources .into { font-size: var(--step-1); }
+.sources i { font-style: normal; font-size: var(--step--1); color: var(--muted); }
+@media (max-width: 760px) { .sources { grid-template-columns: minmax(0, 1fr); } }
+
+/* Rights */
+.rights { color: inherit; width: 100%; border-collapse: collapse; border-top: 1.5px solid var(--text); }
+.rights th, .rights td { text-align: left; padding: 0.75rem 0.25rem; border-bottom: 1px solid var(--line-strong); }
+.rights thead th { font-family: var(--display); font-size: var(--step-1); }
+.rights thead th + th, .rights td { text-align: center; width: 6rem; }
+.rights em { font-style: normal; font-size: var(--step--2); font-weight: 700; color: var(--muted); margin-left: 0.4rem; }
+.switch { width: 2.6rem; height: 1.5rem; border-radius: 999px; border: 0; padding: 0; cursor: pointer; position: relative; background: var(--line-strong); vertical-align: middle; transition: background-color var(--motion-quick) var(--motion-ease); }
+.switch::after { content: ''; position: absolute; top: 0.2rem; left: 0.2rem; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / 0.25); transition: transform var(--motion-quick) var(--motion-ease); }
+.switch[aria-pressed='true'] { background: var(--thread); }
+.switch[aria-pressed='true']::after { transform: translateX(1.1rem); }
+.ask { display: grid; gap: 0.6rem; }
+.note { border-left: 2px solid var(--thread); padding: 0.15rem 0 0.15rem 1rem; max-width: 52ch; }
+
+/* Open */
+.folder { margin: 0; padding: 1.25rem 1.4rem; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--surface); font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: var(--step--1); line-height: 1.75; overflow-x: auto; }
+.folder .dim { color: var(--muted); }
+.folder .hi { color: var(--thread-ink); }
+.facts { list-style: none; margin: 0; padding: 0; border-top: 1.5px solid var(--text); }
+.facts li { display: flex; gap: 1rem; align-items: baseline; padding: 0.8rem 0.1rem; border-bottom: 1px solid var(--line-strong); }
+.facts b { min-width: 8rem; }
+.facts span { color: var(--muted); }
+
+/* Screens */
+.shot { border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; background: var(--ground); margin: 0; }
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.25rem; }
+.gallery figure { margin: 0; display: grid; gap: 0.5rem; align-content: start; }
+.gallery figcaption { font-size: var(--step--1); color: var(--muted); font-weight: 700; }
+@media (max-width: 760px) { .gallery { grid-template-columns: minmax(0, 1fr); } }
+
+/* Road and questions */
+.road { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 2rem; }
+@media (max-width: 720px) { .road { grid-template-columns: minmax(0, 1fr); } }
+.road h3 { font-size: var(--step-1); font-weight: 700; margin-bottom: 1rem; }
+.mini { list-style: none; margin: 0; padding: 0 0 0 1.6rem; position: relative; display: grid; gap: 0.9rem; }
+.mini::before { content: ''; position: absolute; left: 0.38rem; top: 0.5rem; bottom: 0.5rem; width: 2px; background: var(--thread-faint); }
+.mini li { position: relative; }
+.mini li::before { content: ''; position: absolute; left: -1.6rem; top: 0.32rem; width: 0.85rem; height: 0.85rem; border-radius: 50%; border: 2.5px solid var(--thread); background: var(--thread); }
+.mini.later li::before { background: var(--ground); border-color: var(--thread-faint); }
+.mini.later li { color: var(--muted); }
+.faq { border-top: 1.5px solid var(--text); }
+.faq details { border-bottom: 1px solid var(--line-strong); }
+.faq summary { cursor: pointer; list-style: none; padding: 1rem 2rem 1rem 0.1rem; font-weight: 700; font-size: var(--step-1); position: relative; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: '+'; position: absolute; right: 0.3rem; top: 0.85rem; font-family: var(--display); font-weight: 800; font-size: 1.4rem; color: var(--thread-ink); }
+.faq details[open] summary::after { content: '−'; }
+.faq details p { padding: 0 0.1rem 1.2rem; color: var(--muted); max-width: 62ch; }
+
+/* End */
+.end h2 { font-size: var(--step-hero); max-width: 14ch; }
+.systems { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 1.25rem 2rem; }
+.systems li { display: grid; gap: 0.35rem; justify-items: start; }
+.systems span { font-size: var(--step--1); color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-block: 2rem 3rem; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 1rem 2rem; align-items: center; color: var(--muted); font-size: var(--step--1); }
+footer nav { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-left: auto; }
+footer a { color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) { .knot::before, .switch, .switch::after, .proposal .add, .button { transition: none; } }
+.signed { max-width: 40rem; margin: 1.75rem 0 0; color: var(--muted); }
+.signed a { color: var(--thread-ink); }
+</style>
+</head>
+<body>
+
+<header class="top">
+	<div class="wrap">
+		<a class="brand" href="#ouverture" aria-label="Ipse">
+			<svg width="30" height="30" viewBox="0 0 40 40" fill="none" aria-hidden="true"><path d="M20 35V19.5a7.5 7.5 0 1 1 7.5 7.5" stroke="currentColor" stroke-width="4.2" stroke-linecap="round"/><circle cx="20" cy="7.5" r="3.4" fill="currentColor"/></svg>
+			<span class="wordmark">ipse</span>
+		</a>
+		<nav aria-label="Sections">
+			<a class="link" href="#remember" data-t="navRemember">How it remembers</a>
+			<a class="link" href="#rights" data-t="navRights">Your rules</a>
+			<a class="link" href="#see" data-t="navSee">See the app</a>
+			<a class="link" href="https://github.com/Loren844/ipse">GitHub</a>
+			<label for="lang" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)" data-t="langLabel">Language</label>
+			<select class="lang" id="lang"><option value="en">English</option><option value="fr">Français</option></select>
+			<a class="button primary" href="https://github.com/Loren844/ipse/releases/latest" data-t="download">Download</a>
+		</nav>
+	</div>
+</header>
+
+<main class="wrap story">
+	<section class="knot opening here" id="ouverture" aria-labelledby="t-open">
+		<div class="lead">
+			<p class="kicker" data-t="kicker">For Windows, macOS and Linux · open source and free</p>
+			<h1 id="t-open" data-t="h1">The memory of your life, on your own computer.</h1>
+			<p class="say" data-t="sub">Ipse keeps your people, your days and your places in a folder you own. Your AI reads what you open to it, remembers what you tell it, and changes nothing without your yes.</p>
+			<div class="actions">
+				<a class="button primary" id="dl-main" href="https://github.com/Loren844/ipse/releases/latest">Download Ipse</a>
+				<a class="button" href="#remember" data-t="more">See how it works</a>
+			</div>
+		</div>
+		<aside class="life-card" aria-label="A week on the thread">
+			<header><b data-t="weekTitle">This week</b><span class="small" data-t="weekNote">invented, as Ipse keeps it</span></header>
+			<ol class="life">
+				<li class="past"><span class="d" data-t="l1d">Thu 19 November</span><span class="t" data-t="l1t">Lunch with Aaron</span>
+					<p class="noted"><span data-t="l1n1">Noted by Claude, accepted</span><span style="color:var(--text)" data-t="l1n2">Aaron is training for a marathon in the spring.</span></p></li>
+				<li class="now"><span class="d" data-t="l2d">Today</span><span class="t" data-t="l2t">Team meeting, 9:30</span>
+					<span class="who"><span class="chip"><i>SR</i>Stella</span><span class="chip"><i>ML</i>Maya</span><span class="chip"><i>LA</i>Levi</span></span></li>
+				<li><span class="d" data-t="l3d">Sat 28 November</span><span class="t" data-t="l3t">Dinner at Isabella's</span>
+					<span class="who"><span class="chip"><i>ID</i>Isabella</span><span class="chip"><i>NP</i>Nora</span></span></li>
+				<li><span class="d" data-t="l4d">Sun 29 November</span><span class="t" data-t="l4t">Lunch at Mom's</span></li>
+			</ol>
+		</aside>
+	</section>
+</main>
+
+<div class="wrap"><p class="with"><b data-t="worksWith">Works with</b><span>Claude Desktop</span><span>LM Studio</span><span>Obsidian</span><span>Google Calendar</span><span>iCloud</span><span>Outlook</span><span>Google Maps</span></p></div>
+
+<main class="wrap story" style="padding-top:0">
+	<section class="knot" id="problem" aria-labelledby="t-problem">
+		<h2 id="t-problem" data-t="h2problem">Every conversation starts from zero.</h2>
+		<p class="say" data-t="problem">Your AI doesn't know who Isabella is, where you were on Saturday, or that Aaron is training for a marathon. You could hand your life to an online service, or repeat it every time. Ipse is the third way.</p>
+		<div class="chat">
+			<figure>
+				<figcaption data-t="without">Without Ipse</figcaption>
+				<p class="bubble me" data-t="q1">When did I last see Isabella?</p>
+				<p class="bubble ai" data-t="a1">I don't have access to your calendar or your contacts. Could you give me more details?</p>
+			</figure>
+			<figure>
+				<figcaption data-t="with">With Ipse</figcaption>
+				<p class="bubble me" data-t="q1b">When did I last see Isabella?</p>
+				<p class="bubble ai" data-t="a2">Last Saturday, at <b>dinner at Isabella's</b>, with Nora Parker.</p>
+			</figure>
+		</div>
+	</section>
+
+	<section class="knot band white" id="remember" aria-labelledby="t-remember">
+		<div class="split">
+			<div>
+				<p class="kicker" data-t="k2">More than your apps know</p>
+				<h2 id="t-remember" data-t="h2remember">Tell your AI once. Ipse remembers.</h2>
+				<p class="say" data-t="remember">Connectors bring in what your apps already hold. The rest comes from your conversations: your AI writes it into your memory as a proposal, and it is there for every AI you use, tomorrow and in a year.</p>
+				<ul class="kinds-of">
+					<li><b data-t="kf1">Facts about people</b><span data-t="kf1s">“She's allergic to nuts.” “He's moving to Lyon in March.”</span></li>
+					<li><b data-t="kf2">Summaries of your days</b><span data-t="kf2s">A day, a week, a year, written from your agenda and your notes.</span></li>
+					<li><b data-t="kf3">A tidier memory</b><span data-t="kf3s">Two files for the same person merged, “Mom” matched to her full name.</span></li>
+				</ul>
+			</div>
+			<div class="remember">
+				<div class="convo">
+					<p class="bubble me" data-t="c1">By the way, Aaron is training for a marathon in the spring.</p>
+					<p class="bubble ai" data-t="c2">Good luck to him. I've proposed adding it to Aaron's file.</p>
+				</div>
+				<figure class="proposal" id="proposal" data-state="waiting">
+					<figcaption><b data-t="pTitle">Aaron talked about it yesterday.</b><span data-t="pBy">Proposed by Claude</span></figcaption>
+					<p class="field"><b>Aaron Morris</b></p>
+					<p class="add"><span class="sign">+ </span><span data-t="pFact">Training for a marathon in the spring.</span></p>
+					<p class="decide">
+						<button type="button" class="button primary" id="accept" data-t="accept">Accept</button>
+						<button type="button" class="button" id="refuse" data-t="refuse">Refuse</button>
+					</p>
+					<p class="decided" aria-live="polite" id="decided" hidden><span id="decided-words"></span> <button type="button" class="undo" id="undo" data-t="undo">Undo</button></p>
+				</figure>
+			</div>
+		</div>
+	</section>
+
+	<section class="knot" id="thread" aria-labelledby="t-thread">
+		<h2 id="t-thread" data-t="h2thread">Your life, on one thread.</h2>
+		<p class="say" data-t="thread">Ipse reads what you already have and turns it into files: people, places, days. The files you import are read, not copied, and nothing is sent anywhere.</p>
+		<ul class="sources">
+			<li><b data-t="s1">Your contacts</b><span class="into" data-t="s1i">become people, with what you know about each.</span><i data-t="s1f">.vcf file, or synced with CardDAV soon</i></li>
+			<li><b data-t="s2">Your calendar</b><span class="into" data-t="s2i">becomes days, with who was there.</span><i data-t="s2f">.ics file or a link, kept up to date</i></li>
+			<li><b data-t="s3">Your places</b><span class="into" data-t="s3i">become places, and where you see each person.</span><i data-t="s3f">Google Maps location history</i></li>
+		</ul>
+	</section>
+
+	<section class="knot band ink" id="rights" aria-labelledby="t-rights">
+		<div class="split">
+			<div>
+				<p class="kicker" data-t="k3">Your rules</p>
+				<h2 id="t-rights" data-t="h2rights">Each AI sees what you open to it.</h2>
+				<p class="say" data-t="rights">Category by category, to read or to propose. Ipse checks these rights before it answers; they are not a polite request to the AI.</p>
+				<p class="note" data-t="rightsNote">Health, home, location and private life stay closed until you open them, one AI at a time.</p>
+				<p class="small" data-t="try">Try it: open “Location” or “Calendar” and see what Claude can answer.</p>
+			</div>
+			<div class="remember">
+				<table class="rights" aria-label="Claude's rights">
+					<thead><tr><th scope="col">Claude</th><th scope="col" data-t="read">Read</th><th scope="col" data-t="propose">Propose</th></tr></thead>
+					<tbody>
+						<tr><th scope="row" data-t="cPeople">People</th><td><button type="button" class="switch" data-cat="people" data-right="read" aria-pressed="true" aria-label="People: read"></button></td><td><button type="button" class="switch" data-cat="people" data-right="write" aria-pressed="true" aria-label="People: propose"></button></td></tr>
+						<tr><th scope="row" data-t="cCal">Calendar</th><td><button type="button" class="switch" data-cat="calendar" data-right="read" aria-pressed="true" aria-label="Calendar: read"></button></td><td><button type="button" class="switch" data-cat="calendar" data-right="write" aria-pressed="true" aria-label="Calendar: propose"></button></td></tr>
+						<tr><th scope="row" data-t="cPlaces">Places</th><td><button type="button" class="switch" data-cat="places" data-right="read" aria-pressed="true" aria-label="Places: read"></button></td><td><button type="button" class="switch" data-cat="places" data-right="write" aria-pressed="false" aria-label="Places: propose"></button></td></tr>
+						<tr><th scope="row"><span data-t="cHealth">Health</span><em data-t="sensitive">sensitive</em></th><td><button type="button" class="switch" data-cat="health" data-right="read" aria-pressed="false" aria-label="Health: read"></button></td><td><button type="button" class="switch" data-cat="health" data-right="write" aria-pressed="false" aria-label="Health: propose"></button></td></tr>
+						<tr><th scope="row"><span data-t="cLoc">Location</span><em data-t="sensitive2">sensitive</em></th><td><button type="button" class="switch" data-cat="location" data-right="read" aria-pressed="false" aria-label="Location: read"></button></td><td><button type="button" class="switch" data-cat="location" data-right="write" aria-pressed="false" aria-label="Location: propose"></button></td></tr>
+					</tbody>
+				</table>
+				<div class="ask" aria-live="polite">
+					<p class="bubble me" data-t="askQ">Where was I on Saturday night?</p>
+					<p class="bubble ai" id="answer"></p>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="knot" id="open" aria-labelledby="t-open2">
+		<div class="split">
+			<div>
+				<h2 id="t-open2" data-t="h2open">Your files, not ours.</h2>
+				<p class="say" data-t="open">Your memory is a folder of text files. Open it in Obsidian or any editor; it stays yours if you ever stop using Ipse.</p>
+				<ul class="facts">
+					<li><b data-t="f1">Format</b><span data-t="f1v">Markdown, readable without Ipse</span></li>
+					<li><b data-t="f2">Models</b><span data-t="f2v">Any, local or online</span></li>
+					<li><b data-t="f3">Code</b><span data-t="f3v">Open source, Apache 2.0</span></li>
+					<li><b data-t="f4">Servers</b><span data-t="f4v">None: nothing is kept on ours</span></li>
+				</ul>
+			</div>
+			<pre class="folder" aria-label="A memory folder"><span class="dim" data-t="folder">My memory/</span>
+├── people/
+│   ├── isabella-davis.md
+│   └── <span class="hi">aaron-morris.md</span>  <span class="dim">← + marathon</span>
+├── places/
+│   └── isabellas-place.md
+├── events/
+│   └── 2026-11-28-dinner-at-isabellas.md
+├── summaries/
+│   └── 2026-11-19.md
+<span class="dim">└── …</span></pre>
+		</div>
+	</section>
+
+	<section class="knot band white" id="see" aria-labelledby="t-see">
+		<p class="kicker" data-t="k4">The app</p>
+		<h2 id="t-see" data-t="h2see">See Ipse.</h2>
+		<p class="say" data-t="see">The app as it is today, on the demo memory: invented people and invented days. Try it yourself: on first launch, pick “Try with an invented memory”.</p>
+		<figure class="shot"><img data-shot="home" width="1920" height="1200" alt="Ipse's home screen: what is coming up, proposals waiting, and the next events on a red thread."></figure>
+		<div class="gallery">
+			<figure><div class="shot"><img data-shot="memory" width="1560" height="600" alt="The memory, by kind of file."></div><figcaption data-t="g1">Your whole memory</figcaption></figure>
+			<figure><div class="shot"><img data-shot="proposal" width="1560" height="760" alt="A proposal to accept or refuse."></div><figcaption data-t="g2">A proposal to review</figcaption></figure>
+			<figure><div class="shot"><img data-shot="rights" width="1560" height="840" alt="An AI's rights, category by category."></div><figcaption data-t="g3">An AI's rights</figcaption></figure>
+		</div>
+	</section>
+
+	<section class="knot" id="road" aria-labelledby="t-road">
+		<div class="split">
+			<div>
+				<h2 id="t-road" data-t="h2road">What Ipse does today, and what comes next.</h2>
+			</div>
+			<div class="road">
+				<div>
+					<h3 data-t="now">Today</h3>
+					<ul class="mini">
+						<li data-t="r1">Contacts, calendar and location history</li>
+						<li data-t="r2">An AI connected in one click, with its rights</li>
+						<li data-t="r3">Proposals to review, history, undo</li>
+						<li data-t="r4">Agenda, timeline, map, graph and summaries</li>
+					</ul>
+				</div>
+				<div>
+					<h3 data-t="next">Next</h3>
+					<ul class="mini later">
+						<li data-t="r5">Synced calendars and contacts (CalDAV, CardDAV)</li>
+						<li data-t="r6">Jellyfin, Immich, Home Assistant</li>
+						<li data-t="r7">Search by meaning, with a local model</li>
+						<li data-t="r8">Your phone</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<section class="knot" id="questions" aria-labelledby="t-q">
+		<div class="split">
+			<h2 id="t-q" data-t="h2q">Questions</h2>
+			<div class="faq">
+				<details open><summary data-t="q1s">Does my data go to a server?</summary><p data-t="q1a">No. Your memory stays in a folder on your computer. An online AI only receives what you opened to it, when it asks.</p></details>
+				<details><summary data-t="q2s">Which AI can I use?</summary><p data-t="q2a">Any AI app that speaks the Model Context Protocol: Claude Desktop, LM Studio and others. A model running on your own computer works too.</p></details>
+				<details><summary data-t="q3s">What does my AI write, exactly?</summary><p data-t="q3a">Proposals only: a fact, a summary, a merge. Nothing is written until you accept, every change is kept in the history, and any of them can be undone.</p></details>
+				<details><summary data-t="q4s">What if I stop using Ipse?</summary><p data-t="q4a">Your files stay where they are, readable in any text editor.</p></details>
+				<details><summary data-t="q5s">Is it free?</summary><p data-t="q5a">Yes. The code is open source, under the Apache 2.0 license.</p></details>
+				<details><summary data-t="q6s">Why does my system show a warning?</summary><p data-t="q6a">The installers are not signed yet, because certificates cost money. The code is open and every release is built in public by GitHub Actions from that code; the install guide shows how to open Ipse past the warning.</p></details>
+				<details><summary data-t="q7s">How can I give feedback or help?</summary><p data-t="q7a">Ask questions and share ideas in <a href="https://github.com/Loren844/ipse/discussions">Discussions</a>, report bugs in the <a href="https://github.com/Loren844/ipse/issues">issues</a>. Code contributions are not open yet: connectors will open first, with a kit to write them.</p></details>
+			</div>
+		</div>
+	</section>
+
+	<section class="knot end" id="download" aria-labelledby="t-end">
+		<h2 id="t-end" data-t="h2end">Your memory is waiting.</h2>
+		<p class="say" data-t="end">One install, one folder, and your AI connects in one click. Free, no account.</p>
+		<ul class="systems">
+			<li><a class="button" href="https://github.com/Loren844/ipse/releases/latest">macOS</a><span data-t="mac">Apple silicon and Intel</span></li>
+			<li><a class="button" href="https://github.com/Loren844/ipse/releases/latest">Windows</a><span>10, 11</span></li>
+			<li><a class="button" href="https://github.com/Loren844/ipse/releases/latest">Linux</a><span>.deb, AppImage</span></li>
+		</ul>
+		<p class="signed small" data-t="unsigned">The installers are not signed yet (signing costs money, and Ipse is free). The first time, macOS or Windows warns you: on macOS, open System Settings → Privacy &amp; Security and click Open Anyway; on Windows, click More info, then Run anyway. <a href="https://github.com/Loren844/ipse/blob/main/docs/guide/install.md">Install guide</a></p>
+	</section>
+</main>
+
+<footer>
+	<div class="wrap">
+		<span data-t="foot">Ipse, Latin for “oneself”. Open source, Apache 2.0.</span>
+		<nav aria-label="Footer">
+			<a href="#rights" data-t="privacy">Privacy</a>
+			<a href="https://github.com/Loren844/ipse" data-t="devs">For developers</a>
+			<a href="https://github.com/Loren844/ipse/discussions" data-t="community">Community</a>
+			<a href="https://github.com/Loren844/ipse/issues/new" data-t="bug">Report a bug</a>
+		</nav>
+	</div>
+</footer>
+
+<script>
+	const FR = {
+		navRemember: 'Comment il se souvient', navRights: 'Vos règles', navSee: 'Voir l’app', langLabel: 'Langue', download: 'Télécharger',
+		kicker: 'Pour Windows, macOS et Linux · ouvert et gratuit',
+		h1: 'La mémoire de votre vie, sur votre ordinateur.',
+		sub: 'Ipse garde vos proches, vos journées et vos lieux dans un dossier qui vous appartient. Votre IA lit ce que vous lui ouvrez, retient ce que vous lui dites, et ne change rien sans votre accord.',
+		more: 'Voir comment ça marche', weekTitle: 'Cette semaine', weekNote: 'inventée, telle qu’Ipse la garde',
+		l1d: 'Jeu. 19 novembre', l1t: 'Déjeuner avec Bastien', l1n1: 'Noté par Claude, accepté', l1n2: 'Bastien prépare un marathon au printemps.',
+		l2d: 'Aujourd’hui', l2t: 'Point d’équipe, 9 h 30', l3d: 'Sam. 28 novembre', l3t: 'Dîner chez Jade', l4d: 'Dim. 29 novembre', l4t: 'Déjeuner chez Maman',
+		worksWith: 'Fonctionne avec',
+		h2problem: 'Chaque conversation repart de zéro.',
+		problem: 'Votre IA ne sait pas qui est Jade, où vous étiez samedi, ni que Bastien prépare un marathon. Vous pourriez tout confier à un service en ligne, ou tout répéter à chaque fois. Ipse est la troisième voie.',
+		without: 'Sans Ipse', with: 'Avec Ipse', q1: 'Quand ai-je vu Jade pour la dernière fois ?', q1b: 'Quand ai-je vu Jade pour la dernière fois ?',
+		a1: 'Je n’ai pas accès à votre agenda ni à vos contacts. Pouvez-vous me donner plus de détails ?',
+		a2: 'Samedi dernier, au <b>dîner chez Jade</b>, avec Margaux Roussel.',
+		k2: 'Plus que ce que savent vos apps', h2remember: 'Dites-le une fois à votre IA. Ipse s’en souvient.',
+		remember: 'Les connecteurs apportent ce que vos apps savent déjà. Le reste vient de vos conversations : votre IA l’écrit dans votre mémoire sous forme de proposition, et il reste là pour toutes vos IA, demain comme dans un an.',
+		kf1: 'Des faits sur vos proches', kf1s: '« Elle est allergique aux noix. » « Il déménage à Lyon en mars. »',
+		kf2: 'Le résumé de vos journées', kf2s: 'Un jour, une semaine, une année, écrits d’après votre agenda et vos notes.',
+		kf3: 'Une mémoire mieux rangée', kf3s: 'Deux fiches de la même personne fusionnées, « Maman » reliée à son nom complet.',
+		c1: 'Au fait, Bastien prépare un marathon au printemps.', c2: 'Bonne chance à lui. J’ai proposé de l’ajouter à la fiche de Bastien.',
+		pTitle: 'Bastien en a parlé hier.', pBy: 'Proposée par Claude', pFact: 'Prépare un marathon au printemps.', accept: 'Accepter', refuse: 'Refuser', undo: 'Annuler',
+		h2thread: 'Votre vie, sur un fil.', thread: 'Ipse lit ce que vous avez déjà et le range en fiches : des personnes, des lieux, des journées. Les fichiers importés sont lus, pas copiés, et rien n’est envoyé ailleurs.',
+		s1: 'Vos contacts', s1i: 'deviennent des personnes, avec ce que vous savez de chacune.', s1f: 'fichier .vcf, bientôt synchronisé (CardDAV)',
+		s2: 'Votre agenda', s2i: 'devient des journées, avec qui était là.', s2f: 'fichier .ics ou lien, tenu à jour',
+		s3: 'Vos lieux', s3i: 'deviennent des lieux, et où vous voyez chacun.', s3f: 'historique des positions Google Maps',
+		k3: 'Vos règles', h2rights: 'Chaque IA voit ce que vous lui ouvrez.',
+		rights: 'Catégorie par catégorie, en lecture ou en proposition. Ipse vérifie ces droits avant de répondre ; ce n’est pas une demande polie faite à l’IA.',
+		rightsNote: 'Santé, maison, position et vie privée restent fermées tant que vous ne les ouvrez pas, IA par IA.',
+		try: 'Essayez : ouvrez « Position » ou « Agenda » et regardez ce que Claude peut répondre.',
+		read: 'Lire', propose: 'Proposer', cPeople: 'Personnes', cCal: 'Agenda', cPlaces: 'Lieux', cHealth: 'Santé', cLoc: 'Position', sensitive: 'sensible', sensitive2: 'sensible',
+		askQ: 'Où étais-je samedi soir ?',
+		h2open: 'Vos fichiers, pas les nôtres.', open: 'Votre mémoire est un dossier de fichiers texte. Ouvrez-le dans Obsidian ou n’importe quel éditeur ; il reste à vous si vous arrêtez Ipse.',
+		f1: 'Format', f1v: 'Markdown, lisible sans Ipse', f2: 'Modèles', f2v: 'N’importe lequel, local ou en ligne', f3: 'Code', f3v: 'Ouvert, licence Apache 2.0', f4: 'Serveurs', f4v: 'Aucun : rien n’est gardé chez nous', folder: 'Ma mémoire/',
+		k4: 'L’app', h2see: 'Voir Ipse.', see: 'L’app telle qu’elle est aujourd’hui, sur la mémoire de démonstration : des personnes et des journées inventées. Essayez-la : au premier lancement, choisissez « Essayer avec une mémoire inventée ».',
+		g1: 'Toute votre mémoire', g2: 'Une proposition à revoir', g3: 'Les droits d’une IA',
+		h2road: 'Ce qu’Ipse fait aujourd’hui, et ce qui vient.', now: 'Aujourd’hui', next: 'Ensuite',
+		r1: 'Contacts, agenda et historique des positions', r2: 'Une IA connectée en un clic, avec ses droits', r3: 'Propositions à revoir, historique, annulation', r4: 'Agenda, frise, carte, graphe et résumés',
+		r5: 'Agendas et contacts synchronisés (CalDAV, CardDAV)', r6: 'Jellyfin, Immich, Home Assistant', r7: 'Recherche par le sens, avec un modèle local', r8: 'Le téléphone',
+		h2q: 'Questions',
+		q1s: 'Mes données partent-elles sur un serveur ?', q1a: 'Non. Votre mémoire reste dans un dossier sur votre ordinateur. Une IA en ligne ne reçoit que ce que vous lui avez ouvert, au moment où elle le demande.',
+		q2s: 'Quelle IA puis-je utiliser ?', q2a: 'Toute app d’IA compatible avec le Model Context Protocol : Claude Desktop, LM Studio et d’autres. Un modèle qui tourne sur votre ordinateur marche aussi.',
+		q3s: 'Qu’est-ce que mon IA écrit, exactement ?', q3a: 'Des propositions seulement : un fait, un résumé, une fusion. Rien n’est écrit avant votre accord, tout reste dans l’historique, et tout s’annule.',
+		q4s: 'Que se passe-t-il si j’arrête Ipse ?', q4a: 'Vos fichiers restent où ils sont, lisibles dans n’importe quel éditeur de texte.',
+		q5s: 'Est-ce gratuit ?', q5a: 'Oui. Le code est ouvert, sous licence Apache 2.0.',
+		h2end: 'Votre mémoire vous attend.', end: 'Une installation, un dossier, et votre IA se branche en un clic. Gratuit, sans compte.', mac: 'Apple Silicon et Intel',
+		foot: 'Ipse, du latin « soi-même ». Code ouvert, licence Apache 2.0.', privacy: 'Confidentialité', devs: 'Pour les développeurs', community: 'Communauté', bug: 'Signaler un bug',
+		unsigned: 'Les installeurs ne sont pas encore signés (la signature est payante, et Ipse est gratuit). La première fois, macOS ou Windows vous avertit : sur macOS, ouvrez Réglages Système → Confidentialité et sécurité et cliquez sur Ouvrir quand même ; sur Windows, cliquez sur Informations complémentaires, puis Exécuter quand même. <a href="https://github.com/Loren844/ipse/blob/main/docs/guide/install.md">Guide d’installation</a>',
+		q6s: 'Pourquoi mon système affiche-t-il un avertissement ?', q6a: 'Les installeurs ne sont pas encore signés, car les certificats sont payants. Le code est ouvert et chaque version est construite publiquement par GitHub Actions à partir de ce code ; le guide d’installation montre comment ouvrir Ipse malgré l’avertissement.',
+		q7s: 'Comment donner mon avis ou aider ?', q7a: 'Posez vos questions et vos idées dans les <a href="https://github.com/Loren844/ipse/discussions">Discussions</a>, signalez un bug dans les <a href="https://github.com/Loren844/ipse/issues">issues</a>. Les contributions de code ne sont pas encore ouvertes : les connecteurs ouvriront en premier, avec un kit pour les écrire.'
+	};
+	const DYN = {
+		en: { dl: (os) => os ? `Download for ${os}` : 'Download Ipse', accepted: 'Added to Aaron’s file.', refused: 'Refused: nothing was written.',
+			both: 'On Saturday night you were at Isabella’s, for dinner with Nora.', cal: 'Your calendar says “Dinner at Isabella’s” on Saturday at 8 pm. I can’t see your location.',
+			loc: 'Your location puts you at Isabella’s on Saturday night. I can’t see your calendar.', none: 'I have access to neither your calendar nor your location.' },
+		fr: { dl: (os) => os ? `Télécharger pour ${os}` : 'Télécharger Ipse', accepted: 'Ajouté à la fiche de Bastien.', refused: 'Refusée : rien n’a été écrit.',
+			both: 'Samedi soir, vous étiez chez Jade, pour le dîner avec Margaux.', cal: 'Votre agenda dit « Dîner chez Jade » samedi à 20 h. Je ne vois pas votre position.',
+			loc: 'Votre position vous place chez Jade samedi soir. Je ne vois pas votre agenda.', none: 'Je n’ai accès ni à votre agenda ni à votre position.' }
+	};
+	// Names in the story follow the demo memory of each language.
+	const FR_NAMES = [['Aaron Morris', 'Bastien Clément'], ['SR</i>Stella', 'EG</i>Elsa'], ['ML</i>Maya', 'NF</i>Noé'], ['LA</i>Levi', 'OM</i>Oscar'], ['ID</i>Isabella', 'JP</i>Jade'], ['NP</i>Nora', 'MR</i>Margaux'],
+		['isabella-davis.md', 'jade-petit.md'], ['aaron-morris.md', 'bastien-clement.md'], ['isabellas-place.md', 'chez-jade.md'], ['2026-11-28-dinner-at-isabellas.md', '2026-11-28-diner-chez-jade.md']];
+
+	const EN = {};
+	const nodes = [...document.querySelectorAll('[data-t]')];
+	nodes.forEach((n) => (EN[n.dataset.t] = n.innerHTML));
+	const swaps = [...document.querySelectorAll('.life-card, .proposal .field, .folder')];
+	const swapEN = swaps.map((n) => n.innerHTML);
+	let lang = 'en';
+
+	const ua = navigator.userAgent;
+	const os = /Mac/.test(ua) ? 'macOS' : /Win/.test(ua) ? 'Windows' : /Linux/.test(ua) && !/Android/.test(ua) ? 'Linux' : null;
+	if (os) document.querySelectorAll(".systems .button").forEach((a) => a.textContent === os && a.classList.add("primary"));
+
+	const themeNow = () => {
+		const t = document.documentElement.dataset.theme;
+		if (t === 'dark' || t === 'light') return t;
+		return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+	};
+	const shots = () => document.querySelectorAll('[data-shot]').forEach((img) => (img.src = `img/${img.dataset.shot}-${lang}-${themeNow()}.webp`));
+
+	function setLang(l) {
+		lang = l;
+		document.documentElement.lang = l;
+		swaps.forEach((n, i) => {
+			let h = swapEN[i];
+			if (l === 'fr') for (const [a, b] of FR_NAMES) h = h.split(a).join(b);
+			n.innerHTML = h;
+		});
+		document.querySelectorAll('[data-t]').forEach((n) => (n.innerHTML = l === 'fr' ? FR[n.dataset.t] ?? EN[n.dataset.t] : EN[n.dataset.t]));
+		document.getElementById('dl-main').textContent = DYN[l].dl(os);
+		decide(proposal.dataset.state, false);
+		reply();
+		shots();
+		try { localStorage.setItem('lang', l); } catch {}
+	}
+
+	// The proposal: accept or refuse, then undo.
+	const proposal = document.getElementById('proposal');
+	function decide(state, focus = true) {
+		proposal.dataset.state = state;
+		document.getElementById('decided').hidden = state === 'waiting';
+		document.getElementById('decided-words').textContent = state === 'accepted' ? DYN[lang].accepted : DYN[lang].refused;
+		if (!focus) return;
+		(state === 'waiting' ? document.getElementById('accept') : document.getElementById('undo')).focus();
+	}
+	document.getElementById('accept').addEventListener('click', () => decide('accepted'));
+	document.getElementById('refuse').addEventListener('click', () => decide('refused'));
+	document.getElementById('undo').addEventListener('click', () => decide('waiting'));
+
+	// The rights: what Claude can answer depends on what is open.
+	const open = (cat) => document.querySelector(`.switch[data-cat="${cat}"][data-right="read"]`).getAttribute('aria-pressed') === 'true';
+	function reply() {
+		const where = open('location'), when = open('calendar'), d = DYN[lang];
+		document.getElementById('answer').textContent = where && when ? d.both : when ? d.cal : where ? d.loc : d.none;
+	}
+	document.querySelectorAll('.switch').forEach((b) => b.addEventListener('click', () => {
+		b.setAttribute('aria-pressed', b.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+		reply();
+	}));
+
+	// The knot of the section in view fills.
+	const knots = [...document.querySelectorAll('.knot')];
+	if ('IntersectionObserver' in window) {
+		const seen = new IntersectionObserver((es) => { for (const e of es) if (e.isIntersecting) knots.forEach((k) => k.classList.toggle('here', k === e.target)); }, { rootMargin: '-45% 0px -50% 0px' });
+		knots.forEach((k) => seen.observe(k));
+	}
+
+	// Screens follow the page's theme, whether it comes from the system or the viewer's choice.
+	matchMedia('(prefers-color-scheme: dark)').addEventListener('change', shots);
+	new MutationObserver(shots).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+	const select = document.getElementById('lang');
+	select.addEventListener('change', () => setLang(select.value));
+	let saved = 'en';
+	try { saved = localStorage.getItem('lang') || 'en'; } catch {}
+	select.value = saved;
+	setLang(saved);
+</script>
+</body>
+</html>

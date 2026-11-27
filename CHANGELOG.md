@@ -2,13 +2,53 @@
 
 What changed in each version of Ipse, for the people who use it. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [Semantic Versioning](https://semver.org/). Before 1.0, a minor version may change the format of memory files; Ipse then says what to do.
 
-## Unreleased
+## 0.5.0 - 2026-11-25
+
+Your own servers feed your memory: Home Assistant says when you are at home and, if you want, where your phone goes, without exporting a file; Jellyfin says what you watch, and Immich who is on your photos. Everything stays read only, and a new source in a sensitive category stays closed to AIs until you open it. Ipse can now also run on a home server, from a Docker image, with your AI apps and your browser reaching it from your other machines. The memory's format does not change: a 0.4 memory opens as it is. 0.4.0 offers this version in the app.
 
 ### Added
 
+- **Where you go, without exporting a file**: a Home Assistant you connected can also read the positions the Home Assistant app of your phone sends it. Turn on **Lire aussi où va mon téléphone** on the source in **Sources**, or run `ipse homeassistant positions`. Ipse turns them into the places you stay at and your visits there, as the Google Timeline export does, in the `location` category, closed to AIs until you open it ([#208](https://github.com/Loren844/ipse/issues/208)).
+- **Ipse on a home server**: `ipse serve` runs the interface, MCP for your AI apps and the sync of your sources in one process, and the Docker image `ghcr.io/loren844/ipse` (amd64 and arm64) runs it on a NAS or a Raspberry Pi. Reaching it from your network is asked with `--listen`; the interface then asks for its own access code, made with `ipse access-code`, and HTTPS is left to your reverse proxy. [Ipse on a home server](docs/guide/self-hosting.md) covers the first start, connecting an AI from another machine, backups and updates ([#224](https://github.com/Loren844/ipse/issues/224), decision 0019).
+- **Immich**: connect your own Immich from **Sources**, or with `ipse immich add`, and Ipse knows who is on your photos, how many photos you have together and when the last was taken. Someone is linked to a person of your memory only when Ipse is sure; otherwise it asks you, in **À revoir**. It never downloads a photo, and keeps the API key in your system's keychain ([#226](https://github.com/Loren844/ipse/issues/226)).
+- **Jellyfin**: connect your own Jellyfin from **Sources**, or with `ipse jellyfin add`, and Ipse knows the films and series you watch: one row per series or film in what you are watching, linked to its file when you have one. It reads only the user you choose, and keeps the API key in your system's keychain ([#227](https://github.com/Loren844/ipse/issues/227)).
+- **Home Assistant**: connect your own Home Assistant from **Sources**, or with `ipse homeassistant add`, and Ipse knows when you are at home and in which zones. It reads only the person you choose, stays in the `home` category, closed to AIs until you open it, and keeps the token in your system's keychain. Plain `http://` is accepted only on your home network, and Ipse says so ([#225](https://github.com/Loren844/ipse/issues/225)).
+
+### Fixed
+
+- **What changes in a new version** reads as text in the update window: headings and items, without Markdown marks, across the whole width of the window ([#234](https://github.com/Loren844/ipse/issues/234)).
+
+## 0.4.0 - 2026-11-24
+
+Your AI keeps what you tell it: *"remember my PC setup"* becomes a file of your memory, and *"remind me on Thursday"* a reminder it tells you about when the time comes. Once you allow it, one AI can write these without waiting for you, and each stays in the history, undone in one click. The memory's format gains one kind of file, reminders, in a new `reminders/` folder: a 0.3 memory opens as it is. 0.3.0 and 0.3.1 offer this version in the app.
+
+### Added
+
+- **A file copied by hand is noticed**: a copy made in Obsidian (**Make a copy**) or a file manager keeps the id of the original. **Memory** now says so and gives the copy an id of its own in one click, one change of the history you can undo; `ipse check` names it too ([#230](https://github.com/Loren844/ipse/issues/230)).
+- **A guide to open your memory in Obsidian**: which folders to exclude, what is safe to change by hand, how links and renames work, and syncing ([#223](https://github.com/Loren844/ipse/issues/223)).
+- **Reminders kept in your memory, told by your AI**: say *"remind me to call the plumber on Thursday at 6 pm"* or *"sport every day"*, and your AI writes a reminder file, with when and how often. Ipse does not ring: your AI hears of what is due each time it asks what is going on (at the start of a conversation, or from its app's scheduled tasks), tells you, and marks it done when you did it; a reminder that comes back returns the next time. **Reminders** is a new kind in **Memory**. With **New files** on for that AI, reminders are written and marked done without waiting for you ([#206](https://github.com/Loren844/ipse/issues/206)).
+- **"Remember this about me"**: tell your AI *"remember my PC setup"* and it makes a real file of your memory, such as a thing "My PC" with its facts, or adds a fact to the one it finds. In **Connected AIs**, a new switch, **New files**, lets one AI create things, topics, projects, organizations and works in a category that is not sensitive, and add facts to the files it created, without waiting for you. Off until you turn it on, offered after you accepted three of them; each one stays in the history and is undone in one click, and the home screen says how many files it created. People, places, events and files it did not create always wait ([#207](https://github.com/Loren844/ipse/issues/207), decision 0018).
+
+### Fixed
+
+- **The app keeps your theme and language on Windows more often**: the desktop app's window tries several fixed ports for a memory instead of one, so a port set aside by Windows no longer sends it to a new address, where the window's choices are not found.
+
+## 0.3.1 - 2026-11-24
+
+A first look that is easier to pick up: first steps on the home screen, a page on how Ipse works, and a short note the first time each screen opens. The timeline joins the agenda as its Years view, the map is smoother and readable in dark mode, the graph starts from one file with its strongest links, and a file can be edited as Markdown. The memory's format does not change. 0.3.0 offers this version in the app.
+
+### Changed
+
+- **The timeline is now the agenda's Years view**: one Agenda tab with List, Week, Month and Years. A month of the timeline opens its calendar, and the Month view links back to what marked that month. Old timeline links still work ([#211](https://github.com/Loren844/ipse/issues/211)).
+- **A smoother map, light and dark**: moving and zooming glide, with a trackpad or a finger too, and close places gather in groups that open with a click. The base map, still off until you turn it on, now comes from OpenFreeMap and is drawn in Ipse's colours, dark when the interface is ([#212](https://github.com/Loren844/ipse/issues/212)).
+- **The graph starts from one file**, you by default, with its strongest links nearest and at most 30 at first ("Show more" adds the next ones). Events are no longer drawn: two files seen at the same events are linked by a line as thick as they are often together, and the list beside the drawing says each link in words, such as "47 events with you over 12 months" or a relation written in a file. Click a name to put it in the middle; a trail above leads back. Filters by kind, and events counted over 12 months or since always. **Graph** is back in the side bar, and **See its links**, on a file, opens it there ([#213](https://github.com/Loren844/ipse/issues/213)).
+
+### Added
+
+- **Edit a file as Markdown**: **Modifier** now has two tabs, **Fiche** (the form) and **Markdown** (the file as written, its header included), and opens on the one you chose last. Saving checks the text still reads as a file of your memory, says what is wrong in words without losing what you typed, and is one change of the history you can undo. The id, the type and the owner cannot change there ([#142](https://github.com/Loren844/ipse/issues/142)).
 - **First steps** on the home screen: add your contacts or your calendar, connect your AI, ask it a first question, answer its first proposal. Each step is ticked when Ipse sees it done, and the list goes away once all are done or when you hide it. An invented memory says so, and how to create your own ([#172](https://github.com/Loren844/ipse/issues/172)).
 - **How it works**, a page that explains Ipse in four ideas: your memory is a folder of your own, your sources fill it, each AI reads what you open to it, it proposes and you decide. From the menu under your name and from the first steps ([#172](https://github.com/Loren844/ipse/issues/172)).
-- **A note the first time a screen opens** (Sources, Connected AIs, Review, Agenda, Timeline, Map, Memory): what to do there, until you say you read it ([#172](https://github.com/Loren844/ipse/issues/172)).
+- **A note the first time a screen opens** (Sources, Connected AIs, Review, Agenda, Map, Memory, Graph): what to do there, until you say you read it ([#172](https://github.com/Loren844/ipse/issues/172)).
 
 ## 0.3.0 - 2026-11-24
 

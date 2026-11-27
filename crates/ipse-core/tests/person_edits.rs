@@ -392,3 +392,140 @@ fn a_source_never_writes_over_what_the_person_edited() {
     let after = read(dir.path(), file);
     assert!(after.contains("0611111111") && !after.contains("0622222222"));
 }
+
+/// The refusal's message, for a change that must be refused.
+fn refusal(result: ipse_core::Result<Option<String>>) -> String {
+    match result {
+        Err(Error::Refused(message)) => message,
+        other => panic!("expected a refusal, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_file_as_markdown_is_one_change_by_the_person() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let proposals = Proposals::new(&vault);
+    let typed = MARIE
+        .replace(
+            "- Joue du piano ^f-ef56\n",
+            "- Joue du piano ^f-ef56\n- Court le dimanche\n",
+        )
+        .replace(
+            "## Notes\n",
+            "## Voyages\n\nLisbonne en 2024.\n\n## Notes\n",
+        );
+    let change = proposals
+        .edit_text(FILE, &now(dir.path(), FILE), &typed)
+        .unwrap()
+        .expect("the file changed");
+
+    let after = read(dir.path(), FILE);
+    assert!(
+        after.contains("## Voyages\n\nLisbonne en 2024.\n"),
+        "{after}"
+    );
+    assert!(after.contains("- Aime le jazz ^f-ab12"), "ids kept");
+    assert!(
+        after.contains("- Court le dimanche ^f-"),
+        "a new fact gets an id"
+    );
+    assert!(!after.contains("updated: 2026-01-10"), "updated is today");
+    let entries = vault.history().unwrap().entries(10).unwrap();
+    assert_eq!(entries[0].id, change);
+    assert_eq!(entries[0].source, Some(Source::Person));
+    assert_eq!(entries[0].summary, "Edit a file as Markdown");
+
+    // The same text again changes nothing.
+    let same = read(dir.path(), FILE);
+    assert!(
+        proposals
+            .edit_text(FILE, &now(dir.path(), FILE), &same)
+            .unwrap()
+            .is_none()
+    );
+
+    vault
+        .history()
+        .unwrap()
+        .undo(&change, Source::Person, "Undo a change")
+        .unwrap();
+    assert_eq!(read(dir.path(), FILE), MARIE);
+}
+
+#[test]
+fn markdown_that_does_not_read_as_a_file_is_refused_in_words() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let proposals = Proposals::new(&vault);
+    let at = now(dir.path(), FILE);
+    let try_text = |text: &str| refusal(proposals.edit_text(FILE, &at, text));
+
+    assert!(
+        try_text("Marie Durand\n").contains("front matter"),
+        "no front matter"
+    );
+    let message = try_text(&MARIE.replace("name: Marie Durand\n", "name: [Marie\n"));
+    assert!(message.starts_with("Line "), "{message}");
+    assert_eq!(
+        try_text(&MARIE.replace("01jcx8m2p4q6r8t0v2w4y6z8a0", "01jcx8m2p4q6r8t0v2w4y6z8a1")),
+        "The `id` cannot be changed."
+    );
+    assert!(try_text(&MARIE.replace("type: person", "type: place")).contains("`type`"));
+    assert!(try_text(&MARIE.replace("category: people", "category: amis")).contains("`category`"));
+    assert!(
+        try_text(&MARIE.replace("name: Marie", "owner: true\nname: Marie")).contains("`owner`")
+    );
+    // A known category is fine.
+    proposals
+        .edit_text(
+            FILE,
+            &at,
+            &MARIE.replace("category: people", "category: health"),
+        )
+        .unwrap();
+    assert!(read(dir.path(), FILE).contains("category: health"));
+
+    // Read at an older version: refused.
+    assert!(refusal(proposals.edit_text(FILE, &at, MARIE)).contains("changed since you opened it"));
+}
+
+#[test]
+fn a_copy_made_by_hand_gets_an_id_of_its_own() {
+    // Obsidian's "Make a copy" (issue #230).
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let copy = "people/marie-durand 1.md";
+    std::fs::write(dir.path().join(copy), MARIE).unwrap();
+
+    let found = ipse_core::vault::copies(dir.path()).unwrap();
+    assert_eq!(found.len(), 1);
+    assert_eq!(
+        found[0].path,
+        Path::new(copy),
+        "the longer name is the copy"
+    );
+    assert_eq!(found[0].original, Path::new(FILE));
+    let report = ipse_core::vault::check(dir.path()).unwrap();
+    assert!(
+        report
+            .problems
+            .iter()
+            .any(|p| p.path == Path::new(copy) && p.message.contains(FILE)),
+        "{report:?}"
+    );
+
+    let proposals = Proposals::new(&vault);
+    let refused = proposals.own_id(FILE).unwrap_err();
+    assert!(
+        matches!(refused, Error::Refused(_)),
+        "the original keeps its id"
+    );
+    let id = proposals.own_id(copy).unwrap();
+    assert!(read(dir.path(), copy).contains(&format!("\nid: {id}\n")));
+    assert!(read(dir.path(), FILE).contains("\nid: 01jcx8m2p4q6r8t0v2w4y6z8a0\n"));
+    assert!(ipse_core::vault::copies(dir.path()).unwrap().is_empty());
+    let last = &History::open(dir.path()).unwrap().entries(1).unwrap()[0];
+    assert_eq!(last.source, Some(Source::Person));
+    assert!(matches!(proposals.own_id(copy), Err(Error::Refused(_))));
+}

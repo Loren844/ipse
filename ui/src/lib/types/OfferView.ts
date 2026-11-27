@@ -13,7 +13,7 @@ ai: string,
  */
 name: string, 
 /**
- * `summaries` or `event_kinds`.
+ * `summaries`, `event_kinds` or `creations`.
  */
 standing: string, 
 /**

@@ -63,11 +63,20 @@ export type { EventView } from './types/EventView.ts';
 export type { EntityView } from './types/EntityView.ts';
 export type { LinkView } from './types/LinkView.ts';
 import type { EditView } from './types/EditView.ts';
+import type { TextView } from './types/TextView.ts';
 import type { SavedView } from './types/SavedView.ts';
 export type { EditView, SavedView };
 import type { GraphView } from './types/GraphView.ts';
 export type { GraphView };
+import type { AroundView } from './types/AroundView.ts';
+export type { AroundView };
+export type { AroundEventView } from './types/AroundEventView.ts';
+export type { SharedView } from './types/SharedView.ts';
+export type { LinkedView } from './types/LinkedView.ts';
+export type { AroundReminderView } from './types/AroundReminderView.ts';
+export type { SectionView } from './types/SectionView.ts';
 export type { NodeView } from './types/NodeView.ts';
+export type { NeighbourView } from './types/NeighbourView.ts';
 export type { LinkField } from './types/LinkField.ts';
 export type { RelationField } from './types/RelationField.ts';
 
@@ -161,13 +170,18 @@ export const api = {
 	accesses: () => get<AccessesView>('/api/accesses'),
 	runs: () => get<RunsView>('/api/runs'),
 	map: () => get<MapView>('/api/map'),
-	timeline: () => get<TimelineView>('/api/timeline'),
+	/** The years, of the events that link to the file `person` when given. */
+	timeline: (person?: string) => get<TimelineView>('/api/timeline', { person }),
 	kind: (kind: string) => get<EventKindView>(`/api/kinds/${encodeURIComponent(kind)}`),
 	sources: () => get<SourcesView>('/api/sources'),
 	importFile: upload,
 	followCalendar: (link: string, name: string) => post<SourcesChange>('/api/sources/follow', { link, name }),
 	connectAccount: (url: string, user: string, password: string, name: string) =>
 		post<SourcesChange>('/api/sources/connect', { url, user, password, name }),
+	connectServer: (connector: string, url: string, token: string, name: string) =>
+		post<SourcesChange>('/api/sources/connect-server', { connector, url, token, name }),
+	chooseOne: (instance: string, choice: string) => post<SourcesChange>('/api/sources/choose-one', { instance, choice }),
+	setPositions: (instance: string, on: boolean) => post<SourcesChange>('/api/sources/positions', { instance, on }),
 	chooseCollections: (instance: string, collections: string[]) =>
 		post<SourcesChange>('/api/sources/choose', { instance, collections }),
 	syncSource: (instance: string) => post<SourcesChange>('/api/sources/sync', { instance }),
@@ -184,8 +198,12 @@ export const api = {
 	memory: () => get<MemoryView>('/api/memory'),
 	list: (folder: string, q?: string, offset?: number) => get<ListView>(`/api/memory/${encodeURIComponent(folder)}`, { q, offset }),
 	search: (q: string) => get<SearchView>('/api/search', { q }),
-	graph: () => get<GraphView>('/api/graph'),
+	graph: (id?: string, period?: 'year' | 'all') => get<GraphView>('/api/graph', { id, period }),
+	/** Everything around a file; with `section`, that section's items from `offset`. */
+	around: (id: string, section?: string, offset?: number) => get<AroundView>('/api/around', { id, section, offset }),
 	editForm: (id: string) => get<EditView>(`/api/file/${encodeURIComponent(id)}/edit`),
+	fileText: (id: string) => get<TextView>(`/api/file/${encodeURIComponent(id)}/text`),
+	saveText: (id: string, version: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/text`, { version, text }),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),
 	deleteFile: (id: string, version: string) => post<SavedView>(`/api/file/${encodeURIComponent(id)}/delete`, { version }),
@@ -198,6 +216,7 @@ export const api = {
 			notes: draft.notes || undefined,
 			stem
 		}),
+	ownId: (file: string) => post<MemoryView>('/api/files/copies', { file }),
 	changeSettings: (language: string, time_zone: string) => post<SettingsView>('/api/settings', { language, time_zone }),
 	hideFirstSteps: () => post<NotesView>('/api/guide', { hide: true }),
 	sawScreen: (screen: string) => post<NotesView>('/api/guide', { seen: screen })

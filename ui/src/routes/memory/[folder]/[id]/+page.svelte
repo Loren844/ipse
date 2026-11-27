@@ -5,11 +5,11 @@
 	import { api, SessionEnded, type Draft, type EditView, type EntityView, type FileView } from '#lib/api.ts';
 	import { app } from '#lib/app.svelte.ts';
 	import Confirm, { type Question } from '#lib/Confirm.svelte';
-	import Editor from '#lib/Editor.svelte';
+	import FileEditor from '#lib/FileEditor.svelte';
 	import Events from '#lib/Events.svelte';
 	import Notice from '#lib/Notice.svelte';
 	import Face from '#lib/Face.svelte';
-	import { birthday, dayOf, phone as formatPhone, fromSources } from '#lib/format.ts';
+	import { birthday, dayOf, isDay, longDay, phone as formatPhone, fromSources, when } from '#lib/format.ts';
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { folderOf, iconOf } from '#lib/kinds.ts';
 	import Mention from '#lib/Mention.svelte';
@@ -48,7 +48,7 @@
 		try {
 			form = await api.editForm(page.params.id ?? '');
 			await tick();
-			document.getElementById('edit-name')?.focus();
+			document.querySelector<HTMLElement>('#edit-name, #edit-markdown')?.focus();
 		} catch (error) {
 			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
 			outcome = { tone: 'warn', text: i18n.t.actionFailed };
@@ -65,6 +65,13 @@
 	async function save(draft: Draft) {
 		if (!form) return;
 		const view = await api.saveFile(form.id, form.version, draft);
+		await file.load(async () => view, true);
+		await close(i18n.t.fileSaved);
+	}
+
+	async function saveText(version: string, text: string) {
+		if (!form) return;
+		const view = await api.saveText(form.id, version, text);
 		await file.load(async () => view, true);
 		await close(i18n.t.fileSaved);
 	}
@@ -120,7 +127,7 @@
 			</div>
 			{#if !form}
 				<div class="head-actions">
-					<a class="button small" href="/memory?graph=1&id={entity.id}" aria-label={i18n.t.inGraphLabel(entity.name)}>{i18n.t.inGraph}</a>
+					<a class="button small" href="/around?id={entity.id}" aria-label={i18n.t.aroundLabel(entity.name)}>{i18n.t.around}</a>
 					<button type="button" class="button small" bind:this={editButton} onclick={edit}>{i18n.t.editFile}</button>
 				</div>
 			{/if}
@@ -132,7 +139,7 @@
 
 		{#if form}
 			<section aria-label={i18n.t.editTitle(entity.name)}>
-				<Editor {form} {save} cancel={() => close(null)} />
+				<FileEditor {form} {save} {saveText} cancel={() => close(null)} bind:question />
 				{#if !form.owner}
 					<button type="button" class="link-button danger" onclick={remove}>{i18n.t.deleteFile}</button>
 				{/if}
@@ -142,8 +149,10 @@
 
 		{#if entity.sensitive}<Sensitive category={entity.category} />{/if}
 
-		{#if entity.phones.length || entity.emails.length || entity.birthday || entity.address}
+		{#if entity.phones.length || entity.emails.length || entity.birthday || entity.address || entity.at}
 			<dl class="props">
+				{#if entity.at}<dt>{i18n.t.reminderAt}</dt><dd data-testid="reminder-at">{isDay(entity.at) ? longDay(entity.at) : when(entity.at)}{#if entity.every} · {i18n.t.reminderEvery[entity.every] ?? entity.every}{/if}</dd>{/if}
+				{#if entity.done}<dt>{i18n.t.reminderDone}</dt><dd>{longDay(entity.done)}</dd>{/if}
 				{#each entity.phones as phone, i (i)}<dt>{i18n.t.phone}</dt><dd><a href="tel:{phone}">{formatPhone(phone)}</a></dd>{/each}
 				{#each entity.emails as email, i (i)}<dt>{i18n.t.email}</dt><dd><a href="mailto:{email}">{email}</a></dd>{/each}
 				{#if entity.birthday}<dt>{i18n.t.birthday}</dt><dd>{birthday(entity.birthday)}</dd>{/if}

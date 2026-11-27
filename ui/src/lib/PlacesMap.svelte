@@ -1,11 +1,45 @@
 <script lang="ts">
-	// The map (issue #135): places as circles sized by visits, drawn in Web Mercator on
-	// an SVG. Without tiles it works offline (points only); with the person's consent,
-	// OpenStreetMap's tiles are drawn under them. Drag to move, wheel or buttons to
-	// zoom, arrow keys too.
-	import { untrack } from 'svelte';
+	// The map (issues #135 and #212): places as circles sized by visits, close ones in
+	// groups that open with a click, drawn by MapLibre: smooth moving and zooming, with
+	// the mouse, a trackpad, a finger or the keyboard. Without the base map nothing is
+	// fetched; with the person's consent, OpenFreeMap's tiles are drawn under the places,
+	// light or dark with the interface.
+	import { onMount, untrack } from 'svelte';
+	import type { GeoJSONSource, LngLatBoundsLike, Map as MapLibre, MapMouseEvent } from 'maplibre-gl';
+	import 'maplibre-gl/dist/maplibre-gl.css';
 	import type { MapPlaceView } from './api.ts';
 	import { i18n } from './i18n.svelte.ts';
+	import { mapStyle } from './mapStyle.ts';
+	// MapLibre's build that runs under a strict Content-Security-Policy, and its worker:
+	// two files of the interface, loaded only on this screen, never at start.
+	import library from 'maplibre-gl/dist/maplibre-gl-csp.js?url';
+	import worker from 'maplibre-gl/dist/maplibre-gl-csp-worker.js?url';
+
+	type MapLibreGl = typeof import('maplibre-gl');
+	let loading: Promise<MapLibreGl> | null = null;
+
+	/** Loads MapLibre once, as a script of the interface. */
+	function maplibre(): Promise<MapLibreGl> {
+		const ready = (window as unknown as { maplibregl?: MapLibreGl }).maplibregl;
+		if (ready) return Promise.resolve(ready);
+		loading ??= new Promise((resolve, reject) => {
+			const script = document.createElement('script');
+			script.src = library;
+			script.onload = () => {
+				const lib = (window as unknown as { maplibregl?: MapLibreGl }).maplibregl;
+				if (lib) {
+					lib.setWorkerUrl(worker);
+					resolve(lib);
+				} else reject(new Error('MapLibre did not load.'));
+			};
+			script.onerror = () => {
+				loading = null;
+				reject(new Error('MapLibre did not load.'));
+			};
+			document.head.append(script);
+		});
+		return loading;
+	}
 
 	let {
 		places,
@@ -13,157 +47,143 @@
 		tiles
 	}: { places: MapPlaceView[]; selected: string | null; tiles: boolean } = $props();
 
-	/** The world at zoom 0 is 256 units wide, as tiles are. */
-	const WORLD = 256;
-	const MAX_ZOOM = 18;
+	let box: HTMLDivElement | undefined = $state();
+	let map: MapLibre | null = $state(null);
+	let failed = $state(false);
 
-	const project = (lat: number, lon: number) => {
-		const sin = Math.sin((Math.max(-85, Math.min(85, lat)) * Math.PI) / 180);
-		return {
-			x: ((lon + 180) / 360) * WORLD,
-			y: (0.5 - Math.log((1 + sin) / (1 - sin)) / (4 * Math.PI)) * WORLD
-		};
-	};
+	/** Draws the map in `style`, and says its ground's colour on the element. */
+	function draw(target: MapLibre, style: ReturnType<typeof mapStyle>) {
+		target.setStyle(style);
+		const ground = style.layers[0];
+		if (box && ground.type === 'background') box.dataset.ground = String(ground.paint?.['background-color'] ?? '');
+	}
 
-	let width = $state(800);
-	let height = $state(520);
-	const points = $derived(places.map((p) => ({ place: p, ...project(p.lat, p.lon) })));
-
-	/** The part of the world shown: its left, top and width, in world units. */
-	let view = $state({ x: 0, y: 0, w: WORLD });
-	let fitted = $state(false);
+	/** All the places, with a margin. */
+	function bounds(): LngLatBoundsLike | undefined {
+		if (!places.length) return undefined;
+		const lons = places.map((p) => p.lon);
+		const lats = places.map((p) => p.lat);
+		return [
+			[Math.min(...lons), Math.min(...lats)],
+			[Math.max(...lons), Math.max(...lats)]
+		];
+	}
 
 	function fit() {
-		if (!points.length) return;
-		const xs = points.map((p) => p.x);
-		const ys = points.map((p) => p.y);
-		const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-		const ratio = height / width;
-		let w = Math.max(x1 - x0, (y1 - y0) / ratio) * 1.25;
-		w = Math.max(w, WORLD / 2 ** 15);
-		view = { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - (w * ratio) / 2, w };
-		fitted = true;
+		const all = bounds();
+		if (map && all) map.fitBounds(all, { padding: 64, maxZoom: 15, duration: matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 400 });
 	}
 
-	$effect(() => {
-		if (!fitted && points.length && width > 0) fit();
+	onMount(() => {
+		let gone = false;
+		let theme: MutationObserver | undefined;
+		(async () => {
+			let lib: typeof import('maplibre-gl');
+			try {
+				lib = await maplibre();
+			} catch {
+				failed = true;
+				return;
+			}
+			if (gone || !box) return;
+			let made: MapLibre;
+			try {
+				made = new lib.Map({
+					container: box,
+					style: mapStyle(places, selected, tiles),
+					bounds: bounds(),
+					fitBoundsOptions: { padding: 64, maxZoom: 15 },
+					maxZoom: 18,
+					dragRotate: false,
+					pitchWithRotate: false,
+					touchPitch: false,
+					attributionControl: false,
+					fadeDuration: 0
+				});
+			} catch {
+				failed = true;
+				return;
+			}
+			made.touchZoomRotate.disableRotation();
+			made.keyboard.disableRotation();
+			made.getCanvas().setAttribute('aria-label', i18n.t.mapLabel);
+			made.on('click', 'places', (e: MapMouseEvent & { features?: { properties: Record<string, unknown> }[] }) => {
+				const id = e.features?.[0]?.properties.id;
+				if (typeof id === 'string') selected = id;
+			});
+			made.on('click', 'groups', async (e: MapMouseEvent & { features?: { properties: Record<string, unknown>; geometry: import('geojson').Geometry }[] }) => {
+				const group = e.features?.[0];
+				const source = made.getSource('places') as GeoJSONSource | undefined;
+				if (!group || !source || group.geometry.type !== 'Point') return;
+				const zoom = await source.getClusterExpansionZoom(group.properties.cluster_id as number);
+				made.easeTo({ center: group.geometry.coordinates as [number, number], zoom });
+			});
+			for (const layer of ['places', 'groups']) {
+				made.on('mouseenter', layer, () => (made.getCanvas().style.cursor = 'pointer'));
+				made.on('mouseleave', layer, () => (made.getCanvas().style.cursor = ''));
+			}
+			// What is drawn, said on the element: how many places and groups, and where the
+			// first place is, for tests and tools that cannot see the canvas.
+			made.on('idle', () => {
+				if (!box) return;
+				const drawn = made.queryRenderedFeatures({ layers: ['places', 'groups'] });
+				box.dataset.drawn = String(drawn.length);
+				const first = drawn.find((f) => f.layer.id === 'places' && f.geometry.type === 'Point');
+				if (first?.geometry.type === 'Point') {
+					const at = made.project(first.geometry.coordinates as [number, number]);
+					box.dataset.first = `${Math.round(at.x)},${Math.round(at.y)},${first.properties.id}`;
+				}
+			});
+			map = made;
+			draw(made, mapStyle(places, selected, tiles));
+			// The frame has its size once laid out: fit the places in it then.
+			made.once('load', () => {
+				made.resize();
+				const all = bounds();
+				if (all) made.fitBounds(all, { padding: 64, maxZoom: 15, duration: 0 });
+			});
+			// Light or dark with the interface.
+			theme = new MutationObserver(() => draw(made, mapStyle(places, selected, tiles)));
+			theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+		})();
+		return () => {
+			gone = true;
+			theme?.disconnect();
+			map?.remove();
+			map = null;
+		};
 	});
 
-	const scale = $derived(width / view.w);
-	const h = $derived(view.w * (height / width));
+	// The base map turned on or off, or the chosen place: the same style, drawn again.
+	$effect(() => {
+		const style = mapStyle(places, selected, tiles);
+		untrack(() => map && draw(map, style));
+	});
 
-	function zoom(factor: number, cx = view.x + view.w / 2, cy = view.y + h / 2) {
-		const w = Math.min(WORLD * 2, Math.max(WORLD / 2 ** MAX_ZOOM, view.w / factor));
-		const k = w / view.w;
-		view = { x: cx - (cx - view.x) * k, y: cy - (cy - view.y) * k, w };
-	}
-
-	function center(id: string) {
-		const point = points.find((p) => p.place.id === id);
-		if (point) view = { x: point.x - view.w / 2, y: point.y - h / 2, w: view.w };
-	}
-
-	// Centre the chosen place; what the view was is read untracked, so that moving it
-	// does not centre it again.
+	// The chosen place comes into view, without zooming out.
 	$effect(() => {
 		const id = selected;
-		if (id) untrack(() => center(id));
+		untrack(() => {
+			const place = places.find((p) => p.id === id);
+			if (map && place) map.easeTo({ center: [place.lon, place.lat], zoom: Math.max(map.getZoom(), 13) });
+		});
 	});
-
-	let drag: { x: number; y: number; vx: number; vy: number; moved: boolean } | null = null;
-
-	function down(e: PointerEvent) {
-		drag = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y, moved: false };
-		(e.currentTarget as Element).setPointerCapture(e.pointerId);
-	}
-
-	function move(e: PointerEvent) {
-		if (!drag) return;
-		const dx = e.clientX - drag.x;
-		const dy = e.clientY - drag.y;
-		if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
-		view = { x: drag.vx - dx / scale, y: drag.vy - dy / scale, w: view.w };
-	}
-
-	function wheel(e: WheelEvent) {
-		e.preventDefault();
-		const box = (e.currentTarget as Element).getBoundingClientRect();
-		const cx = view.x + ((e.clientX - box.left) / box.width) * view.w;
-		const cy = view.y + ((e.clientY - box.top) / box.height) * h;
-		zoom(e.deltaY < 0 ? 1.25 : 0.8, cx, cy);
-	}
-
-	function key(e: KeyboardEvent) {
-		const step = view.w / 8;
-		const moves: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-		if (moves[e.key]) {
-			e.preventDefault();
-			view = { x: view.x + moves[e.key][0], y: view.y + moves[e.key][1], w: view.w };
-		} else if (e.key === '+' || e.key === '=') zoom(1.5);
-		else if (e.key === '-') zoom(1 / 1.5);
-	}
-
-	/** The tiles under the view, at the zoom closest to the screen's. */
-	const shownTiles = $derived.by(() => {
-		if (!tiles) return [];
-		const z = Math.max(0, Math.min(MAX_ZOOM, Math.round(Math.log2(scale))));
-		const n = 2 ** z;
-		const size = WORLD / n;
-		const list: { key: string; x: number; y: number; size: number; href: string }[] = [];
-		for (let tx = Math.floor(view.x / size); tx <= Math.floor((view.x + view.w) / size); tx++) {
-			for (let ty = Math.max(0, Math.floor(view.y / size)); ty <= Math.min(n - 1, Math.floor((view.y + h) / size)); ty++) {
-				const wrapped = ((tx % n) + n) % n;
-				list.push({ key: `${z}/${tx}/${ty}`, x: tx * size, y: ty * size, size, href: `https://tile.openstreetmap.org/${z}/${wrapped}/${ty}.png` });
-				if (list.length > 64) return list;
-			}
-		}
-		return list;
-	});
-
-	const radius = (visits: number) => (5 + 2.6 * Math.sqrt(visits)) / scale;
 </script>
 
-<div class="map-frame" bind:clientWidth={width} bind:clientHeight={height}>
-	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-	<svg
-		class="map"
-		class:tiles
-		viewBox="{view.x} {view.y} {view.w} {h}"
-		role="application"
-		aria-label={i18n.t.mapLabel}
-		tabindex="0"
-		onpointerdown={down}
-		onpointermove={move}
-		onpointerup={() => (drag = null)}
-		onwheel={wheel}
-		onkeydown={key}
-	>
-		{#each shownTiles as tile (tile.key)}
-			<image href={tile.href} x={tile.x} y={tile.y} width={tile.size} height={tile.size} />
-		{/each}
-		{#each [...points].reverse() as point (point.place.id)}
-			<circle
-				cx={point.x}
-				cy={point.y}
-				r={radius(point.place.visits)}
-				class="spot"
-				class:chosen={selected === point.place.id}
-				role="button"
-				tabindex="-1"
-				aria-label={point.place.name}
-				onclick={() => {
-					if (!drag?.moved) selected = point.place.id;
-				}}
-				onkeydown={(e) => e.key === 'Enter' && (selected = point.place.id)}
-			><title>{point.place.name}</title></circle>
-		{/each}
-	</svg>
+<div class="map-frame">
+	<div class="map" bind:this={box} role="application" aria-label={i18n.t.mapLabel} data-places={places.length}></div>
+	{#if failed}
+		<p class="map-failed quiet">{i18n.t.mapNoWebgl}</p>
+	{/if}
 	<div class="map-zoom">
-		<button type="button" class="button small" aria-label={i18n.t.zoomIn} onclick={() => zoom(1.5)}>+</button>
-		<button type="button" class="button small" aria-label={i18n.t.zoomOut} onclick={() => zoom(1 / 1.5)}>−</button>
+		<button type="button" class="button small" aria-label={i18n.t.zoomIn} onclick={() => map?.zoomIn()}>+</button>
+		<button type="button" class="button small" aria-label={i18n.t.zoomOut} onclick={() => map?.zoomOut()}>−</button>
 		<button type="button" class="button small" onclick={fit}>{i18n.t.mapAll}</button>
 	</div>
 	{#if tiles}
-		<p class="map-credit">© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">{i18n.t.osmContributors}</a></p>
+		<p class="map-credit">
+			© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">{i18n.t.osmContributors}</a>,
+			<a href="https://openfreemap.org" target="_blank" rel="noreferrer">OpenFreeMap</a>
+		</p>
 	{/if}
 </div>

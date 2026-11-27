@@ -949,3 +949,66 @@ async fn a_summary_the_person_accepts_in_advance_is_accepted_at_once() {
     assert_eq!(fact["status"], "waiting");
     ai.cancel().await.unwrap();
 }
+
+#[tokio::test]
+async fn a_reminder_is_written_told_by_now_then_done() {
+    // "Sport every day" (issue #206): the AI writes it, hears of it from `now`, marks it
+    // done; with "New files" on, without waiting for the person.
+    let f = fixture();
+    let today = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date();
+    let mut clients = Clients::load(&f.root).unwrap();
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["agenda".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+    clients
+        .set_auto_accept("claude", ipse_core::rights::Standing::Creations, true)
+        .unwrap();
+
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    let proposed = read(
+        &ai,
+        "propose",
+        json!({
+            "reason": "La personne a demandé : rappelle-moi le sport tous les jours.",
+            "changes": [{"kind": "create", "type": "reminder", "keys": {"name": "Sport", "at": today.to_string(), "every": "day"}}]
+        }),
+    )
+    .await;
+    assert_eq!(proposed["status"], "accepted", "{proposed}");
+
+    let now = read(&ai, "now", json!({})).await;
+    let reminders = now["reminders"].as_array().unwrap();
+    assert_eq!(reminders.len(), 1, "{now}");
+    assert_eq!(reminders[0]["name"], "Sport");
+    assert_eq!(reminders[0]["at"], today.to_string());
+    assert_eq!(reminders[0]["every"], "day");
+    assert_eq!(reminders[0]["overdue"], true);
+    let file = reminders[0]["file"].as_str().unwrap().to_owned();
+    assert!(file.starts_with("reminders/"), "{file}");
+
+    let done = read(
+        &ai,
+        "propose",
+        json!({
+            "reason": "Fait ce matin.",
+            "changes": [{"kind": "set_key", "file": file, "key": "done", "from": null, "to": today.to_string()}]
+        }),
+    )
+    .await;
+    assert_eq!(done["status"], "accepted", "{done}");
+    let now = read(&ai, "now", json!({})).await;
+    let tomorrow = today.tomorrow().unwrap().to_string();
+    assert_eq!(now["reminders"][0]["at"], tomorrow.as_str(), "{now}");
+    assert_eq!(now["reminders"][0]["overdue"], false);
+    let text = std::fs::read_to_string(f.root.join(&file)).unwrap();
+    assert!(text.contains("\ntype: reminder\n"), "{text}");
+    assert!(text.contains(&format!("\ndone: {today}\n")), "{text}");
+    ai.cancel().await.unwrap();
+}

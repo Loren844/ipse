@@ -25,6 +25,8 @@
   <a href="docs/guide/install.md">Install</a> ·
   <a href="docs/guide/getting-started.md">Getting started</a> ·
   <a href="docs/guide/connecting.md">Connect your AI</a> ·
+  <a href="docs/guide/obsidian.md">Obsidian</a> ·
+  <a href="docs/guide/self-hosting.md">Home server</a> ·
   <a href="docs/guide/threat-model.md">Privacy</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="https://github.com/Loren844/ipse/issues/new">Report a bug</a>
@@ -32,7 +34,7 @@
 
 <br>
 
-Your AI forgets who your friends are, what you did last summer and what is on next week, so you tell it again and again. **Ipse** keeps that memory for it: your people, places, events and days, built from your contacts, calendars and location history, in a folder of Markdown files on your computer. Any AI app that speaks MCP (Claude Desktop, Claude Code, LM Studio…) reads it with the rights you give it. When it wants to change something, it sends a proposal, and you review it like a pull request.
+Your AI forgets who your friends are, what you did last summer and what is on next week, so you tell it again and again. **Ipse** keeps that memory for it: your people, places, events and days, built from your contacts, calendars, location history and your own servers (Home Assistant, Jellyfin, Immich), in a folder of Markdown files on your computer. Any AI app that speaks MCP (Claude Desktop, Claude Code, LM Studio…) reads it with the rights you give it. When it wants to change something, it sends a proposal, and you review it like a pull request.
 
 <p align="center">
   <img alt="An AI's proposal in Ipse's review inbox: accepted, then undone" src="docs/images/review.gif" width="100%">
@@ -62,16 +64,16 @@ Your AI forgets who your friends are, what you did last summer and what is on ne
       <sub>Calendar files and links, iCloud, Fastmail or any CalDAV and CardDAV account, synced in the background. By list, week, month and kind.</sub>
     </td>
     <td width="50%" valign="top">
-      <img alt="The timeline" src="docs/images/timeline.png">
+      <img alt="The agenda by years" src="docs/images/timeline.png">
       <strong>Your life by years and months</strong><br>
       <sub>What marked each period and the people you saw most; a map of the places you go, from your location history.</sub>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <img alt="The graph of the whole memory" src="docs/images/graph.png">
+      <img alt="The graph around you" src="docs/images/graph.png">
       <strong>Your whole memory, linked</strong><br>
-      <sub>People, places, organizations, projects, books and series, events: one graph, you at its center.</sub>
+      <sub>Start from you or any file: the people you see most, the places, projects and relations around it, each link said in words.</sub>
     </td>
     <td width="50%" valign="top">
       <img alt="Connected AIs and their rights" src="docs/images/ais.png">
@@ -95,10 +97,12 @@ ipse client add Claude --install claude-desktop --vault ~/Ipse-demo
 
 Restart Claude Desktop and ask it *"Who did I see most this year?"*. [Getting started](docs/guide/getting-started.md) goes on to your own contacts and calendar, and covers Windows.
 
+On a NAS or a Raspberry Pi, the Docker image `ghcr.io/loren844/ipse` runs the interface, MCP and the sync in one process: see [Ipse on a home server](docs/guide/self-hosting.md).
+
 ## 💡 Why Ipse
 
-- **Your whole life, not chat snippets.** A memory of people, places and events, filled from what you already have, rather than scraps of what you once typed to an AI.
-- **Files you own.** Markdown with a YAML header in a folder of yours, readable in Obsidian or any editor. Change a file by hand and Ipse picks it up. No account, no server, no cloud.
+- **Your whole life, not chat snippets.** A memory of people, places and events, filled from what you already have (contacts, calendars, location history, Home Assistant, Jellyfin, Immich), rather than scraps of what you once typed to an AI. Tell your AI *"remember this"* or *"remind me on Thursday"*, and that goes in too.
+- **Files you own.** Markdown with a YAML header in a folder of yours, readable in [Obsidian](docs/guide/obsidian.md) or any editor. Change a file by hand and Ipse picks it up. No account, no cloud: on your computer, or on a server at home if you want one.
 - **Nothing is written behind your back.** Data your sources bring is imported as it is; anything an AI infers is a proposal you accept, refuse or undo, and the history says who changed what.
 - **You choose what each AI sees,** category by category, and Ipse enforces it in the code that answers.
 - **Any model.** Through the open [Model Context Protocol](https://modelcontextprotocol.io), with a local model or an online one.
@@ -115,7 +119,7 @@ Measured with `cargo bench` on a 4-core Intel Xeon at 2.1 GHz (a cloud virtual m
 | Tell whether that memory changed, as the MCP server does on every request | 4.3 ms |
 | Search it | 8 µs |
 
-The graph of a whole memory of 22 000 files is laid out in under 20 ms and drawn in under half a second.
+In a memory of 22 000 files, the graph around a file opens in under half a second.
 
 ## 🧭 Principles
 
@@ -132,9 +136,15 @@ The graph of a whole memory of 22 000 files is laid out in under 20 ms and drawn
 
 - ✅ **Core** ([0.1.0](https://github.com/Loren844/ipse/releases/tag/v0.1.0)): memory format, journal, index, command line, MCP server with rights per category; contacts and calendar; the review inbox with diff and undo, history, connected AIs; tasks for your AI (facts from notes, duplicates, nicknames, summaries); the whole memory in the interface, editing by hand, kinds of events; binaries for every system and a demo memory.
 - ✅ **The desktop app** ([0.2.0](https://github.com/Loren844/ipse/releases/tag/v0.2.0)): installers for Windows, macOS and Linux; the agenda by week and month, the timeline, the map; location history; an AI app connected in one command.
-- ✅ **Living in the background** ([0.3.0](https://github.com/Loren844/ipse/releases/tag/v0.3.0)): calendars and contacts accounts (CalDAV, CardDAV), sync while the app runs, notifications, signed updates; views by kind of event; the whole memory as a graph; standing consent for summaries.
-- 🔜 **Launch**, once the app is checked on every system ([#157](https://github.com/Loren844/ipse/issues/157)).
-- 🔜 **Widening**: more connectors, self-hosted services first (Jellyfin, Immich, Home Assistant…), and a kit for anyone to write one; semantic search with a local model, as an option.
+- ✅ **Living in the background** ([0.3.0](https://github.com/Loren844/ipse/releases/tag/v0.3.0)): calendars and contacts accounts (CalDAV, CardDAV), sync while the app runs, notifications, signed updates; views by kind of event; the whole memory as a graph; standing consent for summaries; each release checked on the three systems.
+- ✅ **Easier to pick up** ([0.3.1](https://github.com/Loren844/ipse/releases/tag/v0.3.1)): first steps on the home screen, a page on how Ipse works, a note the first time each screen opens; the timeline as the agenda's Years view; a smoother map, light and dark; the graph centred on one file and its strongest links; editing a file as Markdown.
+- ✅ **Your AI remembers** ([0.4.0](https://github.com/Loren844/ipse/releases/tag/v0.4.0)): *"remember this about me"* becomes a file of your memory; reminders your AI tells you about when they are due; one AI allowed to create files without waiting, each undone in one click; a guide to open your memory in [Obsidian](docs/guide/obsidian.md).
+- ✅ **Your own servers** ([0.5.0](https://github.com/Loren844/ipse/releases/tag/v0.5.0)): Home Assistant (when you are at home, and where your phone goes), Jellyfin (what you watch), Immich (who is on your photos); Ipse on a [home server](docs/guide/self-hosting.md) with `ipse serve` and a Docker image, behind an access code.
+- 🔜 **Launch**: the public launch of the desktop app.
+- 🔜 **Around someone**: one view centred on a person or a place, with everything that touches them (events, visits, photos, what your AI remembers, reminders, notes), ahead of the graph ([#244](https://github.com/Loren844/ipse/issues/244)).
+- 🔜 **More connectors**: Wardrowbe, your wardrobe and what you wear ([#242](https://github.com/Loren844/ipse/issues/242)), then a kit for anyone to write one.
+- 🔜 **Your own categories** for what your AI remembers, beyond the ones Ipse ships with.
+- 🔜 **Semantic search** with a model that runs on your computer, as an option.
 - 🔜 **Mobile**: sync and quick capture.
 
 [CHANGELOG.md](CHANGELOG.md) lists every change; [docs/decisions](docs/decisions) explains why.

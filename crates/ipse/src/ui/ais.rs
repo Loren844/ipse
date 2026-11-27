@@ -34,8 +34,8 @@ pub(crate) struct AiView {
     read: Vec<String>,
     /// The categories it proposes in.
     propose: Vec<String>,
-    /// What the person accepts from it in advance (decision 0017): `summaries`,
-    /// `event_kinds`.
+    /// What the person accepts from it in advance (decisions 0017 and
+    /// 0018): `summaries`, `event_kinds`, `creations`.
     auto_accept: Vec<String>,
     /// What Ipse offers to accept from it in advance, after the person accepted
     /// several of these in a row, one by one.
@@ -155,7 +155,7 @@ struct RightsBody {
 /// The body of `auto` and `decline`.
 #[derive(Deserialize)]
 struct StandingBody {
-    /// `summaries` or `event_kinds`.
+    /// `summaries`, `event_kinds` or `creations`.
     standing: String,
     /// For `auto`: on or off.
     #[serde(default)]

@@ -241,6 +241,15 @@ pub struct Entry {
     /// `YYYY-MM-DD`, or `--MM-DD` without the year.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub birthday: Option<String>,
+    /// For a reminder: when it is due, the first time when it comes back.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub at: Option<String>,
+    /// For a reminder: `day`, `week`, `month` or `year`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub every: Option<String>,
+    /// For a reminder: the day it was last done.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub done: Option<String>,
     /// Email addresses.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub emails: Vec<String>,
@@ -350,6 +359,24 @@ pub struct States {
     pub states: Vec<StateOut>,
     /// True when there were more than the limit.
     pub more: bool,
+}
+
+/// A reminder that is due, overdue or due in the next 24 hours (issue #206).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct ReminderOut {
+    /// Its file's id: `propose` a `set_key` of `done` on it once the person did it.
+    pub id: String,
+    /// What to remind the person of.
+    pub name: String,
+    /// When this occurrence is: a day, or a moment with its offset.
+    pub at: String,
+    /// True when that moment has passed and it is not done.
+    pub overdue: bool,
+    /// How often it comes back: `day`, `week`, `month` or `year`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub every: Option<String>,
+    /// The file's path, to `propose` changes on it.
+    pub file: String,
 }
 
 /// A relation as an AI receives it.
@@ -540,6 +567,64 @@ impl<'g> Access<'g> {
             }
         }
         self.cap(states, MAX_STATES)
+    }
+
+    /// The reminders this AI may read that are due now, overdue, or due in the next 24
+    /// hours, the earliest first (issue #206). At most [`MAX_STATES`].
+    #[must_use]
+    pub fn reminders(&self) -> Vec<ReminderOut> {
+        let tz = self.time_zone();
+        let now = Timestamp::now();
+        let dir = self.gateway.vault.root().join(FileType::Reminder.folder());
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|x| x == "md"))
+            .collect();
+        paths.sort();
+        let mut found: Vec<(Timestamp, ReminderOut, String)> = Vec::new();
+        for path in paths {
+            let Ok(file) = MemoryFile::read(&path) else {
+                continue;
+            };
+            let common = file.common();
+            if common.file_type != FileType::Reminder || !self.reads(common.category.as_str()) {
+                continue;
+            }
+            let Some(fields) = file.entity() else {
+                continue;
+            };
+            let Some(due) = crate::reminders::due(fields, now, tz, crate::reminders::AHEAD) else {
+                continue;
+            };
+            let Some(when) = instant(&due.at, tz, false) else {
+                continue;
+            };
+            found.push((
+                when,
+                ReminderOut {
+                    id: common.id.to_string(),
+                    name: fields.name.clone().unwrap_or_default(),
+                    at: self.time_text(&due.at),
+                    overdue: due.overdue,
+                    every: fields.every.map(|e| e.as_str().to_owned()),
+                    file: format!(
+                        "{}/{}",
+                        FileType::Reminder.folder(),
+                        path.file_name().unwrap_or_default().to_string_lossy()
+                    ),
+                },
+                common.category.to_string(),
+            ));
+        }
+        found.sort_by_key(|(when, _, _)| *when);
+        found.truncate(MAX_STATES);
+        for (_, _, category) in &found {
+            self.returned(category);
+        }
+        found.into_iter().map(|(_, r, _)| r).collect()
     }
 
     /// Every state of `topic` seen during `from`–`to`, current, recent or past, with its
@@ -755,6 +840,9 @@ impl<'g> Access<'g> {
             name: entity.name.clone(),
             aliases: entity.aliases.clone(),
             birthday: entity.birthday.map(|b| b.to_string()),
+            at: entity.at.as_ref().map(|t| self.time_text(t)),
+            every: entity.every.map(|e| e.as_str().to_owned()),
+            done: entity.done.map(|d| d.to_string()),
             emails: entity.emails.clone(),
             phones: entity.phones.clone(),
             address: entity.address.clone(),

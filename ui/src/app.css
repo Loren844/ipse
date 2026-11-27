@@ -294,7 +294,8 @@ nav a[aria-current='page'] svg {
 	cursor: pointer;
 }
 
-.segmented button[aria-pressed='true'] {
+.segmented button[aria-pressed='true'],
+.segmented button[aria-selected='true'] {
 	background: var(--thread-soft);
 	color: var(--thread-ink);
 }
@@ -1209,6 +1210,8 @@ h1.proposal-title {
 
 .lock {
 	display: inline-flex;
+	background: none;
+	padding: 0;
 	align-items: center;
 	gap: 0.3rem;
 	padding: 0 0.5rem;
@@ -1560,7 +1563,7 @@ dialog.confirm .actions {
 	font: inherit;
 	font-size: var(--step--1);
 	color: var(--thread-ink);
-	background: none;
+	
 	border: 0;
 	padding: 0;
 	text-decoration: underline;
@@ -2113,6 +2116,32 @@ dialog[open]::backdrop {
 }
 
 /* The kinds of the memory: an index, read like the contents of a book, not a grid of tiles. */
+.copies {
+	margin: 1.5rem 0 0;
+	padding: 1rem 1.25rem;
+	background: var(--warn-soft);
+	border-radius: 0.5rem;
+}
+.copies h2 {
+	margin: 0 0 0.25rem;
+	font-size: var(--step-0);
+	color: var(--warn);
+}
+.copies ul {
+	list-style: none;
+	margin: 0.75rem 0 0;
+	padding: 0;
+}
+.copies li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem 1rem;
+	padding: 0.4rem 0;
+	overflow-wrap: anywhere;
+}
+
 .kinds {
 	list-style: none;
 	margin: 1.75rem 0 0;
@@ -2274,6 +2303,29 @@ dialog[open]::backdrop {
 .person-head .head-actions {
 	margin-left: auto;
 	align-self: center;
+}
+
+/* Modifier: the form or the file as written (issue #142). */
+.editor-tabs {
+	margin-top: 1.5rem;
+}
+
+.editor-tabs + [role='tabpanel'] .editor {
+	margin-top: 1rem;
+}
+
+.markdown-editor {
+	max-width: 48rem;
+}
+
+.markdown-editor .form-field textarea {
+	font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+	font-size: var(--step--1);
+	line-height: 1.5;
+	tab-size: 2;
+	white-space: pre;
+	overflow-wrap: normal;
+	overflow-x: auto;
 }
 
 .editor {
@@ -2528,16 +2580,9 @@ dialog[open]::backdrop {
 	color: var(--thread-ink);
 }
 
-/* The whole memory's graph (issue #174): quiet shapes and lines, the thread's red for
-   you, the chosen file and its links; a shape per kind and hollow shapes for what AIs
-   cannot see, never colour alone. Beside the list in Mémoire, instead of it when narrow. */
-.graph-filters-box summary {
-	cursor: pointer;
-	font-weight: 700;
-	font-size: var(--step--1);
-	width: fit-content;
-}
-
+/* The graph's filters and shapes: quiet shapes and lines, the thread's red for the file
+   at the center and the link pointed at; a shape per kind and hollow shapes for what
+   AIs cannot see, never colour alone. */
 .graph-filters {
 	display: flex;
 	flex-wrap: wrap;
@@ -2603,97 +2648,156 @@ dialog[open]::backdrop {
 	cursor: not-allowed;
 }
 
-.screen.with-graph {
-	max-width: none;
+/* The graph centred on one file (issue #213): the drawing, and beside it the same
+   neighbours as a list, each link said in words. */
+.graph-trail ol {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.2rem 0;
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	font-size: var(--step--1);
 }
 
-.memory-split {
+.graph-trail a {
+	display: inline;
+	padding: 0;
+	color: var(--thread-ink);
+	text-decoration: underline;
+	font-size: inherit;
+}
+
+.graph-trail a:hover {
+	
+}
+
+.graph-trail li + li::before {
+	content: '›';
+	margin: 0 0.5rem;
+	color: var(--muted);
+}
+
+.graph-trail [aria-current] {
+	font-weight: 700;
+}
+
+.graph-layout {
 	display: grid;
-	grid-template-columns: minmax(17rem, 24rem) minmax(0, 1fr);
-	gap: 2rem;
+	grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
+	gap: 1.5rem;
 	align-items: start;
-}
-
-.memory-split > .memory-list {
-	display: flex;
-	flex-direction: column;
-	gap: 2.5rem;
-	min-width: 0;
-}
-
-.memory-graph {
-	position: sticky;
-	top: 1rem;
-	display: flex;
-	flex-direction: column;
-	gap: 1rem;
-	min-width: 0;
+	margin-top: 1rem;
 }
 
 .graph-stage {
-	position: relative;
-	height: min(calc(100vh - 6rem), 52rem);
-	min-height: 22rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.ego-graph {
+	height: min(calc(100vh - 16rem), 40rem);
+	min-height: 24rem;
 	border: 1.5px solid var(--line);
 	border-radius: var(--radius-l);
 	background: var(--surface);
-	overflow: hidden;
+	overflow: hidden auto;
 }
 
-.memory-graph-canvas {
-	position: absolute;
-	inset: 0;
-}
-
-.memory-graph-canvas canvas {
+.ego-graph svg {
 	display: block;
-	touch-action: none;
-	cursor: grab;
 	font-family: var(--text-font);
-	border-radius: var(--radius-l);
+	font-size: 12.5px;
 }
 
-.memory-graph-canvas:focus-visible {
-	outline-offset: -3px;
-}
-
-.graph-zoom {
-	position: absolute;
-	top: 0.6rem;
-	right: 0.6rem;
-	display: flex;
-	flex-direction: column;
-	gap: 0.3rem;
-}
-
-.graph-zoom button {
-	display: grid;
-	place-items: center;
-	width: 2.1rem;
-	height: 2.1rem;
-	font: inherit;
-	font-weight: 700;
-	color: var(--text);
-	background: var(--surface);
-	border: 1.5px solid var(--line-strong);
-	border-radius: var(--radius-s);
-	cursor: pointer;
-}
-
-.graph-zoom svg {
-	fill: none;
-	stroke: currentColor;
-	stroke-width: 1.8;
+.ego-link line {
+	stroke: var(--line-strong);
 	stroke-linecap: round;
+}
+
+.ego-link line.hit {
+	stroke: transparent;
+	stroke-width: 12;
+}
+
+.ego-link line.written {
+	stroke-dasharray: 5 4;
+}
+
+.ego-link.lit line:not(.hit) {
+	stroke: var(--thread);
+}
+
+.ego-word {
+	fill: var(--muted);
+	font-size: 11px;
+	font-style: italic;
+	paint-order: stroke;
+	stroke: var(--surface);
+	stroke-width: 4px;
 	stroke-linejoin: round;
 }
 
-.graph-loading {
-	position: absolute;
-	inset: 0;
-	display: grid;
-	place-items: center;
+.ego-node {
+	cursor: pointer;
+	fill: var(--muted);
+	stroke: var(--muted);
+	stroke-width: 1.5;
+}
+
+.ego-node .hit {
+	fill: transparent;
+	stroke: none;
+}
+
+.ego-node.hollow > :not(text):not(.hit) {
+	fill: var(--surface);
+}
+
+.ego-node text,
+.ego-center text {
+	fill: var(--text);
+	stroke: var(--surface);
+	stroke-width: 4px;
+	paint-order: stroke;
+	stroke-linejoin: round;
+}
+
+.ego-node.lit {
+	fill: var(--thread);
+	stroke: var(--thread);
+}
+
+.ego-node.lit text {
+	font-weight: 700;
+}
+
+.ego-center {
+	fill: var(--thread);
+	stroke: var(--thread);
+	stroke-width: 1.5;
+}
+
+.ego-center.hollow > :not(text) {
+	fill: var(--surface);
+}
+
+.ego-center text {
+	font-weight: 700;
+	font-size: 14px;
+}
+
+.graph-caption {
+	min-height: 1.5em;
+	margin: 0;
 	color: var(--muted);
+	font-size: var(--step--1);
+}
+
+.graph-caption strong {
+	color: var(--text);
 }
 
 .graph-panel {
@@ -2711,7 +2815,7 @@ dialog[open]::backdrop {
 	font-size: var(--step-2);
 }
 
-.graph-panel .facts {
+.graph-facts {
 	display: flex;
 	flex-wrap: wrap;
 	align-items: center;
@@ -2727,37 +2831,49 @@ dialog[open]::backdrop {
 	gap: 0.5rem;
 }
 
-.graph-panel ul {
+.graph-neighbours {
 	list-style: none;
 	margin: 0;
 	padding: 0;
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
-	gap: 0.2rem 1rem;
-	max-height: 16rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	max-height: 26rem;
 	overflow: auto;
 }
 
-.graph-panel li button {
+.graph-neighbours li {
+	display: flex;
+	flex-direction: column;
+	padding: 0.2rem 0.4rem;
+	border-left: 2px solid transparent;
+}
+
+.graph-neighbours li.lit {
+	border-left-color: var(--thread);
+	background: var(--thread-soft);
+}
+
+.graph-neighbours button {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.45rem;
-	width: 100%;
-	padding: 0.15rem 0;
+	padding: 0;
 	font: inherit;
 	text-align: left;
 	color: var(--text);
-	background: none;
+	
 	border: 0;
 	cursor: pointer;
 }
 
-.graph-panel li button:hover .name {
+.graph-neighbours button:hover .name {
 	text-decoration: underline;
 }
 
-.graph-panel li .quiet {
+.graph-neighbours .quiet {
 	font-size: var(--step--1);
+	padding-left: 1.2rem;
 }
 
 .graph-shape {
@@ -2788,30 +2904,14 @@ dialog[open]::backdrop {
 	gap: 0.35rem;
 }
 
-.graph-legend .you {
-	fill: var(--thread);
-	stroke: var(--thread);
-}
-
-.found a[aria-current='true'] {
-	background: var(--thread-soft);
-}
-
 @media (max-width: 64rem) {
-	.memory-split {
+	.graph-layout {
 		grid-template-columns: minmax(0, 1fr);
 	}
 
-	.with-graph .memory-overview {
-		display: none;
-	}
-
-	.memory-graph {
-		position: static;
-	}
-
-	.graph-stage {
-		height: 68vh;
+	.ego-graph {
+		height: 62vh;
+		min-height: 20rem;
 	}
 }
 
@@ -3345,12 +3445,100 @@ a.kind-tag:hover {
 	}
 }
 
-/* Sources: what feeds the memory. Adding a file or a link side by side, then the list. */
+/* Sources: what feeds the memory. The sources connected, then a catalogue of cards by
+   category; a card opens its form alone, in place of the catalogue. */
 .sources .add {
+	max-width: 40rem;
+}
+
+.sources .back {
+	margin: 1rem 0 0;
+}
+
+.sources .back a {
+	text-decoration: none;
+}
+
+.sources .back a:hover {
+	text-decoration: underline;
+}
+
+.sources .category {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+	margin-top: 0.4rem;
+}
+
+.sources .category h3 {
+	margin: 0;
+	font-size: var(--step-0);
+	color: var(--muted);
+}
+
+.cards {
+	list-style: none;
+	margin: 0;
+	padding: 0;
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr));
-	gap: 1rem 2.5rem;
-	margin-top: 1.5rem;
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+	gap: 0.75rem;
+}
+
+.source-card {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.85rem;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 0.9rem 1rem;
+	background: var(--surface);
+	border: 1.5px solid var(--line);
+	border-radius: var(--radius);
+	color: var(--text);
+	text-decoration: none;
+	transition: border-color var(--motion-quick) var(--motion-ease);
+}
+
+.source-card:hover {
+	border-color: var(--thread-faint);
+}
+
+.source-card:focus-visible {
+	outline: 2px solid var(--focus);
+	outline-offset: 2px;
+}
+
+.source-card svg {
+	flex: none;
+	margin-top: 0.1rem;
+	fill: none;
+	stroke: var(--thread);
+	stroke-width: 1.8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+.card-text {
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	flex: 1;
+	min-width: 0;
+}
+
+.card-name {
+	font-weight: 700;
+}
+
+.source-card .quiet {
+	font-size: var(--step--1);
+	line-height: 1.4;
+}
+
+.source-card .badge {
+	flex: none;
+	align-self: center;
 }
 
 .sources section {
@@ -3511,7 +3699,7 @@ nav.crumbs:empty {
 	gap: 2.75rem;
 }
 
-.year-row h2 {
+.year-row h3 {
 	font-size: clamp(2.2rem, 5vw, 3rem);
 	font-weight: 800;
 	letter-spacing: -0.035em;
@@ -3519,14 +3707,14 @@ nav.crumbs:empty {
 	margin: 0 0 0.35rem;
 }
 
-.year-row h2 a,
-.month-card h2 a {
+.year-row h3 a,
+.month-card h3 a {
 	color: var(--text);
 	text-decoration: none;
 }
 
-.year-row h2 a:hover,
-.month-card h2 a:hover {
+.year-row h3 a:hover,
+.month-card h3 a:hover {
 	color: var(--thread);
 }
 
@@ -3645,7 +3833,7 @@ nav.crumbs:empty {
 	border-top: 2px solid var(--line-strong);
 }
 
-.month-card h2 {
+.month-card h3 {
 	margin: 0;
 	font-size: var(--step-2);
 }
@@ -3686,8 +3874,8 @@ nav.crumbs:empty {
 	font-weight: 700;
 }
 
-/* The map (issue #135): places as circles on a plain ground, or on OpenStreetMap's
-   tiles once the person accepts them; the chosen place beside it. */
+/* The map (issues #135 and #212): places as circles on a plain ground, or on
+   OpenFreeMap's tiles once the person accepts them; the chosen place beside it. */
 .map-screen {
 	max-width: 72rem;
 	gap: 1.25rem;
@@ -3729,40 +3917,23 @@ nav.crumbs:empty {
 }
 
 .map {
-	display: block;
 	width: 100%;
 	height: 100%;
-	cursor: grab;
-	touch-action: none;
-	user-select: none;
 }
 
-.map:active {
-	cursor: grabbing;
-}
-
-.map:focus-visible {
+.map .maplibregl-canvas:focus-visible {
 	outline: 2.5px solid var(--focus);
 	outline-offset: -3px;
 }
 
-.spot {
-	fill: var(--thread);
-	fill-opacity: 0.55;
-	stroke: var(--thread-ink);
-	stroke-width: 1.5;
-	vector-effect: non-scaling-stroke;
-	cursor: pointer;
-}
-
-.spot:hover,
-.spot.chosen {
-	fill-opacity: 0.9;
-}
-
-.spot.chosen {
-	stroke: var(--text);
-	stroke-width: 2.5;
+.map-failed {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	margin: 0;
+	padding: 2rem;
+	text-align: center;
 }
 
 .map-zoom {
@@ -3966,7 +4137,7 @@ button.owner[aria-expanded='true'] .chevron {
 .knot .series .unfold {
 	padding: 0;
 	border: 0;
-	background: none;
+	
 	color: var(--thread-ink);
 	font: inherit;
 	font-weight: 600;
@@ -4058,7 +4229,7 @@ p.automatic a {
 .update-banner.failed {
 	padding: 0;
 	border: 0;
-	background: none;
+	
 }
 
 .update-banner h2 {
@@ -4083,12 +4254,36 @@ p.automatic a {
 }
 
 .update-notes {
-	white-space: pre-wrap;
-	max-height: 16rem;
+	max-height: 20rem;
 	overflow: auto;
 	margin-top: 0.5rem;
 	font-size: var(--step--1);
 	color: var(--muted);
+}
+
+/* The notes use the whole width of the window, not the width of a paragraph. */
+.update-notes p,
+.update-notes ul {
+	max-width: none;
+	margin: 0 0 0.5rem;
+}
+
+.update-notes ul {
+	padding-left: 1.25rem;
+}
+
+.update-notes li + li {
+	margin-top: 0.25rem;
+}
+
+.update-notes h3 {
+	margin: 0.75rem 0 0.25rem;
+	font-size: var(--step--1);
+	color: var(--text);
+}
+
+.update-notes h3:first-child {
+	margin-top: 0;
 }
 
 .update-format {
@@ -4326,4 +4521,108 @@ p.automatic a {
 .how-folder code {
 	font-size: var(--step--1);
 	word-break: break-all;
+}
+
+/* The timeline as the agenda's Years view (issue #211). */
+.timeline-head {
+	margin: 1rem 0 1.5rem;
+}
+
+.timeline-head .period {
+	margin: 0.25rem 0 0;
+}
+
+.timeline-head .quiet {
+	margin: 0.4rem 0 0;
+}
+
+.period-link {
+	margin: 0.35rem 0 0;
+	font-size: var(--step--1);
+}
+
+/* Around someone (issue #244): one file and everything around it. */
+.around-screen .person-head {
+	flex-wrap: wrap;
+}
+
+.around-facts {
+	list-style: none;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.4rem 1.2rem;
+	margin: 0;
+	padding: 0;
+	color: var(--muted);
+}
+
+.around-list {
+	list-style: none;
+	margin: 0 0 0.5rem;
+	padding: 0;
+}
+
+.around-list li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.3rem 0.6rem;
+	padding: 0.55rem 0;
+	border-bottom: 1px solid var(--line);
+	min-width: 0;
+}
+
+.around-list li > a:first-child {
+	font-weight: 700;
+	overflow-wrap: anywhere;
+}
+
+.around-strip li,
+.around-strip a {
+	min-width: 0;
+}
+
+.around-strip .strip-label {
+	overflow: visible;
+	text-align: left;
+}
+
+.count-tag {
+	color: var(--muted);
+	font-size: var(--step--1);
+	font-weight: 700;
+	font-variant-numeric: tabular-nums;
+}
+
+.lock {
+	display: inline-flex;
+	background: none;
+	padding: 0;
+	color: var(--muted);
+	margin-left: -0.3rem;
+}
+
+.lock svg {
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 2;
+}
+
+.quiet.hint {
+	font-size: var(--step--1);
+	margin: 0.25rem 0 0;
+}
+
+.timeline-with {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.4rem 0.6rem;
+	margin: 0.5rem 0 0;
+}
+
+.graph-open {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 1rem;
 }

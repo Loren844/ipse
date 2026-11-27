@@ -5,6 +5,7 @@
 	import { appUpdate } from './app.svelte.ts';
 	import { i18n } from './i18n.svelte.ts';
 	import Notice from './Notice.svelte';
+	import { notesBlocks } from './notes.ts';
 </script>
 
 {#if appUpdate.value}
@@ -17,7 +18,21 @@
 		{#if update.notes}
 			<details>
 				<summary>{i18n.t.updateNotes}</summary>
-				<p class="update-notes">{update.notes}</p>
+				<div class="update-notes" data-testid="update-notes">
+					{#each notesBlocks(update.notes) as block, i (i)}
+						{#if block.kind === 'heading'}
+							<h3>{block.text}</h3>
+						{:else if block.kind === 'list'}
+							<ul>
+								{#each block.items as item, j (j)}
+									<li>{item}</li>
+								{/each}
+							</ul>
+						{:else}
+							<p>{block.text}</p>
+						{/if}
+					{/each}
+				</div>
 			</details>
 		{/if}
 		<div class="actions">

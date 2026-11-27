@@ -67,18 +67,23 @@ pub enum Standing {
     Summaries,
     /// Event kinds, set for a `classify` task.
     EventKinds,
+    /// New files of the kinds that say nothing about anyone (things, topics, projects,
+    /// organizations, works) in a category that is not sensitive, and facts or relations
+    /// added later to the files that AI created (decision 0018).
+    Creations,
 }
 
 impl Standing {
     /// Every kind, in the order the interface lists them.
-    pub const ALL: [Self; 2] = [Self::Summaries, Self::EventKinds];
+    pub const ALL: [Self; 3] = [Self::Summaries, Self::EventKinds, Self::Creations];
 
-    /// `summaries` or `event_kinds`.
+    /// `summaries`, `event_kinds` or `creations`.
     #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Summaries => "summaries",
             Self::EventKinds => "event_kinds",
+            Self::Creations => "creations",
         }
     }
 

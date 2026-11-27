@@ -51,6 +51,22 @@ pub(crate) struct StateView {
 pub(crate) struct MemoryView {
     kinds: Vec<KindView>,
     now: Vec<StateView>,
+    /// Files that hold another file's id, most often copies made by hand (issue #230).
+    copies: Vec<CopyView>,
+}
+
+/// A file that holds another file's id.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[cfg_attr(
+    test,
+    derive(ts_rs::TS),
+    ts(export, export_to = "../../../ui/src/lib/types/")
+)]
+pub(crate) struct CopyView {
+    /// The copy, relative to the memory's folder: `people/marie-dupont 1.md`.
+    file: String,
+    /// The file kept as the one with that id.
+    original: String,
 }
 
 /// What `GET /api/memory/<folder>` answers: one page of one kind.
@@ -127,7 +143,20 @@ pub(crate) fn overview(gateway: &mut Gateway) -> Result<MemoryView> {
             })
             .collect(),
         now: now(&owner),
+        copies: copies(gateway),
     })
+}
+
+/// The copies of the memory, as the interface shows them.
+fn copies(gateway: &Gateway) -> Vec<CopyView> {
+    let text = |p: &std::path::Path| p.to_string_lossy().replace('\\', "/");
+    ipse_core::vault::copies_among(gateway.vault().root(), gateway.index().shared_ids())
+        .into_iter()
+        .map(|c| CopyView {
+            file: text(&c.path),
+            original: text(&c.original),
+        })
+        .collect()
 }
 
 /// What is going on right now, most recently seen first.

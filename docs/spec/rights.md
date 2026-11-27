@@ -86,10 +86,11 @@ local = false                   # the person said this AI runs entirely on this 
 - Ipse is an MCP server built on `rmcp` (decision 0001).
 - **Local AI apps** start `ipse mcp --vault <folder>` themselves, over standard input and output. The token is passed in the environment variable `IPSE_TOKEN` of that command, set in the AI app's configuration. The code is checked again on every call, so removing an AI or changing its rights applies from its next request.
 - **AI apps that speak HTTP** (they connect to an address rather than start a program) connect over Streamable HTTP: `ipse mcp --http [port]` (port 7420 by default) serves `http://127.0.0.1:<port>/mcp`.
-    - It listens on `127.0.0.1` only; any other address is refused before anything starts. AIs that run online (in a browser tab, on a company's servers) cannot reach it: exposing Ipse beyond the computer is out of scope for 1.0.
+    - It listens on `127.0.0.1` only; any other address is refused before anything starts. AIs that run online (in a browser tab, on a company's servers) cannot reach it; reaching the memory from other machines is `ipse serve`'s, below.
     - Every request carries the token as `Authorization: Bearer ipse_…`, checked through the same gateway as standard input and output before the request reaches MCP. A missing or wrong token gets `401` with no detail.
     - `Host` must be `127.0.0.1` or `localhost` (against DNS rebinding), and an `Origin`, when a browser sends one, must be a page on this computer (`http://127.0.0.1` or `http://localhost`, any port); otherwise `403`.
     - Each request is answered on its own, in JSON (stateless Streamable HTTP): the tools only answer, so no session is kept.
+- **On a home server**, `ipse serve` serves the same MCP at `/mcp`, beside the interface, on one port (decision 0019; `docs/guide/self-hosting.md`). It listens on `127.0.0.1:7420` unless `--listen` gives another address. Every request carries the token as above; `Host` is not checked, as the server's own name is the person's; any browser's `Origin` is refused (`403`).
 - A request without a valid token is refused before any data is read.
 
 ## 4. Tools
@@ -123,7 +124,7 @@ Every tool answers in JSON, both as text and as structured content:
 | `search` | `{"results": [{"id", "type", "name", "excerpt"}], "more": <bool>}` |
 | `get` | `{"entries": [<entity or event>], "more": <bool>}` |
 | `events` | `{"events": [<event>], "more": <bool>}`, ordered by start |
-| `now` | `{"states": [{"topic", "subject", "first_seen", "last_seen", "count", "source"}], "more": <bool>}`, current states only, most recent first |
+| `now` | `{"states": [{"topic", "subject", "first_seen", "last_seen", "count", "source"}], "more": <bool>, "reminders": [{"id", "name", "at", "overdue", "every", "file"}]}`: current states only, most recent first; the reminders it may read that are overdue or due in the next 24 hours, the earliest first (for one that comes back, the last occurrence not done, else the next) |
 | `states_history` | the same, each state with its `status`: `current`, `recent` or `past` |
 
 - An entity has `id`, `type`, `name`, `aliases`, `birthday`, `emails`, `phones`, `address`, `located_in`, `facts`, `relations` (`[{"word", "target"}]`), `notes` and `origin`; empty fields are left out.
@@ -145,12 +146,13 @@ Decision 0010: the person's own AI does the work that needs a language model. Th
 | --- | --- | --- |
 | `tasks` | optional `kind`, `limit` (default 10) | Pending tasks, oldest first: `extract` (new items from a connector to turn into memory), `merge` (possible duplicates), `question` (a gap to ask the person about), `summary` (a period to summarize), `classify` (events to give a kind). Each with its id, a one-line description and how many items it covers. |
 | `task` | `id` | One task in full: what is expected, the items it covers (normalized, at most 100), the related vault files the client may read, and an example of a good answer. |
-| `propose` | `task` (optional), `changes`, `reason` | Submits a proposal: create or update an entity or event, add or edit a fact, merge two entities, write a summary. Returns the proposal id and its status: `waiting` until the person accepts it, or `accepted` when the person accepts this kind of change from this AI in advance (decision 0017). |
+| `propose` | `task` (optional), `changes`, `reason` | Submits a proposal: create or update an entity or event, add or edit a fact, merge two entities, write a summary. Returns the proposal id and its status: `waiting` until the person accepts it, or `accepted` when the person accepts this kind of change from this AI in advance (decisions 0017 and 0018). |
 | `proposal` | `id` | Status of a proposal: waiting, accepted, refused (with the person's comment if any). |
 
 - A task is `proposed` while a proposal answering it waits, and `done` once the person accepts it; a refused proposal opens the task again with the person's comment, so the AI can try again (`vault.md`, section 13).
 - `propose` with a `task` and no `changes` says the task holds nothing worth keeping: the task is closed, and nothing is written.
 - **Standing consent** (decision 0017): the person may accept in advance, for one AI, its summaries (proposals made only of summaries, for a `summary` task) and its event kinds (proposals made only of `kind` keys of events, for a `classify` task). Off by default, turned on by the person in the interface; kept as `auto_accept` in `.ipse/clients.toml`. Such a proposal is accepted at once by the same path as when the person accepts it (one change of the history, `Ipse-Source: proposal:<id>`), marked `automatic`, and can be undone like any other. Anything else from the same AI, a fact, a person or a relation, or a summary made without its task, still waits.
+- **Standing consent for new files** (decision 0018): the person may also accept in advance, for one AI, `creations`: a proposal made only of `create` of a `thing`, `topic`, `project`, `organization` or `work`, and of `add_fact` or `add_relation` on files of those types that same AI created by a proposal still accepted, every file in a known category that is not sensitive. No task is needed. A reminder (`create` of a `reminder`, or `set_key` of `done` or `at` on a reminder) counts as such a change: the person asked for it (issue #206). People, places, events, a file the AI did not create, any other change and sensitive categories still wait.
 - `propose` checks every change before storing it (`vault.md`, section 12), with at most 100 changes, a reason under 1 000 characters and 256 KB in all; a refusal says in plain words what to fix.
 - When the client supports MCP sampling and the person enabled it for that client, Ipse may send `summary` tasks to the client's model directly.
 - Every tool here has an `ipse` command doing the same thing (`ipse tasks`, `ipse propose`…), so that an agent or a script on the same computer can run them on a schedule.

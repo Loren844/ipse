@@ -34,6 +34,7 @@ use serde::Serialize;
 
 mod ais;
 mod api;
+mod around;
 mod background;
 mod edit;
 mod graph;
@@ -44,6 +45,7 @@ mod map;
 mod memory;
 mod questions;
 mod review;
+pub(crate) mod serve;
 mod settings;
 mod sources;
 mod summaries;
@@ -55,9 +57,9 @@ mod assets {
 
 type Body = BoxBody<Bytes, Infallible>;
 
-/// Where the map's tiles come from, once the person accepted them (issue #135, the
-/// threat model): only images, only from there.
-const MAP_TILES: &str = "https://tile.openstreetmap.org";
+/// Where the map's base map comes from, once the person accepted it (issues #135 and
+/// #212, the threat model): its vector tiles and letters, only from there.
+const MAP_TILES: &str = "https://tiles.openfreemap.org";
 /// Where the Sources screen sends a file to import.
 const UPLOAD: &str = "/api/sources/import";
 
@@ -69,11 +71,26 @@ const MAX_BODY: usize = 64 * 1024;
 
 /// Who may use this server: the one-time code, then the sessions it opened.
 struct Keys {
-    /// BLAKE3 of the one-time code; `None` once it was used.
+    /// BLAKE3 of the one-time code; `None` once it was used, and for `ipse serve`,
+    /// which asks for the interface's access code instead.
     code: Option<blake3::Hash>,
-    /// BLAKE3 of each session's cookie value.
-    sessions: Vec<blake3::Hash>,
+    /// The sessions opened.
+    sessions: Vec<Session>,
 }
+
+/// A session opened by a code.
+struct Session {
+    /// BLAKE3 of its cookie value.
+    key: blake3::Hash,
+    /// For `ipse serve`: the hash of the access code it was opened with, which must
+    /// still be the interface's code.
+    code: Option<blake3::Hash>,
+    /// When it was opened.
+    opened: std::time::Instant,
+}
+
+/// How long a session of `ipse serve` lasts (decision 0019).
+const SESSION_DAYS: u64 = 30;
 
 /// One server: the vault, who may use it, where it listens.
 struct State {
@@ -83,8 +100,11 @@ struct State {
     /// Serving the desktop app's window rather than a browser.
     app: bool,
     /// Wakes the background scheduler when the followed sources change; only for the
-    /// desktop app.
+    /// desktop app and `ipse serve`.
     wake: Option<std::sync::mpsc::Sender<background::Wake>>,
+    /// Served by `ipse serve` (decision 0019): the folder of the memory, where the
+    /// interface's access code is kept.
+    serving: Option<PathBuf>,
 }
 
 /// How `ipse ui` hands the interface over.
@@ -109,9 +129,9 @@ pub(crate) enum Start {
 pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
     let gateway = Gateway::open(&vault.unwrap_or_else(|| PathBuf::from(".")))?;
     let preferred = if start == Start::App {
-        app_port(gateway.vault().root())
+        app_ports(gateway.vault().root())
     } else {
-        0
+        Vec::new()
     };
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -119,16 +139,22 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
         .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?;
     runtime.block_on(async move {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, 0));
-        let listener =
-            match tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, preferred)).await {
-                Ok(listener) => Ok(listener),
-                Err(_) => tokio::net::TcpListener::bind(address).await,
+        let mut chosen = None;
+        for port in preferred {
+            if let Ok(listener) = tokio::net::TcpListener::bind((Ipv4Addr::LOCALHOST, port)).await {
+                chosen = Some(listener);
+                break;
             }
-            .map_err(|source| Error::Io {
-                action: "listen on",
-                path: PathBuf::from(address.to_string()),
-                source,
-            })?;
+        }
+        let listener = match chosen {
+            Some(listener) => Ok(listener),
+            None => tokio::net::TcpListener::bind(address).await,
+        }
+        .map_err(|source| Error::Io {
+            action: "listen on",
+            path: PathBuf::from(address.to_string()),
+            source,
+        })?;
         let port = listener
             .local_addr()
             .map_err(|e| Error::Refused(format!("Ipse could not start: {e}")))?
@@ -144,6 +170,7 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
             port,
             app: start == Start::App,
             wake: (start == Start::App).then(|| wake.clone()),
+            serving: None,
         });
         let login = format!("http://127.0.0.1:{port}/login?code={code}");
         // Written without panicking: the terminal may be gone while the server runs on.
@@ -167,50 +194,72 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
             let _ = out.flush();
         }
 
-        loop {
-            let Ok((stream, _)) = listener.accept().await else {
-                continue;
-            };
-            let state = Arc::clone(&state);
-            tokio::spawn(async move {
-                let service = hyper::service::service_fn(move |request: Request<Incoming>| {
-                    let state = Arc::clone(&state);
-                    async move {
-                        let (parts, body) = request.into_parts();
-                        // A file to import is written to disk as it arrives.
-                        if parts.method == Method::POST && parts.uri.path() == UPLOAD {
-                            return Ok::<_, Infallible>(secured(
-                                upload(&parts, body, &state).await,
-                            ));
-                        }
-                        // Any other body is read whole, up to a size no form of the
-                        // interface comes near.
-                        let answer = match Limited::new(body, MAX_BODY).collect().await {
-                            Ok(body) => {
-                                answer(&Request::from_parts(parts, body.to_bytes()), &state)
-                            }
-                            Err(_) => refused(StatusCode::PAYLOAD_TOO_LARGE),
-                        };
-                        Ok::<_, Infallible>(secured(answer))
-                    }
-                });
-                let _ = hyper::server::conn::http1::Builder::new()
-                    .serve_connection(TokioIo::new(stream), service)
-                    .await;
-            });
-        }
+        accept(listener, state, None).await
     })
 }
 
-/// The port the desktop app's server tries first for the memory in `root`: always the
-/// same one for a memory, so that what the window keeps for a site (the theme, the
-/// interface's language) is still there at the next start. Another is used when it is
-/// taken.
-fn app_port(root: &std::path::Path) -> u16 {
+/// Answers every connection to `listener`, for ever; `/mcp` goes to `mcp` when given
+/// (`ipse serve`).
+async fn accept(
+    listener: tokio::net::TcpListener,
+    state: Arc<State>,
+    mcp: Option<serve::Mcp>,
+) -> Result<()> {
+    loop {
+        let Ok((stream, _)) = listener.accept().await else {
+            continue;
+        };
+        let state = Arc::clone(&state);
+        let mcp = mcp.clone();
+        tokio::spawn(async move {
+            let service = hyper::service::service_fn(move |request: Request<Incoming>| {
+                let state = Arc::clone(&state);
+                let mcp = mcp.clone();
+                async move {
+                    if let Some(mcp) = mcp
+                        && request.uri().path() == crate::mcp::http::PATH
+                    {
+                        return crate::mcp::http::answer(request, mcp.service, mcp.gateway).await;
+                    }
+                    let (parts, body) = request.into_parts();
+                    // A file to import is written to disk as it arrives.
+                    if parts.method == Method::POST && parts.uri.path() == UPLOAD {
+                        return Ok::<_, Infallible>(secured(upload(&parts, body, &state).await));
+                    }
+                    let logging_in = parts.method == Method::POST && parts.uri.path() == "/login";
+                    // Any other body is read whole, up to a size no form of the
+                    // interface comes near.
+                    let answer = match Limited::new(body, MAX_BODY).collect().await {
+                        Ok(body) => answer(&Request::from_parts(parts, body.to_bytes()), &state),
+                        Err(_) => refused(StatusCode::PAYLOAD_TOO_LARGE),
+                    };
+                    if logging_in && answer.status() == StatusCode::UNAUTHORIZED {
+                        // A wrong access code waits before its answer.
+                        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+                    }
+                    Ok::<_, Infallible>(secured(answer))
+                }
+            });
+            let _ = hyper::server::conn::http1::Builder::new()
+                .serve_connection(TokioIo::new(stream), service)
+                .await;
+        });
+    }
+}
+
+/// The ports the desktop app's server tries, in order, for the memory in `root`: always
+/// the same ones for a memory, so that what the window keeps for a site (the theme, the
+/// interface's language) is still there at the next start. Several, because a port can be
+/// taken, or reserved by the system (Windows sets aside ranges of the dynamic ports);
+/// any free port when none of them is. The first is the one earlier versions used.
+fn app_ports(root: &std::path::Path) -> Vec<u16> {
     let hash = blake3::hash(root.as_os_str().as_encoded_bytes());
-    let [a, b, ..] = *hash.as_bytes();
-    // The dynamic range, 49152 to 65535.
-    49152 + u16::from_le_bytes([a, b]) % 16384
+    hash.as_bytes()
+        .chunks_exact(2)
+        .take(8)
+        // The dynamic range, 49152 to 65535.
+        .map(|pair| 49152 + u16::from_le_bytes([pair[0], pair[1]]) % 16384)
+        .collect()
 }
 
 /// Reads the desktop app's requests on the input, one per line: `sync` syncs every
@@ -262,19 +311,22 @@ fn open_browser(url: &str) -> bool {
 /// One request: where it comes from, who sends it, then what it asks.
 fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
     let headers = request.headers();
-    if !host_is_here(headers, state.port) {
-        return refused(StatusCode::MISDIRECTED_REQUEST);
-    }
-    if !from_the_interface(request.method(), headers, state.port) {
-        return refused(StatusCode::FORBIDDEN);
+    if let Some(refusal) = where_from(request.method(), headers, state) {
+        return refused(refusal);
     }
     let path = request.uri().path();
     if path == "/login" {
-        return login(request, state);
+        return if state.serving.is_some() {
+            serve::login(request, state)
+        } else {
+            login(request, state)
+        };
     }
     if !has_session(headers, state) {
         return if path.starts_with("/api/") {
             json_error(StatusCode::UNAUTHORIZED, "This session has ended.")
+        } else if state.serving.is_some() {
+            serve::to_login()
         } else {
             closed_page(state.app)
         };
@@ -298,11 +350,8 @@ async fn upload(
     state: &State,
 ) -> Response<Body> {
     let headers = &parts.headers;
-    if !host_is_here(headers, state.port) {
-        return refused(StatusCode::MISDIRECTED_REQUEST);
-    }
-    if !from_the_interface(&parts.method, headers, state.port) {
-        return refused(StatusCode::FORBIDDEN);
+    if let Some(refusal) = where_from(&parts.method, headers, state) {
+        return refused(refusal);
     }
     if !has_session(headers, state) {
         return json_error(StatusCode::UNAUTHORIZED, "This session has ended.");
@@ -346,6 +395,19 @@ async fn upload(
     }
 }
 
+/// Why a request is refused for where it comes from, if it is: a `Host` that is not
+/// this computer, or a page that is not the interface's. `ipse serve` takes any
+/// `Host`, and the interface's pages are those of the address the request names.
+fn where_from(method: &Method, headers: &HeaderMap, state: &State) -> Option<StatusCode> {
+    if state.serving.is_some() {
+        return (!serve::from_its_pages(method, headers)).then_some(StatusCode::FORBIDDEN);
+    }
+    if !host_is_here(headers, state.port) {
+        return Some(StatusCode::MISDIRECTED_REQUEST);
+    }
+    (!from_the_interface(method, headers, state.port)).then_some(StatusCode::FORBIDDEN)
+}
+
 /// `Host` is this computer, at this port.
 fn host_is_here(headers: &HeaderMap, port: u16) -> bool {
     let Some(host) = headers.get(header::HOST).and_then(|h| h.to_str().ok()) else {
@@ -358,10 +420,15 @@ fn host_is_here(headers: &HeaderMap, port: u16) -> bool {
 /// browser's `Origin` and `Sec-Fetch-Site` say so when they are sent. A request that
 /// changes something must send an `Origin` of this server.
 fn from_the_interface(method: &Method, headers: &HeaderMap, port: u16) -> bool {
-    let origin = headers.get(header::ORIGIN).and_then(|h| h.to_str().ok());
-    let ours = |o: &str| {
+    same_origin(method, headers, |o| {
         o == format!("http://127.0.0.1:{port}") || o == format!("http://localhost:{port}")
-    };
+    })
+}
+
+/// The request comes from a page whose origin is `ours`, or from the person opening
+/// it; a request that changes something sends its `Origin`.
+fn same_origin(method: &Method, headers: &HeaderMap, ours: impl Fn(&str) -> bool) -> bool {
+    let origin = headers.get(header::ORIGIN).and_then(|h| h.to_str().ok());
     if origin.is_some_and(|o| !ours(o)) {
         return false;
     }
@@ -397,7 +464,11 @@ fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
         return refused(StatusCode::INTERNAL_SERVER_ERROR);
     };
     keys.code = None;
-    keys.sessions.push(blake3::hash(session.as_bytes()));
+    keys.sessions.push(Session {
+        key: blake3::hash(session.as_bytes()),
+        code: None,
+        opened: std::time::Instant::now(),
+    });
     let mut response = if state.app {
         // The app's window comes here from the app's own page, another site for the
         // webview, which would then hold back a `SameSite=Strict` cookie on a redirect.
@@ -437,6 +508,10 @@ fn cookie_name(port: u16) -> String {
 /// The request carries the cookie of a session this server opened.
 fn has_session(headers: &HeaderMap, state: &State) -> bool {
     let name = cookie_name(state.port);
+    // `ipse serve`: the access code the session was opened with must still be the
+    // interface's, and the session young enough.
+    let code = state.serving.as_deref().map(crate::cmd::access::current);
+    let lasts = std::time::Duration::from_hours(24 * SESSION_DAYS);
     let keys = state.keys.lock().unwrap_or_else(PoisonError::into_inner);
     headers
         .get_all(header::COOKIE)
@@ -448,7 +523,11 @@ fn has_session(headers: &HeaderMap, state: &State) -> bool {
         .any(|(_, value)| {
             let presented = blake3::hash(value.as_bytes());
             // `blake3::Hash` compares in constant time.
-            keys.sessions.contains(&presented)
+            keys.sessions.iter().any(|session| {
+                session.key == presented
+                    && code.is_none_or(|code| code.is_some() && code == session.code)
+                    && (session.code.is_none() || session.opened.elapsed() < lasts)
+            })
         })
 }
 
@@ -462,7 +541,7 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
         guide::change(gateway, body).map(|v| Some(to_json(&v)))
     } else if let Some(action) = path.strip_prefix("sources/") {
         sources::change(gateway, action, body).map(|v| v.map(|v| to_json(&v)))
-    } else if path == "files" || path.starts_with("file/") {
+    } else if path == "files" || path == "files/copies" || path.starts_with("file/") {
         edit::change(gateway, path, body)
     } else if path.starts_with("questions/") {
         questions::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
@@ -499,11 +578,24 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
         "questions" => questions::list(gateway).map(|v| Some(to_json(&v))),
         "settings" => Ok(Some(to_json(&settings::view(gateway)))),
         "map" => map::view(gateway).map(|v| Some(to_json(&v))),
-        "timeline" => timeline::view(gateway).map(|v| Some(to_json(&v))),
+        "timeline" => {
+            timeline::view(gateway, param("person").as_deref()).map(|v| Some(to_json(&v)))
+        }
         "sources" => sources::view(gateway).map(|v| Some(to_json(&v))),
         "memory" => memory::overview(gateway).map(|v| Some(to_json(&v))),
         "search" => memory::search(gateway, param("q").as_deref()).map(|v| Some(to_json(&v))),
-        "graph" => graph::view(gateway).map(|v| Some(to_json(&v))),
+        "graph" => graph::view(gateway, param("id").as_deref(), param("period").as_deref())
+            .map(|v| v.map(|v| to_json(&v))),
+        "around" => {
+            let offset = param("offset").and_then(|o| o.parse().ok()).unwrap_or(0);
+            around::view(
+                gateway,
+                param("id").as_deref(),
+                param("section").as_deref(),
+                offset,
+            )
+            .map(|v| v.map(|v| to_json(&v)))
+        }
         "accesses" => history::accesses(gateway).map(|v| Some(to_json(&v))),
         "runs" => history::runs_view(gateway).map(|v| Some(to_json(&v))),
         "summaries" => {
@@ -526,6 +618,11 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
                 .and_then(|rest| rest.strip_suffix("/edit"))
             {
                 edit::view(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(id) = path
+                .strip_prefix("file/")
+                .and_then(|rest| rest.strip_suffix("/text"))
+            {
+                edit::text(gateway, id).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(id) = path.strip_prefix("file/") {
                 api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(kind) = path.strip_prefix("kinds/") {
@@ -562,6 +659,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             || path.starts_with("summaries/")
             || path.starts_with("questions/")
             || path == "files"
+            || path == "files/copies"
             || path.starts_with("file/")
             || path == "settings"
             || path == "guide"
@@ -729,7 +827,7 @@ fn empty_body() -> Body {
 fn secured(mut response: Response<Body>) -> Response<Body> {
     let policy = format!(
         "default-src 'self'; script-src {}; style-src 'self' 'unsafe-inline'; img-src 'self' data: {MAP_TILES}; \
-         font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; \
+         font-src 'self'; connect-src 'self' {MAP_TILES}; object-src 'none'; base-uri 'none'; \
          form-action 'self'; frame-ancestors 'none'",
         assets::SCRIPT_SRC
     );
@@ -768,6 +866,16 @@ mod tests {
             );
         }
         map
+    }
+
+    #[test]
+    fn a_memory_always_tries_the_same_ports() {
+        let root = std::path::Path::new("/home/ines/Ipse");
+        let ports = app_ports(root);
+        assert_eq!(ports, app_ports(root));
+        assert_eq!(ports.len(), 8);
+        assert!(ports.iter().all(|p| *p >= 49152));
+        assert_ne!(ports, app_ports(std::path::Path::new("/home/ines/Other")));
     }
 
     #[test]

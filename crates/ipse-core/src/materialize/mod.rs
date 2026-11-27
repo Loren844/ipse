@@ -11,8 +11,12 @@
 
 mod contacts;
 mod events;
+mod home;
 mod location;
+mod photos;
 mod relations;
+mod states;
+mod watching;
 
 use std::collections::{BTreeMap, HashMap};
 use std::fmt::Write as _;
@@ -21,9 +25,12 @@ use std::path::{Path, PathBuf};
 pub use contacts::{PeopleSummary, contacts_to_people};
 pub(crate) use events::is_calendar;
 pub use events::{EventsSummary, calendar_to_events};
-pub use location::{LocationSummary, NEAR, location_to_vault, meters};
+pub use home::{HomeSummary, PRESENCE, home_to_vault};
+pub use location::{LocationSummary, NEAR, VISIT, location_to_vault, meters};
+pub use photos::{PHOTOS, PhotosSummary, photos_to_vault};
 pub use relations::ADDED_FILE;
 use serde_json::Value;
+pub use watching::{WATCHED, WatchingSummary, watching_to_vault};
 
 use crate::journal::Journal;
 use crate::proposals::{Author, Change, Proposals, key_value};

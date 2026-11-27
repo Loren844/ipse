@@ -35,6 +35,12 @@ test('a new version is offered, said plainly, and installed through the app', as
 	await expect(update).not.toContainText('change le format');
 	await update.getByText('Ce qui change').click();
 	await expect(update).toContainText('the app keeps itself up to date');
+	// The notes read as text: a heading, an item, and no Markdown marks.
+	const notes = update.getByTestId('update-notes');
+	await expect(notes.getByRole('heading', { name: 'Added' })).toBeVisible();
+	await expect(notes.getByRole('listitem')).toHaveText('Updates: the app keeps itself up to date.');
+	await expect(notes).not.toContainText('#');
+	await expect(notes).not.toContainText('**');
 
 	// Later: the app stops showing it.
 	await update.getByRole('button', { name: 'Plus tard' }).click();

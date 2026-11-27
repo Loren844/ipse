@@ -23,3 +23,5 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0015](0015-launch-with-the-desktop-app.md) | Get ready to launch, then launch with the desktop app | Accepted |
 | [0016](0016-a-first-version-shows-the-whole-memory.md) | A first version shows the whole memory | Accepted |
 | [0017](0017-standing-consent.md) | Standing consent for low-risk changes | Accepted |
+| [0018](0018-standing-consent-for-new-files.md) | Standing consent for new files | Accepted |
+| [0019](0019-reached-from-the-network.md) | Reached from the network, for a home server | Accepted |

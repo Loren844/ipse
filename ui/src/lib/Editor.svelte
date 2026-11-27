@@ -46,8 +46,9 @@
 		form,
 		creating = false,
 		save,
-		cancel
-	}: { form: EditView; creating?: boolean; save: (draft: Draft) => Promise<void>; cancel: () => void } = $props();
+		cancel,
+		dirty = $bindable(false)
+	}: { form: EditView; creating?: boolean; save: (draft: Draft) => Promise<void>; cancel: () => void; dirty?: boolean } = $props();
 
 	// The form's own copy: the file as read stays in `form`, to send only what changed.
 	const initial = untrack(() => $state.snapshot(form));
@@ -135,6 +136,12 @@
 			notes
 		};
 	}
+
+	// Changed since it opened: switching to Markdown asks first (issue #142).
+	const unchanged = untrack(() => JSON.stringify(draft()));
+	$effect(() => {
+		dirty = JSON.stringify(draft()) !== unchanged;
+	});
 
 	/** The server's refusal, in the person's words: which field, if it names one. */
 	function refusal(message: string): string {

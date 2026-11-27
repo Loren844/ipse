@@ -2,7 +2,8 @@
 //! list, a search as one types (each prefix of a name), and one person in full; then
 //! the whole memory (issue #128): how many of each kind, one kind listed, and what links
 //! to a person; then the graph around a person (issue #130), and around one who takes
-//! part in 2 000 events; then the whole memory as one graph (issue #174).
+//! part in 2 000 events; then the whole memory as one graph (issue #174); then everything
+//! around that person, for the view around someone (issue #244).
 #![allow(
     missing_docs,
     clippy::unwrap_used,
@@ -162,24 +163,45 @@ fn main() {
         median(hub)
     );
 
-    let mut whole = Vec::new();
-    let mut people_only = Vec::new();
+    let mut mine = Vec::new();
+    let mut one = Vec::new();
+    let always = (jiff::Timestamp::MIN, jiff::Timestamp::MAX);
     for _ in 0..11 {
         let start = Instant::now();
-        let graph = owner.whole_graph(&[], None);
-        whole.push(start.elapsed());
-        assert_eq!(graph.nodes.len(), PEOPLE + 1 + EVENTS);
-        assert!(graph.centered);
-        assert!(graph.edges.len() >= PEOPLE + EVENTS);
+        let graph = owner.around(None, always).unwrap();
+        mine.push(start.elapsed());
+        assert!(graph.mine);
+        assert!(!graph.neighbours.is_empty());
         let start = Instant::now();
-        let graph = owner.whole_graph(&[ipse_core::vault::FileType::Person], None);
-        people_only.push(start.elapsed());
-        assert_eq!(graph.nodes.len(), PEOPLE + 1);
+        let graph = owner
+            .around(Some("01jcx8m2p4q6r8t0v2w4000000"), always)
+            .unwrap();
+        one.push(start.elapsed());
+        assert!(!graph.neighbours.is_empty());
     }
     println!(
-        "whole memory as a graph   {:>9.2?}  ({} files, 2 000 events)",
-        median(whole),
+        "graph around the owner    {:>9.2?}  ({} files, 2 000 events)",
+        median(mine),
         PEOPLE + 1 + EVENTS
     );
-    println!("whole graph, people only  {:>9.2?}", median(people_only));
+    println!("graph around a person     {:>9.2?}  (1 step)", median(one));
+
+    let mut busy = Vec::new();
+    let mut quiet = Vec::new();
+    for _ in 0..11 {
+        let start = Instant::now();
+        let found = owner.surroundings("01jcx8m2p4q6r8t0v2w4000000").unwrap();
+        busy.push(start.elapsed());
+        assert_eq!(found.events.len(), EVENTS);
+        assert!(!found.people.is_empty());
+        let start = Instant::now();
+        let found = owner.surroundings("01jcx8m2p4q6r8t0v2w4000013").unwrap();
+        quiet.push(start.elapsed());
+        assert_eq!(found.events.len(), 1);
+    }
+    println!(
+        "around someone, 2 000 ev. {:>9.2?}  (every section)",
+        median(busy)
+    );
+    println!("around someone, 1 event   {:>9.2?}", median(quiet));
 }

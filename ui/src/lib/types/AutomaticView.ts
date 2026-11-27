@@ -5,10 +5,10 @@
  */
 export type AutomaticView = { 
 /**
- * `summaries` or `event_kinds`.
+ * `summaries`, `event_kinds` or `creations`.
  */
 standing: string, 
 /**
- * How many proposals.
+ * How many: proposals, or for `creations` the files created.
  */
 count: number, };

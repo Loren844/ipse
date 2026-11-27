@@ -34,7 +34,7 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await more.click();
 	await expect(page.getByRole('dialog', { name: 'Autres sections' }).getByRole('link').first()).toHaveText('Votre fiche');
 	await page.keyboard.press('Escape');
-	for (const name of ['Réglages', 'Frise', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
+	for (const name of ['Réglages', 'Carte', 'Résumés', 'IA connectées', 'Sources', 'Historique']) {
 		await more.click();
 		const panel = page.getByRole('dialog', { name: 'Autres sections' });
 		await expect(panel).toBeVisible();
@@ -59,9 +59,12 @@ test('every section one tap away, the search in the top bar', async ({ page }) =
 	await panel.getByRole('button', { name: 'Fermer' }).click();
 	await expect(panel).toBeHidden();
 	await expect(more).toBeFocused();
+	// The browser gives focus back to More as the panel closes, then the panel's close
+	// event gives it again; aria-expanded turns false in that same handler. Waiting for it
+	// keeps that second focus from landing after the search is filled (#163).
+	await expect(more).toHaveAttribute('aria-expanded', 'false');
 
 	// The search, from the top bar of any screen.
-	// Enter on the search box itself: focus may still be coming back to More.
 	const search = page.getByRole('searchbox', { name: 'Chercher dans la mémoire' });
 	await search.fill('escalade');
 	await search.press('Enter');
@@ -79,4 +82,18 @@ test('widening the window with More open leaves the page usable', async ({ page 
 	await expect(panel).toBeHidden();
 	await page.getByRole('link', { name: 'Agenda' }).first().click();
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText('Agenda');
+});
+
+test('the sources to add stack one under the other, and a form fits the screen', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.goto(new URL('/sources', ipse.url).href);
+	const cards = page.getByRole('group', { name: 'Agendas et contacts' }).getByRole('link');
+	await expect(cards).toHaveCount(3);
+	const [first, second] = [await cards.nth(0).boundingBox(), await cards.nth(1).boundingBox()];
+	expect(second!.y).toBeGreaterThan(first!.y + first!.height - 1);
+	const wide = () => page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+	expect(await wide()).toBe(false);
+	await page.getByRole('link', { name: 'Home Assistant' }).click();
+	await expect(page.getByRole('region', { name: 'Connecter Home Assistant' })).toBeVisible();
+	expect(await wide()).toBe(false);
 });

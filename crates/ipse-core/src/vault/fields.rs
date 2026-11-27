@@ -10,6 +10,8 @@ use jiff::fmt::temporal::Pieces;
 use jiff::tz::{Offset, TimeZone};
 use jiff::{Timestamp, civil};
 
+use super::EventTime;
+
 /// Stable identifier of a memory file: a lowercase [ULID](https://github.com/ulid/spec).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Id(String);
@@ -74,6 +76,9 @@ pub enum FileType {
     Topic,
     /// A film, a series, a book, an album, under `works/`.
     Work,
+    /// Something to remind the person of, once or again and again, under `reminders/`
+    /// (issue #206): an entity whose name says what, with `at`, `every` and `done`.
+    Reminder,
     /// A dated event, under `events/`.
     Event,
     /// A "right now" state log, under `states/`.
@@ -84,7 +89,7 @@ pub enum FileType {
 
 impl FileType {
     /// Every type, in the order of the spec.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Person,
         Self::Place,
         Self::Organization,
@@ -92,6 +97,7 @@ impl FileType {
         Self::Thing,
         Self::Topic,
         Self::Work,
+        Self::Reminder,
         Self::Event,
         Self::StateLog,
         Self::Summary,
@@ -108,6 +114,7 @@ impl FileType {
             Self::Thing => "thing",
             Self::Topic => "topic",
             Self::Work => "work",
+            Self::Reminder => "reminder",
             Self::Event => "event",
             Self::StateLog => "state-log",
             Self::Summary => "summary",
@@ -120,7 +127,8 @@ impl FileType {
         Self::ALL.into_iter().find(|t| t.as_str() == text)
     }
 
-    /// True for entities: people, places, organizations, projects, things, topics, works.
+    /// True for entities: people, places, organizations, projects, things, topics, works,
+    /// reminders.
     #[must_use]
     pub fn is_entity(self) -> bool {
         !matches!(self, Self::Event | Self::StateLog | Self::Summary)
@@ -137,6 +145,7 @@ impl FileType {
             Self::Thing => "things",
             Self::Topic => "topics",
             Self::Work => "works",
+            Self::Reminder => "reminders",
             Self::Event => "events",
             Self::StateLog => "states",
             Self::Summary => "summaries",
@@ -153,7 +162,7 @@ impl FileType {
             Self::Project => "work",
             Self::Thing => "things",
             Self::Topic | Self::Work => "media",
-            Self::Event => "agenda",
+            Self::Event | Self::Reminder => "agenda",
             Self::Summary => "summaries",
             Self::StateLog => return None,
         };
@@ -480,6 +489,47 @@ pub struct EntityFields {
     pub geo: Option<Geo>,
     /// The place this place or thing is in.
     pub located_in: Option<WikiLink>,
+    /// When a reminder is due, the first time when it comes back.
+    pub at: Option<EventTime>,
+    /// How often a reminder comes back.
+    pub every: Option<Every>,
+    /// The day a reminder was last done.
+    pub done: Option<civil::Date>,
+}
+
+/// How often a reminder comes back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Every {
+    /// Every day.
+    Day,
+    /// Every week, on the day of `at`.
+    Week,
+    /// Every month, on the day of `at` (the last day in a shorter month).
+    Month,
+    /// Every year, on the day of `at`.
+    Year,
+}
+
+impl Every {
+    /// Every value, in order.
+    pub const ALL: [Self; 4] = [Self::Day, Self::Week, Self::Month, Self::Year];
+
+    /// `day`, `week`, `month` or `year`.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Day => "day",
+            Self::Week => "week",
+            Self::Month => "month",
+            Self::Year => "year",
+        }
+    }
+
+    /// The value named `text`; `None` for any other.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|e| e.as_str() == text)
+    }
 }
 
 #[cfg(test)]
