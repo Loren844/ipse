@@ -39,7 +39,7 @@ automatic: Array<AutomaticView>,
  */
 questions: number, 
 /**
- * The most recent day summary.
+ * The latest recent summary worth a section: a day's, else a week's or a month's.
  */
 latest: SummaryView | null, 
 /**

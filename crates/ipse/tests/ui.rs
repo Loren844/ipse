@@ -872,10 +872,8 @@ fn the_summaries_through_the_api() {
         agenda["summaries"],
         serde_json::json!([{"day": "2026-11-14", "text": "Dîner chez Julie."}])
     );
-    assert_eq!(
-        api(&ui, &cookie, "/api/home").1["latest"]["label"],
-        "2026-11-14"
-    );
+    // Old and one short line: not on the home screen (issue #261).
+    assert!(api(&ui, &cookie, "/api/home").1["latest"].is_null());
 
     // The person corrects it: their own change, in the file and the history.
     let (status, corrected) = post(

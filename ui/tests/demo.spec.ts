@@ -13,7 +13,8 @@ test('the demo memory has something on every screen', async ({ page }) => {
 	await page.goto(ipse.url);
 	await expect(page.getByTestId('memory-name')).toHaveText('Camille Laurent');
 	const sections = page.getByRole('navigation', { name: 'Sections' });
-	await expect(page.getByText('Dernier résumé')).toBeVisible();
+	// Yesterday's summary, written on the day the demo is made (issue #261).
+	await expect(page.getByRole('region', { name: 'Dernier résumé' })).toContainText('Jours de sel');
 	await expect(page.locator('.banner')).toContainText('6 propositions et 3 questions attendent votre avis');
 
 	// Two duplicates found by Ipse, two summaries, a fact and kinds of events from Claude, and questions.

@@ -320,7 +320,7 @@ pub(crate) struct HomeView {
     automatic: Vec<AutomaticView>,
     /// Questions waiting for the person's answer.
     questions: usize,
-    /// The most recent day summary.
+    /// The latest recent summary worth a section: a day's, else a week's or a month's.
     latest: Option<super::summaries::SummaryView>,
     /// What is going on right now.
     now: Vec<super::memory::StateView>,
@@ -435,7 +435,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let today = today(gateway);
     let (waiting, automatic) = proposals_waiting(gateway)?;
     let questions = super::questions::waiting(gateway)?;
-    let latest = super::summaries::latest(gateway)?;
+    let latest = super::summaries::latest(gateway, today)?;
     let owner = gateway.fresh_owner()?;
     let ahead = today.saturating_add(HOME_DAYS_AHEAD.days());
     let series = owner.series();

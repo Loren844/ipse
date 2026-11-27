@@ -7,6 +7,7 @@ use ipse_core::rights::Gateway;
 use ipse_core::summaries::{self, Period, Span, Summary};
 use ipse_core::vault::{LinkOrText, WikiLink};
 use ipse_core::{Error, Result};
+use jiff::ToSpan;
 use serde::{Deserialize, Serialize};
 
 use super::api::LinkView;
@@ -199,18 +200,47 @@ pub(crate) fn days(
         .collect())
 }
 
-/// The most recent day summary, for the home screen.
+/// How many days a summary stays on the home screen after its period ends (issue #261).
+const FRESH_DAYS: i64 = 7;
+
+/// A one-line summary at most this long only repeats the agenda (`A quiet day: yoga.`):
+/// it stays in the summaries' screen, not on the home screen.
+const THIN_CHARS: usize = 80;
+
+/// Summaries of one period looked at for the home screen, newest first.
+const LOOKED_AT: usize = 7;
+
+/// Whether `summary` says more than one short line: a single line of at most
+/// [`THIN_CHARS`] characters does not.
+fn worth_showing(summary: &Summary) -> bool {
+    let text = summary.text.trim();
+    text.lines().filter(|l| !l.trim().is_empty()).count() > 1 || text.chars().count() > THIN_CHARS
+}
+
+/// The summary for the home screen on `today`: the latest day's whose day ended less
+/// than [`FRESH_DAYS`] days ago, else the latest week's, else the latest month's, each
+/// skipped when it is only one short line. `None` when none is recent (issue #261).
 ///
 /// # Errors
 ///
 /// Errors reading the summaries.
-pub(crate) fn latest(gateway: &mut Gateway) -> Result<Option<SummaryView>> {
+pub(crate) fn latest(
+    gateway: &mut Gateway,
+    today: jiff::civil::Date,
+) -> Result<Option<SummaryView>> {
     let root = gateway.vault().root().to_owned();
-    let (mut found, _) = summaries::list(&root, Period::Day, (None, None), 0, 1)?;
-    match found.pop() {
-        Some(summary) => view(gateway, summary).map(Some),
-        None => Ok(None),
+    let oldest = today.saturating_sub(FRESH_DAYS.days());
+    for period in [Period::Day, Period::Week, Period::Month] {
+        let (found, _) = summaries::list(&root, period, (None, Some(today)), 0, LOOKED_AT)?;
+        let chosen = found
+            .into_iter()
+            .take_while(|s| s.span.end() > oldest)
+            .find(worth_showing);
+        if let Some(summary) = chosen {
+            return view(gateway, summary).map(Some);
+        }
     }
+    Ok(None)
 }
 
 /// `POST /api/summaries/<period>/<start>` with `{"text": …}`: the person corrects a
@@ -239,4 +269,29 @@ pub(crate) fn correct(
     let summary = summaries::read(&root, span)
         .ok_or_else(|| Error::Refused(format!("There is no summary {}.", span.label())))?;
     view(gateway, summary).map(Some)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn day(text: &str) -> Summary {
+        Summary {
+            span: Span::holding(Period::Day, jiff::civil::date(2026, 11, 26)),
+            text: text.to_owned(),
+            events: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn one_short_line_is_not_worth_the_home_screen() {
+        assert!(!worth_showing(&day("A quiet day: yoga.")));
+        assert!(!worth_showing(&day(
+            "  Team meeting, then lunch with Emma.  \n"
+        )));
+        assert!(worth_showing(&day(
+            "Lunch with Aaron.\nA film in the evening."
+        )));
+        assert!(worth_showing(&day(&"A long walk by the lake. ".repeat(4))));
+    }
 }
