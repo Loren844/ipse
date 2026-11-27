@@ -398,7 +398,7 @@ pub fn answer(vault: &Vault, task_id: &str, name: &str, word: Option<&str>) -> R
     let path = vault.root().join(&item.file);
     let mut file = MemoryFile::read(&path)?;
     let now = DateTime::now(vault.settings().time_zone());
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     if let Some(entity) = file.entity_mut()
         && let Some(old) = entity.name.replace(name.to_owned())
         && old != name

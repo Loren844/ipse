@@ -157,10 +157,18 @@ fn sync_due(state: &State, root: &Path, all: bool) -> Option<Duration> {
             full: false,
             now,
         };
-        // One sync at a time, also against the interface's own changes and syncs.
+        // One sync at a time, also against the person's. The gateway is held only to
+        // read the memory's settings: the interface keeps answering while the source
+        // does, and the vault's write lock keeps the writes apart.
+        let vault = state
+            .gateway
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .vault()
+            .clone();
         let synced = {
-            let gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
-            sync_instance(gateway.vault(), instance, &*store, &options)
+            let _syncing = state.syncing.lock().unwrap_or_else(PoisonError::into_inner);
+            sync_instance(&vault, instance, &*store, &options)
         };
         let failed = match synced {
             Ok(synced) if synced.succeeded() => false,

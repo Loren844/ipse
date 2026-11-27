@@ -462,7 +462,7 @@ pub fn correct(vault: &Vault, span: Span, text: &str) -> Result<bool> {
     );
     file.set_body(body);
     file.common_mut().updated = crate::vault::DateTime::now(vault.settings().time_zone());
-    let mut change = history.change(crate::vault::Source::Person);
+    let mut change = history.change(crate::vault::Source::Person)?;
     file.write()?;
     change.touched(&path);
     change.commit("Correct a summary")?;

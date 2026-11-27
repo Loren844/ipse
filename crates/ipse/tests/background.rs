@@ -9,7 +9,7 @@ use std::io::{BufRead as _, BufReader, Read as _, Write as _};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::atomic::{AtomicU16, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
 use std::sync::{Arc, mpsc};
 use std::time::Duration;
 
@@ -23,7 +23,12 @@ const PATIENCE: Duration = Duration::from_secs(30);
 struct Calendar {
     url: String,
     status: Arc<AtomicU16>,
+    /// Answers only after [`SLOW`], as a slow server does.
+    slow: Arc<AtomicBool>,
 }
+
+/// How long a slow calendar takes to answer.
+const SLOW: Duration = Duration::from_secs(4);
 
 impl Calendar {
     fn start() -> Self {
@@ -33,10 +38,15 @@ impl Calendar {
             listener.local_addr().unwrap()
         );
         let status = Arc::new(AtomicU16::new(200));
+        let slow = Arc::new(AtomicBool::new(false));
         let answer = Arc::clone(&status);
+        let late = Arc::clone(&slow);
         std::thread::spawn(move || {
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { continue };
+                if late.load(Ordering::SeqCst) {
+                    std::thread::sleep(SLOW);
+                }
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 loop {
                     let mut line = String::new();
@@ -57,11 +67,15 @@ impl Calendar {
                 let _ = stream.write_all(response.as_bytes());
             }
         });
-        Self { url, status }
+        Self { url, status, slow }
     }
 
     fn fail(&self) {
         self.status.store(503, Ordering::SeqCst);
+    }
+
+    fn slow_down(&self) {
+        self.slow.store(true, Ordering::SeqCst);
     }
 }
 
@@ -70,6 +84,10 @@ struct App {
     child: Child,
     input: Option<ChildStdin>,
     lines: mpsc::Receiver<String>,
+    /// The interface's port.
+    port: u16,
+    /// The one-time address that opens a session.
+    login: String,
 }
 
 impl App {
@@ -93,14 +111,49 @@ impl App {
                 }
             }
         });
-        let app = Self {
+        let address = lines.recv_timeout(PATIENCE).expect("ipse says its address");
+        let rest = address
+            .strip_prefix("http://127.0.0.1:")
+            .unwrap_or_else(|| panic!("{address}"));
+        let (port, login) = rest.split_once('/').unwrap();
+        Self {
             child,
             input,
             lines,
-        };
-        let address = app.next();
-        assert!(address.starts_with("http://127.0.0.1:"), "{address}");
-        app
+            port: port.parse().unwrap(),
+            login: format!("/{login}"),
+        }
+    }
+
+    /// Sends one request to the interface; its status and body.
+    fn http(&self, method: &str, path: &str, cookie: &str, body: &str) -> (u16, String) {
+        http(self.port, method, path, cookie, body)
+    }
+
+    /// Opens a session with the one-time address; its cookie.
+    fn session(&self) -> String {
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", self.port)).unwrap();
+        let text = format!(
+            "GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nConnection: close\r\n\r\n",
+            self.login, self.port
+        );
+        stream.write_all(text.as_bytes()).unwrap();
+        let mut answer = String::new();
+        stream.read_to_string(&mut answer).unwrap();
+        answer
+            .lines()
+            .find_map(|l| l.strip_prefix("set-cookie: "))
+            .and_then(|c| c.split(';').next())
+            .unwrap_or_else(|| panic!("a session: {answer}"))
+            .to_owned()
+    }
+
+    /// How long the interface takes to answer a read.
+    fn answers_in(&self, cookie: &str) -> Duration {
+        let start = std::time::Instant::now();
+        let (status, body) = self.http("GET", "/api/app", cookie, "");
+        assert_eq!(status, 200, "{body}");
+        start.elapsed()
     }
 
     /// The next line of the output.
@@ -270,4 +323,92 @@ fn a_source_that_is_due_syncs_on_its_own() {
     }
     std::thread::sleep(Duration::from_secs(1));
     assert_eq!(count(), 2, "once, then it waits for its interval");
+}
+
+/// Sends one request to the interface on `port`; its status and body.
+fn http(port: u16, method: &str, path: &str, cookie: &str, body: &str) -> (u16, String) {
+    let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+    let text = format!(
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\nCookie: {cookie}\r\nOrigin: http://127.0.0.1:{port}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(text.as_bytes()).unwrap();
+    let mut answer = String::new();
+    stream.read_to_string(&mut answer).unwrap();
+    let (head, body) = answer.split_once("\r\n\r\n").unwrap_or((&answer, ""));
+    let status = head.split_whitespace().nth(1).unwrap().parse().unwrap();
+    (status, body.to_owned())
+}
+
+/// A memory following the calendar `url`, as "Perso".
+fn following(dir: &Path, secrets: &Path, url: &str) -> PathBuf {
+    let vault = memory(dir, secrets, false);
+    ipse(
+        &[
+            "calendar",
+            "subscribe",
+            url,
+            "--name",
+            "Perso",
+            "--every",
+            "1h",
+            "--vault",
+            vault.to_str().unwrap(),
+        ],
+        secrets,
+    );
+    vault
+}
+
+#[test]
+fn the_interface_answers_while_a_slow_source_syncs() {
+    let dir = tempfile::tempdir().unwrap();
+    let secrets = dir.path().join("secrets.json");
+    let calendar = Calendar::start();
+    let vault = following(dir.path(), &secrets, &calendar.url);
+    let mut app = App::start(&vault, &secrets);
+    let cookie = app.session();
+
+    calendar.slow_down();
+    app.ask("sync");
+    // The sync has started, and waits for the calendar.
+    std::thread::sleep(Duration::from_millis(500));
+    let took = app.answers_in(&cookie);
+    assert!(took < SLOW / 2, "answered in {took:?}");
+}
+
+#[test]
+fn the_interface_answers_while_the_person_syncs_a_slow_source() {
+    let dir = tempfile::tempdir().unwrap();
+    let secrets = dir.path().join("secrets.json");
+    let calendar = Calendar::start();
+    let vault = following(dir.path(), &secrets, &calendar.url);
+    let app = App::start(&vault, &secrets);
+    let cookie = app.session();
+    let instance = std::fs::read_to_string(vault.join(".ipse/connectors.toml"))
+        .unwrap()
+        .lines()
+        .find_map(|l| l.strip_prefix("id = "))
+        .map(|id| id.trim_matches('"').to_owned())
+        .expect("the source is followed");
+
+    calendar.slow_down();
+    let syncing = {
+        let (port, cookie) = (app.port, cookie.clone());
+        std::thread::spawn(move || {
+            http(
+                port,
+                "POST",
+                "/api/sources/sync",
+                &cookie,
+                &format!("{{\"instance\":\"{instance}\"}}"),
+            )
+        })
+    };
+    std::thread::sleep(Duration::from_millis(500));
+    let took = app.answers_in(&cookie);
+    assert!(took < SLOW / 2, "answered in {took:?}");
+    let (status, body) = syncing.join().unwrap();
+    assert_eq!(status, 200, "{body}");
+    assert!(body.contains("\"synced\""), "{body}");
 }

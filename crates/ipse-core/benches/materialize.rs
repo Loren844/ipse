@@ -84,10 +84,14 @@ fn bench_materialize(c: &mut Criterion) {
             },
             |(dir, vault, journal)| {
                 let history = vault.history().unwrap();
-                let mut change = history.change(Source::Connector("contacts".into()));
+                let mut change = history
+                    .change(Source::Connector("contacts".into()))
+                    .unwrap();
                 let people = contacts_to_people(&vault, &journal, "contacts", &mut change).unwrap();
                 change.commit("Import contacts").unwrap();
-                let mut change = history.change(Source::Connector("calendar".into()));
+                let mut change = history
+                    .change(Source::Connector("calendar".into()))
+                    .unwrap();
                 let now = "2026-11-13T12:00:00Z".parse().unwrap();
                 let events =
                     calendar_to_events(&vault, &journal, "calendar", &mut change, now).unwrap();

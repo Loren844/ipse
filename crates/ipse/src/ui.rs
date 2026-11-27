@@ -95,6 +95,10 @@ const SESSION_DAYS: u64 = 30;
 /// One server: the vault, who may use it, where it listens.
 struct State {
     gateway: Mutex<Gateway>,
+    /// Held while a source syncs: one sync at a time, from the scheduler or the
+    /// person. The gateway is not held for the network part of a sync, so that the
+    /// interface keeps answering; the vault's write lock keeps the writes apart.
+    syncing: Mutex<()>,
     keys: Mutex<Keys>,
     port: u16,
     /// Serving the desktop app's window rather than a browser.
@@ -163,6 +167,7 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
         let (wake, wakes) = std::sync::mpsc::channel();
         let state = Arc::new(State {
             gateway: Mutex::new(gateway),
+            syncing: Mutex::new(()),
             keys: Mutex::new(Keys {
                 code: Some(blake3::hash(code.as_bytes())),
                 sessions: Vec::new(),
@@ -230,7 +235,15 @@ async fn accept(
                     // Any other body is read whole, up to a size no form of the
                     // interface comes near.
                     let answer = match Limited::new(body, MAX_BODY).collect().await {
-                        Ok(body) => answer(&Request::from_parts(parts, body.to_bytes()), &state),
+                        // Off the server's thread: an answer can wait on the memory or
+                        // on a source, and the other requests go on meanwhile.
+                        Ok(body) => {
+                            let request = Request::from_parts(parts, body.to_bytes());
+                            let state = Arc::clone(&state);
+                            tokio::task::spawn_blocking(move || answer(&request, &state))
+                                .await
+                                .unwrap_or_else(|_| refused(StatusCode::INTERNAL_SERVER_ERROR))
+                        }
                         Err(_) => refused(StatusCode::PAYLOAD_TOO_LARGE),
                     };
                     if logging_in && answer.status() == StatusCode::UNAUTHORIZED {
@@ -646,44 +659,54 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
 fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<Body> {
     let method = request.method();
     let query = request.uri().query().unwrap_or_default();
-    let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
-    let gateway = &mut *gateway;
-    let answer = if method == Method::GET {
-        read(gateway, path, query)
-    } else if method == Method::POST
-        && (path.starts_with("proposals/")
-            || path == "ais"
-            || path.starts_with("ais/")
-            || path == "categories"
-            || path.starts_with("history/")
-            || path.starts_with("summaries/")
-            || path.starts_with("questions/")
-            || path == "files"
-            || path == "files/copies"
-            || path.starts_with("file/")
-            || path == "settings"
-            || path == "guide"
-            || path.starts_with("sources/"))
-    {
-        let json = request
-            .headers()
-            .get(header::CONTENT_TYPE)
-            .and_then(|h| h.to_str().ok())
-            .is_some_and(|t| t.split(';').next() == Some("application/json"));
-        if !json {
+    let answer = if method == Method::POST && path == "sources/sync" {
+        // Not under the gateway: the sync waits on the network, and the interface
+        // keeps answering meanwhile.
+        if !json_request(request) {
             return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
         }
-        let changed = change(gateway, path, request.body());
-        if path.starts_with("sources/")
-            && changed.is_ok()
+        let synced = sources::sync_now(state, request.body()).map(|v| Some(to_json(&v)));
+        if synced.is_ok()
             && let Some(wake) = &state.wake
         {
-            // A source followed or no longer followed: the scheduler plans again.
             let _ = wake.send(background::Wake::Changed);
         }
-        changed
+        synced
     } else {
-        return refused(StatusCode::METHOD_NOT_ALLOWED);
+        let mut gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
+        let gateway = &mut *gateway;
+        if method == Method::GET {
+            read(gateway, path, query)
+        } else if method == Method::POST
+            && (path.starts_with("proposals/")
+                || path == "ais"
+                || path.starts_with("ais/")
+                || path == "categories"
+                || path.starts_with("history/")
+                || path.starts_with("summaries/")
+                || path.starts_with("questions/")
+                || path == "files"
+                || path == "files/copies"
+                || path.starts_with("file/")
+                || path == "settings"
+                || path == "guide"
+                || path.starts_with("sources/"))
+        {
+            if !json_request(request) {
+                return refused(StatusCode::UNSUPPORTED_MEDIA_TYPE);
+            }
+            let changed = change(gateway, path, request.body());
+            if path.starts_with("sources/")
+                && changed.is_ok()
+                && let Some(wake) = &state.wake
+            {
+                // A source followed or no longer followed: the scheduler plans again.
+                let _ = wake.send(background::Wake::Changed);
+            }
+            changed
+        } else {
+            return refused(StatusCode::METHOD_NOT_ALLOWED);
+        }
     };
     match answer {
         Ok(Some(body)) => json_body(StatusCode::OK, body),
@@ -703,6 +726,15 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
             )
         }
     }
+}
+
+/// The request says it carries JSON, as the interface's own page sends it.
+fn json_request(request: &Request<Bytes>) -> bool {
+    request
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|h| h.to_str().ok())
+        .is_some_and(|t| t.split(';').next() == Some("application/json"))
 }
 
 /// The value of `name` in a query string, percent-decoded (`+` is a space).

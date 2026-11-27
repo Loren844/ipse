@@ -84,7 +84,9 @@ fn one_change_touching_three_files_is_one_commit() {
     let dir = tempfile::tempdir().unwrap();
     let vault = init(dir.path());
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector("contacts".into()));
+    let mut change = history
+        .change(Source::Connector("contacts".into()))
+        .unwrap();
     for name in ["a", "b", "c"] {
         change.touched(&write(dir.path(), &format!("people/{name}.md"), name));
     }
@@ -101,7 +103,9 @@ fn one_change_touching_three_files_is_one_commit() {
     assert_eq!(entries.len(), 2);
     assert_eq!(entries[0].files.len(), 3);
 
-    let mut nothing = history.change(Source::Connector("contacts".into()));
+    let mut nothing = history
+        .change(Source::Connector("contacts".into()))
+        .unwrap();
     nothing.touched(&dir.path().join("people/a.md"));
     assert!(
         nothing.commit("Import contacts").unwrap().is_none(),
@@ -114,7 +118,9 @@ fn edits_made_outside_ipse_are_recorded_as_the_person_s() {
     let dir = tempfile::tempdir().unwrap();
     let vault = init(dir.path());
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Connector("contacts".into()));
+    let mut change = history
+        .change(Source::Connector("contacts".into()))
+        .unwrap();
     let marie = write(dir.path(), "people/marie.md", "v1");
     let paul = write(dir.path(), "people/paul.md", "v1");
     change.touched(&marie);
@@ -175,7 +181,7 @@ fn git_sees_a_clean_folder() {
     let dir = tempfile::tempdir().unwrap();
     let vault = init(dir.path());
     let history = vault.history().unwrap();
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person).unwrap();
     change.touched(&write(dir.path(), "people/x.md", "x"));
     change.commit("Add x").unwrap();
     let status = std::process::Command::new("git")
@@ -202,11 +208,11 @@ fn a_file_is_read_as_a_change_left_it_or_before_it_removed_it() {
     init(dir.path());
     let history = History::open(dir.path()).unwrap();
     let path = write(dir.path(), "people/lea-roux.md", "Léa, avant\n");
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person).unwrap();
     change.touched(&path);
     let added = change.commit("Add Léa").unwrap().unwrap();
     std::fs::remove_file(&path).unwrap();
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person).unwrap();
     change.touched(&path);
     let removed = change.commit("Remove Léa").unwrap().unwrap();
     assert!(removed.at >= added.at && added.at > 0);
@@ -224,4 +230,44 @@ fn a_file_is_read_as_a_change_left_it_or_before_it_removed_it() {
     assert!(read(&added.id, "people/nobody.md").is_none());
     assert!(read(&added.id, "people").is_none(), "a folder is no file");
     assert!(history.read_at("0000", "people/lea-roux.md").is_err());
+}
+
+/// Two writers at once, as the app, `ipse mcp` and the command line can be: each opens
+/// its own history, as a separate process does.
+#[test]
+fn changes_made_at_the_same_time_keep_each_other_s_files() {
+    const ROUNDS: usize = 40;
+    let dir = tempfile::tempdir().unwrap();
+    init(dir.path());
+    let root = dir.path().to_owned();
+    let writers: Vec<_> = ["notes/a.md", "notes/b.md"]
+        .into_iter()
+        .map(|rel| {
+            let root = root.clone();
+            std::thread::spawn(move || {
+                let history = History::open(&root).unwrap();
+                for round in 0..ROUNDS {
+                    let mut change = history.change(Source::Person).unwrap();
+                    let path = write(&root, rel, &format!("Round {round}.\n"));
+                    change.touched(&path);
+                    change.commit("Write a note").unwrap();
+                }
+            })
+        })
+        .collect();
+    for writer in writers {
+        writer.join().unwrap();
+    }
+    let history = History::open(&root).unwrap();
+    let entries = history.entries(3 * ROUNDS).unwrap();
+    assert_eq!(entries.len(), 2 * ROUNDS + 1);
+    let last = &entries[0].id;
+    for rel in ["notes/a.md", "notes/b.md"] {
+        let recorded = history.read_at(last, rel).unwrap();
+        assert_eq!(
+            recorded.as_deref(),
+            Some(format!("Round {}.\n", ROUNDS - 1).as_bytes()),
+            "{rel}"
+        );
+    }
 }

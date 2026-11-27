@@ -101,7 +101,7 @@ pub(crate) fn connect(
     let found = found(vault, &instance.id)?;
     instances.add(instance.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Connect a calendars and contacts account")?;
     Ok(Connected { instance, found })
@@ -166,7 +166,7 @@ pub(crate) fn choose(
         .insert("collections".to_owned(), Value::Array(list));
     instances.set_config(id, instance.config.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Choose the calendars and address books to follow")?;
     sync_once(vault, &instance, secrets, false)
@@ -186,7 +186,7 @@ pub(crate) fn disconnect(vault: &Vault, id: &str, secrets: &dyn SecretStore) -> 
     instances.remove(id)?;
     forget(root, &instance, secrets)?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Disconnect a calendars and contacts account")?;
     Ok(instance)

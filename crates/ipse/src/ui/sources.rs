@@ -6,6 +6,7 @@
 //! file, a log or an answer.
 
 use std::path::{Path, PathBuf};
+use std::sync::PoisonError;
 
 use ipse_core::connector::{Instances, SyncState, runs};
 use ipse_core::rights::Gateway;
@@ -14,6 +15,7 @@ use ipse_core::time::Timestamp;
 use ipse_core::{Error, Result};
 use serde::{Deserialize, Serialize};
 
+use super::State;
 use super::history::{RunView, run_view};
 use crate::cmd::calendar::{DEFAULT_EVERY, NotFollowed, follow, unfollow};
 use crate::cmd::dav::{self as account, NotConnected};
@@ -398,10 +400,6 @@ pub(crate) fn change(
             let code = failed_code(gateway, synced.succeeded())?;
             answer(gateway, outcome, code, Some(body.instance)).map(Some)
         }
-        "sync" => {
-            let body: InstanceBody = read(body)?;
-            sync_now(gateway, &body.instance).map(Some)
-        }
         "unfollow" => {
             let body: InstanceBody = read(body)?;
             let connector = Instances::load(gateway.vault().root())?
@@ -580,12 +578,26 @@ fn failed_code(gateway: &Gateway, succeeded: bool) -> Result<Option<String>> {
         .and_then(|run| run.code))
 }
 
-/// Syncs a followed source now, as `ipse sync`.
-fn sync_now(gateway: &mut Gateway, id: &str) -> Result<SourcesChange> {
-    let vault = gateway.vault();
+/// Syncs a followed source now, as `ipse sync`, for the interface's `POST` of `body`.
+/// The gateway is held only to read what the sync needs and to answer: the network
+/// part of the sync runs without it, so that the interface keeps answering.
+///
+/// # Errors
+///
+/// [`Error::Refused`] for a source that is not followed or a body that is not one;
+/// errors of the memory, the journal, the history or the log of runs.
+pub(super) fn sync_now(state: &State, body: &[u8]) -> Result<SourcesChange> {
+    let body: InstanceBody = read(body)?;
+    let id = body.instance;
+    let vault = state
+        .gateway
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .vault()
+        .clone();
     let instances = Instances::load(vault.root())?;
     let instance = instances
-        .get(id)
+        .get(&id)
         .ok_or_else(|| Error::Refused("This source is not followed.".to_owned()))?;
     let options = SyncOptions {
         command: connector_command()?,
@@ -593,14 +605,19 @@ fn sync_now(gateway: &mut Gateway, id: &str) -> Result<SourcesChange> {
         full: false,
         now: Timestamp::now(),
     };
-    let synced = sync_instance(vault, instance, &*secrets(), &options)?;
+    let synced = {
+        // One sync at a time, also against the scheduler's.
+        let _syncing = state.syncing.lock().unwrap_or_else(PoisonError::into_inner);
+        sync_instance(&vault, instance, &*secrets(), &options)?
+    };
     let outcome = if synced.succeeded() {
         "synced"
     } else {
         "failed"
     };
-    let code = failed_code(gateway, synced.succeeded())?;
-    answer(gateway, outcome, code, Some(id.to_owned()))
+    let gateway = state.gateway.lock().unwrap_or_else(PoisonError::into_inner);
+    let code = failed_code(&gateway, synced.succeeded())?;
+    answer(&gateway, outcome, code, Some(id))
 }
 
 /// Imports the file at `path` (a copy of what the person picked, named `name`), as

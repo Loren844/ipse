@@ -112,7 +112,7 @@ pub(crate) fn import_into(vault: &Vault, file: &std::path::Path) -> Result<Vec<S
 
     // The person's own edits are recorded first, so that the import never hides them.
     let history = vault.history()?;
-    let mut change = history.change(Source::Connector(instance.to_owned()));
+    let mut change = history.change(Source::Connector(instance.to_owned()))?;
     let mut relations = 0;
     let mut owner = false;
     let (line, conflicts, deleted) = match kind {

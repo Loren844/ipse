@@ -98,7 +98,7 @@ pub(crate) fn follow(
 
     instances.add(instance.clone())?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Subscribe to a calendar")?;
     Ok(Followed { instance, synced })
@@ -206,7 +206,7 @@ pub(crate) fn unfollow(vault: &Vault, id: &str, secrets: &dyn SecretStore) -> Re
     instances.remove(id)?;
     forget(root, &instance, secrets)?;
     let history = vault.history()?;
-    let mut change = history.change(Source::Person);
+    let mut change = history.change(Source::Person)?;
     change.touched(&root.join(INSTANCES_FILE));
     change.commit("Unsubscribe from a calendar")?;
     Ok(instance)

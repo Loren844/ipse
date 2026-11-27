@@ -20,6 +20,7 @@ use gix::bstr::ByteSlice;
 use gix::object::tree::EntryKind;
 
 use super::atomic::write_atomic;
+use super::lock::{LOCK_FILE, WriteLock};
 use crate::{Error, Result};
 
 /// The trailer naming where a change came from.
@@ -28,8 +29,9 @@ const TRAILER: &str = "Ipse-Source:";
 /// What the vault's `.gitignore` must list: data that is not memory (the raw journal,
 /// indexes, the connected AIs and what they read, the interface's access code, the connectors' runs and
 /// diagnostics) and editors' scratch files.
-const IGNORED: [&str; 15] = [
+const IGNORED: [&str; 16] = [
     "journal/",
+    LOCK_FILE,
     ".ipse/connectors/",
     ".ipse/materialized.toml",
     ".ipse/added-relations.toml",
@@ -137,14 +139,19 @@ impl History {
     }
 
     /// Starts a change made by `source`. Files written through it, or marked with
-    /// [`Change::touched`], become one commit.
-    #[must_use]
-    pub fn change(&self, source: Source) -> Change<'_> {
-        Change {
+    /// [`Change::touched`], become one commit. The change holds the vault's write lock
+    /// until it is committed or dropped: write its files after starting it.
+    ///
+    /// # Errors
+    ///
+    /// As for [`WriteLock::acquire`].
+    pub fn change(&self, source: Source) -> Result<Change<'_>> {
+        Ok(Change {
             history: self,
             source,
             paths: BTreeSet::new(),
-        }
+            _lock: WriteLock::acquire(&self.root)?,
+        })
     }
 
     /// Records every file changed, added or removed since the last change, outside
@@ -172,6 +179,7 @@ impl History {
         summary: &str,
         skip: &[&str],
     ) -> Result<Option<Entry>> {
+        let lock = WriteLock::acquire(&self.root)?;
         let recorded = self.flatten(self.head_tree()?)?;
         let mut excludes = self.excludes()?;
         let mut paths = BTreeSet::new();
@@ -236,6 +244,7 @@ impl History {
             history: self,
             source,
             paths,
+            _lock: lock,
         };
         change.commit(summary)
     }
@@ -367,6 +376,8 @@ impl History {
     /// since: undoing would lose that later edit. [`Error::Io`] and [`Error::History`]
     /// as for [`Change::commit`].
     pub fn undo(&self, id: &str, source: Source, summary: &str) -> Result<Option<Entry>> {
+        // Held from checking the files to the commit, so that no change comes between.
+        let _lock = WriteLock::acquire(&self.root)?;
         let unknown =
             || Error::Refused("This change is not in the history of this memory.".to_owned());
         let id = ObjectId::from_hex(id.as_bytes()).map_err(|_| unknown())?;
@@ -407,7 +418,7 @@ impl History {
                 )));
             }
         }
-        let mut change = self.change(source);
+        let mut change = self.change(source)?;
         for rel in &touched {
             let path = self.root.join(rel);
             match before.get(rel) {
@@ -587,6 +598,8 @@ pub struct Change<'h> {
     source: Source,
     /// Paths relative to the vault, with `/` separators.
     paths: BTreeSet<String>,
+    /// Held until the change is committed or dropped.
+    _lock: WriteLock,
 }
 
 impl Change<'_> {
@@ -631,7 +644,18 @@ impl Change<'_> {
     pub fn commit(self, summary: &str) -> Result<Option<Entry>> {
         let history = self.history;
         let repo = &history.repo;
-        let base = history.head_tree()?;
+        // The parent and the tree are read together: if HEAD moves anyway (git used by
+        // hand), the update below is refused instead of undoing that commit's files.
+        let parent = repo.head_id().ok().map(gix::Id::detach);
+        let base = match parent {
+            Some(parent) => Some(
+                repo.find_commit(parent)
+                    .and_then(|c| c.tree_id())
+                    .map_err(|_| failed("read"))?
+                    .detach(),
+            ),
+            None => None,
+        };
         let mut excludes = history.excludes()?;
         let mut editor = repo
             .edit_tree(base.unwrap_or_else(|| ObjectId::empty_tree(gix::hash::Kind::Sha1)))
@@ -686,12 +710,7 @@ impl Change<'_> {
         let mut time = gix::date::parse::TimeBuf::default();
         let signature = signature.to_ref(&mut time);
         let message = format!("{summary}\n\n{TRAILER} {}\n", self.source);
-        let parents: Vec<ObjectId> = repo
-            .head_id()
-            .ok()
-            .map(gix::Id::detach)
-            .into_iter()
-            .collect();
+        let parents: Vec<ObjectId> = parent.into_iter().collect();
         let id = repo
             .commit_as(signature, signature, "HEAD", message, tree, parents)
             .map_err(|_| failed("update"))?
