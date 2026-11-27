@@ -2,13 +2,22 @@
 # that release.yml publishes for the same tag. Each installer carries the `ipse`
 # command beside the app, where the app and the AI apps' configurations find it.
 #
-# Signing happens only when its secrets exist (CONTRIBUTING.md, "Releasing"):
+# Signing happens only on a tag, and only when its secrets exist (CONTRIBUTING.md,
+# "Releasing", issue #257). When it does, the workflow checks the result and fails
+# rather than ship a half-signed installer.
 # - macOS: APPLE_CERTIFICATE (a .p12, base64), APPLE_CERTIFICATE_PASSWORD,
-#   APPLE_SIGNING_IDENTITY, and for notarization APPLE_ID, APPLE_PASSWORD (an
-#   app-specific password) and APPLE_TEAM_ID. Without them the app is signed ad hoc,
-#   and macOS asks the person to open it anyway (docs/guide/install.md).
-# - Windows: WINDOWS_CERTIFICATE (a .pfx, base64) and WINDOWS_CERTIFICATE_PASSWORD.
-#   Without them the installer is unsigned, and SmartScreen asks to run it anyway.
+#   APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD (an app-specific password) and
+#   APPLE_TEAM_ID, all six. Tauri signs the app and the ipse command inside it with the
+#   Developer ID and notarizes the app; the .dmg is then signed, notarized and stapled.
+#   Without them the app is signed ad hoc, and macOS asks the person to open it anyway
+#   (docs/guide/install.md).
+# - Windows, the first that is set up: SignPath (secret SIGNPATH_API_TOKEN, variable
+#   SIGNPATH_ORGANIZATION_ID; .signpath/artifact-configuration.xml says what it signs),
+#   Azure Trusted Signing (secrets AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID;
+#   variables AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE), or
+#   a certificate (WINDOWS_CERTIFICATE, a .pfx in base64, and WINDOWS_CERTIFICATE_PASSWORD).
+#   The .msi, the app and ipse.exe are signed. Without any, the installer is unsigned,
+#   and SmartScreen asks to run it anyway.
 # - Updates (issue #156): TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD,
 #   made with `npx @tauri-apps/cli@2 signer generate`; its public key is in
 #   app/tauri.conf.json. With them, each system's file gets its signature (.sig) and the
@@ -83,10 +92,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
-      - name: macOS signing, when its secrets exist
+      - name: macOS signing, on a tag when its secrets exist
         if: runner.os == 'macOS'
         shell: bash
         env:
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
@@ -94,30 +104,73 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Only the variables that are set reach Tauri: an empty one would count.
-          for name in APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
-            if [ -n "${!name}" ]; then echo "$name<<END" >> "$GITHUB_ENV"; echo "${!name}" >> "$GITHUB_ENV"; echo "END" >> "$GITHUB_ENV"; fi
+          names="APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID"
+          if [ "$TAGGED" != "true" ] || [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "SIGNING=none" >> "$GITHUB_ENV"
+            echo "::notice::Not signed with a Developer ID (only tags with the Apple secrets are): the app is signed ad hoc, not notarized."
+            exit 0
+          fi
+          # Signed but not notarized, the app would still be blocked: all six or none.
+          for name in $names; do
+            if [ -z "${!name}" ]; then echo "::error::$name is missing: macOS signing needs all of $names."; exit 1; fi
           done
-          if [ -z "$APPLE_CERTIFICATE" ]; then echo "::notice::No Apple certificate: the app is signed ad hoc, not notarized."; fi
-      - name: Windows signing, when its secrets exist
+          for name in $names; do
+            { echo "$name<<END"; echo "${!name}"; echo "END"; } >> "$GITHUB_ENV"
+          done
+          echo "SIGNING=developer-id" >> "$GITHUB_ENV"
+          # Tauri signs the app and the ipse command inside it, then notarizes the app.
+          python3 -c 'import json, os; print(json.dumps({"bundle": {"macOS": {"signingIdentity": os.environ["APPLE_SIGNING_IDENTITY"]}}}))' > app/sign.json
+      - name: Windows signing, on a tag when its secrets exist
         if: runner.os == 'Windows'
         shell: pwsh
         env:
+          TAGGED: ${{ startsWith(github.ref, 'refs/tags/') }}
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
-          if (-not $env:WINDOWS_CERTIFICATE) {
-            Write-Output "::notice::No Windows certificate: the installer is unsigned."
-            '{}' | Out-File -Encoding utf8 app/sign.json
-            exit 0
+          # One way to sign, the first whose secrets exist: SignPath (after the build),
+          # Azure Trusted Signing, or a certificate (.pfx). Tauri signs the app, the ipse
+          # command and the .msi with the last two.
+          $windows = $null
+          if ($env:TAGGED -ne 'true') {
+            $method = 'none'
+          } elseif ($env:SIGNPATH_API_TOKEN) {
+            $method = 'signpath'
+          } elseif ($env:AZURE_CLIENT_ID) {
+            foreach ($name in 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID', 'AZURE_SIGNING_ENDPOINT', 'AZURE_SIGNING_ACCOUNT', 'AZURE_SIGNING_PROFILE') {
+              if (-not [Environment]::GetEnvironmentVariable($name)) { Write-Output "::error::$name is missing for Azure Trusted Signing."; exit 1 }
+            }
+            cargo install trusted-signing-cli --locked
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            foreach ($name in 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'AZURE_TENANT_ID') {
+              "$name=$([Environment]::GetEnvironmentVariable($name))" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+            }
+            $windows = @{ signCommand = "trusted-signing-cli -e $env:AZURE_SIGNING_ENDPOINT -a $env:AZURE_SIGNING_ACCOUNT -c $env:AZURE_SIGNING_PROFILE -d Ipse %1" }
+            $method = 'azure'
+          } elseif ($env:WINDOWS_CERTIFICATE) {
+            $pfx = Join-Path $env:RUNNER_TEMP 'certificate.pfx'
+            [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
+            $certificate = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+            Remove-Item $pfx
+            $windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' }
+            $method = 'certificate'
+          } else {
+            $method = 'none'
           }
-          $pfx = Join-Path $env:RUNNER_TEMP 'certificate.pfx'
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
-          $password = ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -Force -AsPlainText
-          $certificate = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
-          Remove-Item $pfx
-          @{ bundle = @{ windows = @{ certificateThumbprint = $certificate.Thumbprint; digestAlgorithm = 'sha256'; timestampUrl = 'http://timestamp.digicert.com' } } } |
-            ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 app/sign.json
+          if ($windows) {
+            @{ bundle = @{ windows = $windows } } | ConvertTo-Json -Depth 4 | Out-File -Encoding utf8 app/sign.json
+          }
+          "SIGNING=$method" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          if ($method -eq 'none') { Write-Output "::notice::Not signed (only tags with signing secrets are): SmartScreen asks to run the installer anyway." }
+          else { Write-Output "Signing with: $method" }
       - name: Build the installers
         working-directory: app
         shell: bash
@@ -136,6 +189,90 @@ jobs:
             echo "::notice::No update key: the app is not offered this release."
           fi
           npx --yes @tauri-apps/cli@2 build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }} --config tauri.bundle.conf.json $extra
+      - name: macOS, sign and notarize the disk image too
+        if: runner.os == 'macOS' && env.SIGNING == 'developer-id'
+        shell: bash
+        run: |
+          dmg=$(ls app/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)
+          keychain="$RUNNER_TEMP/dmg.keychain-db"
+          password=$(openssl rand -hex 24)
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 900 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" > /dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          codesign --force --sign "$APPLE_SIGNING_IDENTITY" --keychain "$keychain" --timestamp "$dmg"
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "$dmg"
+          security delete-keychain "$keychain"
+      - name: Windows, the installer for SignPath
+        id: unsigned
+        if: runner.os == 'Windows' && env.SIGNING == 'signpath'
+        uses: actions/upload-artifact@v7
+        with:
+          name: unsigned-${{ matrix.target }}
+          path: app/target/${{ matrix.target }}/release/bundle/msi/*.msi
+          if-no-files-found: error
+      - name: Windows, signed by SignPath
+        if: runner.os == 'Windows' && env.SIGNING == 'signpath'
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG || 'ipse' }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY_SLUG || 'release-signing' }}
+          artifact-configuration-slug: ${{ vars.SIGNPATH_ARTIFACT_CONFIGURATION_SLUG || 'msi' }}
+          github-artifact-id: ${{ steps.unsigned.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: signed
+      - name: Windows, the signed installer in place
+        if: runner.os == 'Windows' && env.SIGNING == 'signpath'
+        shell: bash
+        env:
+          UPDATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          UPDATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          msi=$(ls app/target/${{ matrix.target }}/release/bundle/msi/*.msi)
+          cp "signed/$(basename "$msi")" "$msi"
+          # The update's signature was made on the unsigned file: made again.
+          if [ -n "$UPDATE_KEY" ]; then
+            rm -f "$msi.sig"
+            TAURI_SIGNING_PRIVATE_KEY="$UPDATE_KEY" TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$UPDATE_KEY_PASSWORD" \
+              npx --yes @tauri-apps/cli@2 signer sign "$msi"
+          fi
+      - name: macOS, check the signatures
+        if: runner.os == 'macOS' && env.SIGNING == 'developer-id'
+        shell: bash
+        run: |
+          bundle="app/target/${{ matrix.target }}/release/bundle"
+          app=$(ls -d "$bundle"/macos/*.app)
+          dmg=$(ls "$bundle"/dmg/*.dmg)
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --verify --strict --verbose=2 "$app/Contents/MacOS/ipse"
+          codesign --display --verbose=2 "$app/Contents/MacOS/ipse" 2>&1 | grep -q "^Authority=Developer ID Application"
+          spctl --assess --type execute --verbose=4 "$app" 2>&1 | tee /dev/stderr | grep -q "source=Notarized Developer ID"
+          spctl --assess --type open --context context:primary-signature --verbose=4 "$dmg" 2>&1 | tee /dev/stderr | grep -q "source=Notarized Developer ID"
+          xcrun stapler validate "$app"
+          xcrun stapler validate "$dmg"
+      - name: Windows, check the signatures
+        if: runner.os == 'Windows' && env.SIGNING != 'none'
+        shell: pwsh
+        run: |
+          $msi = Get-ChildItem "app/target/${{ matrix.target }}/release/bundle/msi/*.msi" | Select-Object -First 1
+          $inside = Join-Path $env:RUNNER_TEMP 'msi'
+          Start-Process msiexec.exe -ArgumentList "/a `"$($msi.FullName)`" /qn TARGETDIR=`"$inside`"" -Wait
+          $files = @($msi) + @(Get-ChildItem $inside -Recurse -Filter *.exe)
+          if (-not ($files | Where-Object Name -eq 'ipse.exe')) { Write-Output "::error::No ipse.exe in the installer."; exit 1 }
+          $bad = 0
+          foreach ($file in $files) {
+            $signature = Get-AuthenticodeSignature $file.FullName
+            Write-Output "$($file.Name): $($signature.Status), $($signature.SignerCertificate.Subject)"
+            if ($signature.Status -ne 'Valid') { $bad++ }
+          }
+          if ($bad) { Write-Output "::error::$bad file(s) not signed."; exit 1 }
       - name: Name them by version and system
         shell: bash
         run: |
@@ -160,10 +297,17 @@ jobs:
             cp "$file.sig" "out/Ipse-$version-$arch.app.tar.gz.sig"
           done
           ls -l out
+          # Whether this system's installer is signed, for the release notes.
+          mkdir -p signing
+          if [ "${SIGNING:-none}" = "none" ]; then echo unsigned; else echo signed; fi > "signing/$arch"
       - uses: actions/upload-artifact@v7
         with:
           name: installers-${{ matrix.target }}
           path: out/*
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signing-${{ matrix.target }}
+          path: signing/*
 
   publish:
     name: Attach to the release
@@ -176,6 +320,11 @@ jobs:
           pattern: installers-*
           merge-multiple: true
           path: out
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: signing-*
+          merge-multiple: true
+          path: signing
       - uses: actions/checkout@v5
         with:
           path: source
@@ -205,7 +354,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
-        run: source/.github/scripts/notes.sh "$TAG"
+        run: |
+          # The notes warn about the systems whose installers are not signed.
+          signed=""
+          if grep -qx signed signing/macos-apple-silicon && grep -qx signed signing/macos-intel; then signed="macos"; fi
+          if grep -qx signed signing/windows-x64; then signed="$signed windows"; fi
+          SIGNED="$signed" source/.github/scripts/notes.sh "$TAG"
 
   notes:
     name: Rewrite a release's notes

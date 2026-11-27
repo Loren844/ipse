@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What SignPath signs in the Windows installer (issue #257), when the release workflow
+     signs with SignPath: the .msi, and inside it the app and the ipse command. Pasted
+     as the artifact configuration "msi" of the SignPath project (CONTRIBUTING.md,
+     "Releasing"). The GitHub artifact SignPath receives is a zip holding the .msi. -->
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <zip-file>
+    <msi-file path="Ipse_*.msi">
+      <pe-file-set>
+        <include path="**/*.exe" min-matches="2" />
+        <for-each>
+          <authenticode-sign />
+        </for-each>
+      </pe-file-set>
+      <authenticode-sign />
+    </msi-file>
+  </zip-file>
+</artifact-configuration>
