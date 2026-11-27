@@ -60,7 +60,12 @@ fn main() {
     let mut times: Vec<Duration> = Vec::new();
     for _ in 0..21 {
         let start = Instant::now();
-        let timeline = index.timeline(|_| true, |stem| index.person_path(stem, |_| true).is_some());
+        let left_out = index.left_out_of_company(|_| true);
+        let timeline = index.timeline(
+            |_| true,
+            |stem| index.person_path(stem, |_| true).is_some(),
+            &left_out,
+        );
         times.push(start.elapsed());
         assert_eq!(timeline.years.len(), 2);
         assert_eq!(
@@ -79,12 +84,14 @@ fn main() {
     let mut times: Vec<Duration> = Vec::new();
     for _ in 0..21 {
         let start = Instant::now();
+        let left_out = index.left_out_of_company(|_| true);
         let meals = index.kind_summary(
             ipse_core::vault::EventKind::Meal,
             today,
             12,
             |_| true,
             |stem| index.person_path(stem, |_| true).is_some(),
+            &left_out,
         );
         times.push(start.elapsed());
         assert_eq!(meals.events as usize, meals_made);

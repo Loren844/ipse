@@ -413,6 +413,10 @@ async fn the_agenda_and_what_is_going_on_now() {
         json!(["[[paul-durand]]", "Zoé"])
     );
     assert_eq!(found["more"], false);
+    // Who the person saw most in the period, by the timeline's rule, said (issue #264).
+    assert_eq!(found["seen_most"][0]["person"]["name"], "Paul Durand");
+    assert_eq!(found["seen_most"][0]["events"], 1);
+    assert!(found["seen_most_rule"].as_str().unwrap().contains("work"));
 
     let paul = read(&ai, "search", json!({ "query": "piano" })).await;
     let mut with_paul = week.clone();

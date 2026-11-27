@@ -3,10 +3,12 @@
 //! One pass over the events the index read once per file, so that years of agenda
 //! are summed up as fast as a week.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::SearchIndex;
+use super::company::{Company, LeftOut};
+use super::document::{Document, EventSpan};
 use crate::vault::{Category, EventKind, EventTime, Id};
 
 /// People listed for a month.
@@ -80,37 +82,35 @@ pub struct Timeline<'i> {
 #[derive(Default)]
 struct Tally<'i> {
     events: u32,
-    people: HashMap<&'i str, u32>,
+    company: Company<'i>,
     marks: Vec<Mark<'i>>,
 }
 
 impl<'i> Tally<'i> {
-    fn add(&mut self, participants: &'i [String], mark: Option<&Mark<'i>>) {
+    /// Counts the event `d`; its people only when it says who the person spends their
+    /// life with (`company`).
+    fn add(
+        &mut self,
+        d: &'i Document,
+        span: &'i EventSpan,
+        company: bool,
+        mark: Option<&Mark<'i>>,
+    ) {
         self.events += 1;
-        for person in participants {
-            *self.people.entry(person.as_str()).or_default() += 1;
+        if company {
+            self.company.add(d, span);
         }
         if let Some(mark) = mark {
             self.marks.push(mark.clone());
         }
     }
 
-    /// The `n` people seen most, ties by stem, so that the order never changes.
+    /// The `n` people seen most (see [`Company::top`]).
     fn top(&self, n: usize, is_person: impl Fn(&str) -> bool) -> Vec<Seen> {
-        let mut people: Vec<(&str, u32)> = self
-            .people
-            .iter()
-            .filter(|(stem, _)| is_person(stem))
-            .map(|(stem, count)| (*stem, *count))
-            .collect();
-        people.sort_unstable_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(b.0)));
-        people
+        self.company
+            .top(n, is_person)
             .into_iter()
-            .take(n)
-            .map(|(stem, events)| Seen {
-                stem: stem.to_ascii_lowercase(),
-                events,
-            })
+            .map(|(stem, events)| Seen { stem, events })
             .collect()
     }
 }
@@ -118,15 +118,17 @@ impl<'i> Tally<'i> {
 impl SearchIndex {
     /// The timeline of the events among the allowed categories: per year and month,
     /// counts, the people seen most (among those `is_person` keeps, the readable
-    /// people) and the trips and celebrations. An event counts in the month it
-    /// starts.
+    /// people, and in the events not `left_out`: see
+    /// [`SearchIndex::left_out_of_company`]) and the trips and celebrations. An event
+    /// counts in the month it starts.
     #[must_use]
     pub fn timeline(
         &self,
         allowed: impl Fn(&Category) -> bool,
         is_person: impl Fn(&str) -> bool,
+        left_out: &LeftOut,
     ) -> Timeline<'_> {
-        self.timeline_with(allowed, is_person, None)
+        self.timeline_with(allowed, is_person, left_out, None)
     }
 
     /// The timeline of [`SearchIndex::timeline`], of the events that link to the file
@@ -137,6 +139,7 @@ impl SearchIndex {
         &self,
         allowed: impl Fn(&Category) -> bool,
         is_person: impl Fn(&str) -> bool,
+        left_out: &LeftOut,
         with: Option<&str>,
     ) -> Timeline<'_> {
         let with = with.map(str::to_ascii_lowercase);
@@ -162,12 +165,13 @@ impl SearchIndex {
                 start: &span.start,
                 kind,
             });
+            let company = !left_out.contains(&d.id);
             let (year, months) = years.entry(date.year()).or_default();
-            year.add(&span.participants, None);
+            year.add(d, span, company, None);
             months
                 .entry(date.month())
                 .or_default()
-                .add(&span.participants, mark.as_ref());
+                .add(d, span, company, mark.as_ref());
         }
         Timeline {
             years: years

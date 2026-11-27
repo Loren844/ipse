@@ -505,17 +505,7 @@ impl<'g> Access<'g> {
             },
         };
         let limit = limit.clamp(1, MAX_EVENTS);
-        let overlaps = |e: &EventRef<'_>| {
-            let Some(start) = instant(e.start, tz, false) else {
-                return false;
-            };
-            let end = match e.end {
-                Some(end) => instant(end, tz, false).unwrap_or(start),
-                None if e.start.is_day() => instant(e.start, tz, true).unwrap_or(start),
-                None => start,
-            };
-            start < to && (end > from || (end == start && start >= from))
-        };
+        let overlaps = |e: &EventRef<'_>| overlaps(e, tz, from, to);
         // With someone, or at a place.
         let with_them = |e: &EventRef<'_>| {
             with.as_deref().is_none_or(|stem| {
@@ -537,6 +527,43 @@ impl<'g> Access<'g> {
             events.extend(self.entry(event.path));
         }
         Events { events, more }
+    }
+
+    /// The `n` people this AI may read seen most in its events that overlap
+    /// `from`–`to` (days count whole), as the person's timeline counts them: work
+    /// meetings and crowds left out, ties to the most varied (issue #264, see
+    /// [`crate::search::COMPANY_RULE`]). Each with how many events.
+    #[must_use]
+    pub fn seen_most(
+        &self,
+        from: &EventTime,
+        to: &EventTime,
+        n: usize,
+    ) -> Vec<(super::LinkOut, u32)> {
+        let tz = self.time_zone();
+        let (Some(from), Some(to)) = (instant(from, tz, false), instant(to, tz, true)) else {
+            return Vec::new();
+        };
+        let index = &self.gateway.index;
+        let reads = |c: &crate::vault::Category| self.reads(c.as_str());
+        let left_out = index.left_out_of_company(reads);
+        index
+            .seen_most(
+                reads,
+                |stem| index.person_path(stem, reads).is_some(),
+                &left_out,
+                |e| overlaps(e, tz, from, to),
+                n,
+            )
+            .into_iter()
+            .map(|(stem, events)| {
+                let link = LinkOrText::Link(crate::vault::WikiLink {
+                    target: stem,
+                    display: None,
+                });
+                (self.link(&link), events)
+            })
+            .collect()
     }
 
     /// The series of repeating events this client may read, by event id (see
@@ -919,6 +946,20 @@ fn type_name(file_type: FileType) -> String {
 
 /// The instant an event time stands for: a moment as is; a day at its start in `tz`,
 /// or at the start of the next day when it ends a period (`end_of_day`).
+/// True when the event `e` overlaps `from`–`to`: an event without an end lasts its day
+/// when it is a day, an instant otherwise.
+fn overlaps(e: &EventRef<'_>, tz: &TimeZone, from: Timestamp, to: Timestamp) -> bool {
+    let Some(start) = instant(e.start, tz, false) else {
+        return false;
+    };
+    let end = match e.end {
+        Some(end) => instant(end, tz, false).unwrap_or(start),
+        None if e.start.is_day() => instant(e.start, tz, true).unwrap_or(start),
+        None => start,
+    };
+    start < to && (end > from || (end == start && start >= from))
+}
+
 fn instant(time: &EventTime, tz: &TimeZone, end_of_day: bool) -> Option<Timestamp> {
     match time {
         EventTime::At(at) => Some(at.timestamp()),
