@@ -87,6 +87,7 @@ pub(crate) fn run(vault: Option<PathBuf>, listen: Option<&str>) -> Result<()> {
         let (wake, wakes) = std::sync::mpsc::channel();
         let state = Arc::new(State {
             gateway: Mutex::new(gateway),
+            syncing: Mutex::new(()),
             keys: Mutex::new(Keys {
                 code: None,
                 sessions: Vec::new(),
