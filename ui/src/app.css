@@ -2034,7 +2034,8 @@ dialog[open]::backdrop {
 	max-width: 28rem;
 }
 
-.setting-form select {
+.setting-form select,
+.setting-form .zone-search {
 	font: inherit;
 	color: var(--text);
 	background-color: var(--surface);
@@ -2043,7 +2044,8 @@ dialog[open]::backdrop {
 	padding: 0.55rem 0.8rem;
 }
 
-.setting-form select:focus {
+.setting-form select:focus,
+.setting-form .zone-search:focus {
 	outline: none;
 	border-color: var(--thread);
 }

@@ -113,10 +113,11 @@
 	<div class="screen">
 		<header class="page-head">
 			<h1>{i18n.t.inbox}</h1>
-			{#if ready.waiting.length}
-				<p class="lead">{i18n.t.inboxWaiting(ready.waiting.length)}</p>
-				<p class="quiet">{i18n.t.inboxHint}</p>
-			{:else if !questions.length}
+			{#if ready.waiting.length || questions.length}
+				<!-- The same count as the side bar and the home screen: proposals and questions. -->
+				<p class="lead">{i18n.t.waitingBanner(ready.waiting.length, questions.length)}.</p>
+				{#if ready.waiting.length}<p class="quiet">{i18n.t.inboxHint}</p>{/if}
+			{:else}
 				<p class="lead">{i18n.t.inboxEmpty}</p>
 			{/if}
 		</header>
@@ -139,13 +140,15 @@
 
 		{#if ready.waiting.length}
 			<section aria-labelledby="waiting">
-				<h2 id="waiting" class="visually-hidden">{i18n.t.status.waiting}</h2>
+				<h2 id="waiting" class="visually-hidden">{i18n.t.proposalsTitle}</h2>
 				{#if acceptable.length}
 					<div class="toolbar">
 						<label><input type="checkbox" checked={allSelected} onchange={toggleAll} />{i18n.t.selectAll}</label>
-						<button type="button" class="button primary" disabled={busy || selected.length === 0} onclick={acceptSelected}
-							>{i18n.t.acceptSelection(Math.max(selected.length, 1))}</button
-						>
+						{#if selected.length}
+							<button type="button" class="button primary" disabled={busy} onclick={acceptSelected}
+								>{i18n.t.acceptSelection(selected.length)}</button
+							>
+						{/if}
 					</div>
 				{/if}
 				<ul class="inbox" style:margin-top="1rem">

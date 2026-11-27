@@ -24,14 +24,14 @@
 	const kinds = $derived([...new Set(events.map((e) => e.event_kind).filter((k): k is string => !!k))]);
 	const kept = $derived(kind ? events.filter((e) => e.event_kind === kind) : events);
 	const open = new SvelteSet<string>();
-	const shown = $derived(group ? rows(kept, open, today) : kept.map((event) => ({ event, count: 1, folded: false })));
+	const shown = $derived(group ? rows(kept, open, today) : kept.map((event) => ({ event, count: 1, upcoming: false, folded: false })));
 </script>
 
 {#if filter && kinds.length > 1}
 	<KindFilter {kinds} bind:kind />
 {/if}
 <ol class="thread">
-	{#each shown as { event, count, folded } (event.id)}
+	{#each shown as { event, count, upcoming, folded } (event.id)}
 		{#if !folded}
 			{@const day = dayOf(event.start)}
 			<li class="knot" class:past={day < today} class:cancelled={event.status === 'cancelled'}>
@@ -48,7 +48,7 @@
 					<span class="series">
 						{i18n.t.every(event.series.weekday, event.series.time)}
 						<button type="button" class="unfold" aria-expanded={open.has(key)} onclick={() => (open.has(key) ? open.delete(key) : open.add(key))}>
-							{open.has(key) ? i18n.t.hideSeries : i18n.t.showSeries(count)}
+							{open.has(key) ? i18n.t.hideSeries : i18n.t.showSeries(count, upcoming)}
 						</button>
 					</span>
 				{/if}

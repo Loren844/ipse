@@ -190,7 +190,7 @@
 							</p>
 						{/if}
 					</li>
-					{#each group.events as { event, count } (event.id)}
+					{#each group.events as { event, count, upcoming } (event.id)}
 						<li class="knot" class:past={group.day < today} class:cancelled={event.status === 'cancelled'}>
 							<span class="when">
 								{timeOf(event.start)}
@@ -205,7 +205,7 @@
 								<span class="series">
 									{i18n.t.every(event.series.weekday, event.series.time)}
 									<button type="button" class="unfold" aria-expanded={open.has(key)} onclick={() => (open.has(key) ? open.delete(key) : open.add(key))}>
-										{open.has(key) ? i18n.t.hideSeries : i18n.t.showSeries(count)}
+										{open.has(key) ? i18n.t.hideSeries : i18n.t.showSeries(count, upcoming)}
 									</button>
 								</span>
 							{/if}

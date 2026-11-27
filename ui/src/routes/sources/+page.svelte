@@ -13,6 +13,13 @@
 	const screen = new Loader<SourcesView>();
 	screen.load(() => api.sources());
 	const view = $derived(screen.state.kind === 'ready' ? screen.state.value : null);
+	/** The time "an hour ago" counts from: it moves while the screen stays open, so an
+	 * import done "just now" does not stay so until the page is reloaded (issue #260). */
+	let now = $state(new Date());
+	$effect(() => {
+		const timer = setInterval(() => (now = new Date()), 30_000);
+		return () => clearInterval(timer);
+	});
 
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
 	let question: Question | null = $state(null);
@@ -166,11 +173,12 @@
 	/** "Importé 2 fois, dernier import il y a 3 minutes." */
 	function status(source: SourceView): string {
 		const t = i18n.t;
-		const when = source.last ? ago(source.last.at) : null;
+		const when = source.last ? ago(source.last.at, now) : null;
 		if (source.followed) {
 			const every = source.every_minutes ? t.followedEvery(source.every_minutes) : '';
 			return `${every}, ${when ? t.lastSync(when) : t.neverSynced}.`;
 		}
+		if (source.runs === 1 && when) return `${t.importedOnce(when)}.`;
 		return `${t.importedFiles(source.runs)}${when ? `, ${t.lastImport(when)}` : ''}.`;
 	}
 </script>

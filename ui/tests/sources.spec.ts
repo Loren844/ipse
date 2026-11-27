@@ -54,7 +54,7 @@ test('import a contacts file, then see it among the sources', async ({ page }) =
 	await page.getByLabel('choisissez-le').setInputFiles(join(FIXTURES, 'contacts/google-v3.vcf'));
 	await expect(page.getByRole('status')).toHaveText('Fichier importé.');
 	const source = page.getByTestId('sources').getByRole('listitem').filter({ hasText: 'Contacts' });
-	await expect(source).toContainText('Importé une fois');
+	await expect(source).toContainText('Importé à l’instant.');
 	await expect(source).toContainText('fiches ajoutées');
 
 	// The people are in the memory.
