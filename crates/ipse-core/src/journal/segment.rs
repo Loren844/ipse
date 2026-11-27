@@ -264,6 +264,8 @@ pub(crate) fn seal(open: &Segment, earlier: Option<&Segment>) -> Result<bool> {
         if let Some(e) = target.error.take() {
             return Err(io("write", &sealed, e));
         }
+        // Closes the earlier sealed file: Windows won't replace a file still open.
+        drop(source);
         tmp.as_file()
             .sync_all()
             .map_err(|e| io("write", &sealed, e))?;
