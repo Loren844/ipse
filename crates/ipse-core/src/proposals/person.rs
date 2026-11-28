@@ -16,7 +16,7 @@ use super::change::{self, Change, NewRelation, existing, memory_path};
 use super::key;
 use crate::slug::to_file_stem;
 use crate::vault::body::{Fact, Relation};
-use crate::vault::{MemoryFile, Source};
+use crate::vault::{DateTime, FileType, MemoryFile, Source};
 use crate::{Error, Result};
 
 /// What the person wants a file to say, from the interface's form.
@@ -72,6 +72,13 @@ pub fn version(path: &Path) -> Result<String> {
         source,
     })?;
     Ok(blake3::hash(&bytes).to_hex()[..16].to_owned())
+}
+
+/// Today in the vault's time zone, like `2026-11-28`: the start of the time it writes
+/// in RFC 3339.
+fn today(proposals: &Proposals<'_>) -> String {
+    let now = DateTime::now(proposals.vault.settings().time_zone()).to_string();
+    now.get(..10).unwrap_or_default().to_owned()
 }
 
 fn changed_meanwhile() -> Error {
@@ -277,6 +284,52 @@ impl Proposals<'_> {
             id: created.common().id.to_string(),
             change: entry.map(|e| e.id),
         })
+    }
+
+    /// Adds a quick note to `file` (relative to the vault), as one change of the history
+    /// by the person (issue #277): a fact of an entity, or a line of an event's notes,
+    /// that starts with today's date in the vault's time zone. No version is asked: a
+    /// note adds a line and changes nothing else. Returns that change; `None` when the
+    /// file already said so.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] for an empty or too long note, or a file that is neither an
+    /// entity nor an event; errors writing the file or the history.
+    pub fn note(&self, file: &str, text: &str) -> Result<Option<String>> {
+        let text = crate::notes::one_line(text)?;
+        let current = existing(self.vault, file)?;
+        let line = crate::notes::dated(&today(self), &text, self.vault.settings().language());
+        let mut change = if current.entity().is_some() {
+            Change::AddFact {
+                file: file.to_owned(),
+                text: line,
+            }
+        } else if current.common().file_type == FileType::Event {
+            let from = current.sections().notes;
+            let to = match from.as_deref().map(str::trim_end) {
+                Some(notes) if !notes.trim().is_empty() => format!("{notes}\n\n{line}"),
+                _ => line,
+            };
+            Change::SetNotes {
+                file: file.to_owned(),
+                from,
+                to: Some(to),
+            }
+        } else {
+            return Err(Error::Refused(
+                "A note goes on a person, a place, a thing or an event.".to_owned(),
+            ));
+        };
+        change::check(self.vault, &mut change, &[])?;
+        let plan = apply::plan_changes(self.vault, std::slice::from_ref(&change), None, false)?;
+        if let Some(reason) = plan.preview.stale {
+            return Err(Error::Refused(reason));
+        }
+        let history = self.vault.history()?;
+        let mut record = history.change(Source::Person)?;
+        apply::write(self.vault, plan.files, &mut record)?;
+        Ok(record.commit("Add a note")?.map(|e| e.id))
     }
 
     /// Deletes `file`, read at `version`, in one change of the history by the person,

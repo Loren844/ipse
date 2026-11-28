@@ -85,11 +85,13 @@ pub enum FileType {
     StateLog,
     /// A summary of a period, under `summaries/`.
     Summary,
+    /// The person's notes of one day, under `notes/` (issue #277).
+    Note,
 }
 
 impl FileType {
     /// Every type, in the order of the spec.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Person,
         Self::Place,
         Self::Organization,
@@ -101,6 +103,7 @@ impl FileType {
         Self::Event,
         Self::StateLog,
         Self::Summary,
+        Self::Note,
     ];
 
     /// The value of the `type` key.
@@ -118,6 +121,7 @@ impl FileType {
             Self::Event => "event",
             Self::StateLog => "state-log",
             Self::Summary => "summary",
+            Self::Note => "note",
         }
     }
 
@@ -131,7 +135,10 @@ impl FileType {
     /// reminders.
     #[must_use]
     pub fn is_entity(self) -> bool {
-        !matches!(self, Self::Event | Self::StateLog | Self::Summary)
+        !matches!(
+            self,
+            Self::Event | Self::StateLog | Self::Summary | Self::Note
+        )
     }
 
     /// The vault folder files of this type live in.
@@ -149,6 +156,7 @@ impl FileType {
             Self::Event => "events",
             Self::StateLog => "states",
             Self::Summary => "summaries",
+            Self::Note => "notes",
         }
     }
 
@@ -164,6 +172,8 @@ impl FileType {
             Self::Topic | Self::Work => "media",
             Self::Event | Self::Reminder => "agenda",
             Self::Summary => "summaries",
+            // What the person writes for themselves: closed to AIs until opened.
+            Self::Note => "private",
             Self::StateLog => return None,
         };
         Category::new(name)

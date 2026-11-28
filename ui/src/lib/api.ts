@@ -11,6 +11,8 @@ import type { ProposalView } from './types/ProposalView.ts';
 
 export type { AppInfo, DecisionView, EventsView, FileView, HomeView, InboxView, PeopleView, ProposalView };
 export type { ProposalLine } from './types/ProposalLine.ts';
+export type { DayNoteView } from './types/DayNoteView.ts';
+import type { DayNoteView } from './types/DayNoteView.ts';
 export type { AisView } from './types/AisView.ts';
 export type { OfferView } from './types/OfferView.ts';
 export type { AiView } from './types/AiView.ts';
@@ -147,6 +149,10 @@ const proposal = (id: string) => `/api/proposals/${encodeURIComponent(id)}`;
 export const api = {
 	app: () => get<AppInfo>('/api/app'),
 	home: () => get<HomeView>('/api/home'),
+	/** The notes of one day (issue #277); missing when it has none. */
+	dayNote: (day: string) => get<DayNoteView>(`/api/notes/${encodeURIComponent(day)}`),
+	/** Adds a line to today's notes, as the person's: the tray and the phone use it too. */
+	addNote: (text: string) => post<DayNoteView>('/api/notes', { text }),
 	people: (q?: string, offset?: number) => get<PeopleView>('/api/people', { q, offset }),
 	events: (from?: string, to?: string) => get<EventsView>('/api/events', { from, to }),
 	file: (id: string) => get<FileView>(`/api/file/${encodeURIComponent(id)}`),
@@ -212,6 +218,8 @@ export const api = {
 	saveText: (id: string, version: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/text`, { version, text }),
 	saveFile: (id: string, version: string, draft: Draft) =>
 		post<FileView>(`/api/file/${encodeURIComponent(id)}/edit`, { version, ...draft }),
+	/** A quick note on a file (issue #277): saved at once as the person's, dated today. */
+	note: (id: string, text: string) => post<FileView>(`/api/file/${encodeURIComponent(id)}/note`, { text }),
 	deleteFile: (id: string, version: string) => post<SavedView>(`/api/file/${encodeURIComponent(id)}/delete`, { version }),
 	createFile: (kind: string, draft: Draft, stem?: string) =>
 		post<SavedView>('/api/files', {

@@ -4893,3 +4893,32 @@ p.automatic a {
 	margin: 0;
 	font-size: var(--step-0);
 }
+
+/* A quick note on a file (issue #277). */
+.note-field {
+	margin: 1.25rem 0 1.5rem;
+	max-width: 40rem;
+}
+
+/* The note of the day (issue #277). */
+.day-note {
+	max-width: 40rem;
+}
+
+.day-note .hint {
+	margin: 0.4rem 0 0;
+	color: var(--muted);
+	font-size: 0.9rem;
+}
+
+.day-note-lines {
+	list-style: none;
+	margin: 1rem 0 0;
+	padding: 0;
+	display: grid;
+	gap: 0.45rem;
+}
+
+.day-note-lines li {
+	line-height: 1.6;
+}

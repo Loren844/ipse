@@ -94,8 +94,10 @@ export function fromSources(list: string[]): string {
 }
 
 /** The page of a linked file; summaries have none yet. */
-export function hrefOf(link: { id: string | null; kind: string | null }): string | null {
+export function hrefOf(link: { id: string | null; kind: string | null; name?: string }): string | null {
 	if (!link.id || link.kind === 'summary') return null;
+	// A note of the day is named after its day (issue #277).
+	if (link.kind === 'note') return link.name ? `/notes/${link.name}` : null;
 	if (link.kind === 'event') return `/agenda/${link.id}`;
 	return `/memory/${folderOf(link.kind) ?? 'people'}/${link.id}`;
 }

@@ -70,6 +70,11 @@ impl LinkView {
         self.id.as_deref()
     }
 
+    /// What it shows.
+    pub(crate) fn name(&self) -> &str {
+        &self.name
+    }
+
     /// A name as written, linking nowhere.
     pub(crate) fn text(name: &str) -> Self {
         Self {
@@ -329,6 +334,8 @@ pub(crate) struct HomeView {
     now: Vec<super::memory::StateView>,
     /// The first steps, until they are done or put away (issue #172).
     guide: Option<super::guide::GuideView>,
+    /// Today's notes, written without an AI (issue #277); `null` before the first.
+    day_note: Option<super::notes::DayNoteView>,
 }
 
 /// What `/api/app` answers.
@@ -439,6 +446,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
     let (waiting, automatic) = proposals_waiting(gateway)?;
     let questions = super::questions::waiting(gateway)?;
     let latest = super::summaries::latest(gateway, today)?;
+    let root = gateway.vault().root().to_owned();
     let owner = gateway.fresh_owner()?;
     let ahead = today.saturating_add(HOME_DAYS_AHEAD.days());
     let series = owner.series();
@@ -481,6 +489,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         kind: Some(me.file_type),
     });
     let now = super::memory::now(&owner);
+    let day_note = super::notes::today(&owner, &root, &today.to_string());
     let guide = super::guide::home(gateway)?;
     Ok(HomeView {
         today: today.to_string(),
@@ -493,6 +502,7 @@ pub(crate) fn home(gateway: &mut Gateway) -> Result<HomeView> {
         latest,
         now,
         guide,
+        day_note,
     })
 }
 

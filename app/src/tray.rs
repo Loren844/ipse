@@ -1,6 +1,6 @@
 //! Ipse's icon in the menu bar (macOS) or the tray (Windows, Linux), which keeps the
 //! memory up to date while the window is closed (issue #153): open the window, sync
-//! now, quit.
+//! now, write a note of the day (issue #277), quit.
 
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
@@ -12,6 +12,8 @@ use crate::words::Words;
 
 /// The menu item that shows the window.
 const OPEN: &str = "tray-open";
+/// The menu item that opens the note of the day on the home screen (issue #277).
+const NOTE: &str = "tray-note";
 /// The menu item that syncs every followed source now.
 const SYNC: &str = "tray-sync";
 /// The menu item that quits.
@@ -32,6 +34,7 @@ pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: &Words) -> tauri::Res
         app,
         &[
             &MenuItem::with_id(app, OPEN, words.tray_open, true, None::<&str>)?,
+            &MenuItem::with_id(app, NOTE, words.tray_note, true, None::<&str>)?,
             &MenuItem::with_id(app, SYNC, words.tray_sync, true, None::<&str>)?,
             &PredefinedMenuItem::separator(app)?,
             &MenuItem::with_id(app, QUIT, words.tray_quit, true, None::<&str>)?,
@@ -71,6 +74,19 @@ pub(crate) fn build<R: Runtime>(app: &AppHandle<R>, words: &Words) -> tauri::Res
 fn chosen<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
     match event.id().as_ref() {
         OPEN => show(app),
+        NOTE => {
+            let open = app
+                .state::<State>()
+                .server
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .is_some();
+            show(app);
+            // No memory open (the first screen): the window alone.
+            if open && let Some(window) = app.get_webview_window("main") {
+                let _ = window.eval("location.href = location.origin + '/?note'");
+            }
+        }
         SYNC => {
             let state = app.state::<State>();
             let mut server = state

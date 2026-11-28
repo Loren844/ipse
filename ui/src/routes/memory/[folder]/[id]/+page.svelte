@@ -13,6 +13,7 @@
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import { folderOf, iconOf } from '#lib/kinds.ts';
 	import Mention from '#lib/Mention.svelte';
+	import QuickNote from '#lib/QuickNote.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 	import Sensitive from '#lib/Sensitive.svelte';
 
@@ -99,6 +100,18 @@
 		}
 	}
 
+	async function note(text: string) {
+		try {
+			const view = await api.note(page.params.id ?? '', text);
+			await file.load(async () => view, true);
+			outcome = { tone: 'done', text: i18n.t.noted };
+		} catch (error) {
+			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
+			outcome = { tone: 'warn', text: i18n.t.noteFailed };
+			throw error;
+		}
+	}
+
 	/** The name a missing file's link suggests: `paul-roux` reads Paul Roux. */
 	const nameOf = (shown: string, stem: string) =>
 		shown !== stem ? shown : stem.split('-').map((w) => w.charAt(0).toLocaleUpperCase() + w.slice(1)).join(' ');
@@ -159,6 +172,10 @@
 				{#if entity.address}<dt>{i18n.t.address}</dt><dd>{entity.address}</dd>{/if}
 			</dl>
 		{/if}
+
+		<div class="note-field" data-testid="quick-note">
+			<QuickNote id="quick-note" label={i18n.t.noteLabel(entity.name)} placeholder={i18n.t.notePlaceholder} save={note} />
+		</div>
 
 		{#if entity.facts.length}
 			<section aria-labelledby="facts">
