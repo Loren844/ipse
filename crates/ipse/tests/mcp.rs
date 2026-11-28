@@ -1016,3 +1016,172 @@ async fn a_reminder_is_written_told_by_now_then_done() {
     assert!(text.contains(&format!("\ndone: {today}\n")), "{text}");
     ai.cancel().await.unwrap();
 }
+
+/// The instructions and the `propose` tool an AI gets when it connects.
+async fn told(root: &Path, token: &str) -> (String, rmcp::model::Tool) {
+    let ai = connect(root, Some(token)).await;
+    let instructions = ai.peer_info().unwrap().instructions.clone().unwrap();
+    let propose = ai
+        .list_all_tools()
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|t| t.name == "propose")
+        .unwrap();
+    ai.cancel().await.unwrap();
+    (instructions, propose)
+}
+
+fn shows_on_its_own(tool: &rmcp::model::Tool) -> bool {
+    tool.input_schema["properties"]
+        .as_object()
+        .unwrap()
+        .contains_key("on_its_own")
+}
+
+#[tokio::test]
+async fn an_ai_is_told_to_note_on_its_own_only_with_the_switch_on() {
+    // Issue #246.
+    let f = fixture();
+    let mut clients = Clients::load(&f.root).unwrap();
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["people".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+    let (before, propose_before) = told(&f.root, &f.allowed).await;
+    assert!(!before.contains("on your own"), "{before}");
+    assert!(!before.contains("on_its_own"));
+    let description = propose_before.description.as_deref().unwrap();
+    assert!(!description.contains("on_its_own"), "{description}");
+    assert!(!shows_on_its_own(&propose_before));
+
+    // Refused without `propose`, for the AI that has none.
+    let refused = clients
+        .set_note_on_its_own("autre-ia", true)
+        .unwrap_err()
+        .to_string();
+    assert!(refused.contains("propose"), "{refused}");
+
+    clients.set_note_on_its_own("claude", true).unwrap();
+    let (after, propose_after) = told(&f.root, &f.allowed).await;
+    assert!(after.starts_with(&before), "the rest is unchanged");
+    for said in [
+        "without waiting to be asked",
+        "a preference or habit",
+        "hypothetically",
+        "sensitive subject",
+        "`search` first",
+        "I proposed to Ipse",
+        "`reason` that quotes",
+    ] {
+        assert!(after.contains(said), "{said}: {after}");
+    }
+    let description = propose_after.description.as_deref().unwrap();
+    assert!(description.starts_with(propose_before.description.as_deref().unwrap()));
+    assert!(
+        description.contains("\"on_its_own\": true"),
+        "{description}"
+    );
+    assert!(shows_on_its_own(&propose_after));
+
+    // The other AI is told nothing of it.
+    let (other, other_propose) = told(&f.root, &f.denied).await;
+    assert_eq!(other, before);
+    assert!(!shows_on_its_own(&other_propose));
+}
+
+#[tokio::test]
+async fn a_note_on_its_own_waits_in_the_inbox_marked_so() {
+    let f = fixture();
+    let mut clients = Clients::load(&f.root).unwrap();
+    for id in ["claude", "autre-ia"] {
+        clients
+            .set_rights(
+                id,
+                None,
+                Some(vec!["things".into()]),
+                &Categories::default(),
+            )
+            .unwrap();
+    }
+    clients.set_note_on_its_own("claude", true).unwrap();
+    let note = json!({
+        "on_its_own": true,
+        "reason": "Dit : « mon vélo est un Peugeot de 1982 ».",
+        "changes": [{"kind": "create", "type": "thing", "keys": {"name": "Vélo Peugeot"}, "facts": ["Date de 1982."]}]
+    });
+
+    let ai = connect(&f.root, Some(&f.allowed)).await;
+    let proposed = read(&ai, "propose", note.clone()).await;
+    assert_eq!(proposed["status"], "waiting", "{proposed}");
+    let noted = proposed["proposal"].as_str().unwrap().to_owned();
+    ai.cancel().await.unwrap();
+
+    // An AI without the switch cannot mark its proposals so.
+    let other = connect(&f.root, Some(&f.denied)).await;
+    let proposed = read(&other, "propose", note).await;
+    let unmarked = proposed["proposal"].as_str().unwrap().to_owned();
+    other.cancel().await.unwrap();
+
+    let vault = Vault::open(&f.root).unwrap();
+    let proposals = ipse_core::proposals::Proposals::new(&vault);
+    let noted = proposals.get(&noted).unwrap();
+    assert!(noted.on_its_own);
+    assert_eq!(noted.status, ipse_core::proposals::Status::Waiting);
+    assert!(!proposals.get(&unmarked).unwrap().on_its_own);
+}
+
+#[test]
+fn over_http_an_ai_is_told_by_its_own_code() {
+    let f = fixture();
+    let mut clients = Clients::load(&f.root).unwrap();
+    clients
+        .set_rights(
+            "claude",
+            None,
+            Some(vec!["people".into()]),
+            &Categories::default(),
+        )
+        .unwrap();
+    clients.set_note_on_its_own("claude", true).unwrap();
+    let server = serve_http(&f.root);
+    let told = |token: &str| {
+        let auth = bearer(token);
+        let initialized = post(
+            &server.url,
+            &[("Authorization", &auth)],
+            &json!({
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18", "capabilities": {},
+                    "clientInfo": { "name": "test", "version": "1" },
+                },
+            }),
+        );
+        let listed = post(
+            &server.url,
+            &[("Authorization", &auth)],
+            &json!({ "jsonrpc": "2.0", "id": 3, "method": "tools/list" }),
+        );
+        let instructions = initialized.json.unwrap()["result"]["instructions"].clone();
+        let tools = listed.json.unwrap()["result"]["tools"].clone();
+        let propose = tools
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|t| t["name"] == "propose")
+            .unwrap()
+            .clone();
+        (instructions.as_str().unwrap().to_owned(), propose)
+    };
+    let (on, propose) = told(&f.allowed);
+    assert!(on.contains("I proposed to Ipse"), "{on}");
+    assert!(propose["inputSchema"]["properties"]["on_its_own"].is_object());
+    let (off, propose) = told(&f.denied);
+    assert!(!off.contains("I proposed to Ipse"), "{off}");
+    assert!(propose["inputSchema"]["properties"]["on_its_own"].is_null());
+}

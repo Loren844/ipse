@@ -95,6 +95,7 @@
 			<p class="why"><span class="visually-hidden">{`${i18n.t.why} `}</span>{line.reason}</p>
 			<p class="date">
 				<span>{by}, {ago(line.created)}</span>
+				{#if line.on_its_own}<span class="badge" data-testid="on-its-own">{i18n.t.notedOnItsOwn}</span>{/if}
 				{#if line.status !== 'waiting'}<span class="badge" class:warn={line.status === 'stale'}>{i18n.t.status[line.status]}</span>{/if}
 			</p>
 		</header>

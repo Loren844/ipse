@@ -469,6 +469,10 @@ enum ClientAction {
         /// Every category where it may propose changes (replaces the list; empty for none)
         #[arg(long, value_delimiter = ',', num_args = 0..=1, default_missing_value = "")]
         propose: Option<Vec<String>>,
+        /// Let it propose on its own what is worth remembering, without being asked
+        /// (it needs a category to propose in)
+        #[arg(long, value_name = "on|off", value_parser = ["on", "off"])]
+        note_on_its_own: Option<String>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -546,8 +550,9 @@ fn main() -> ExitCode {
                 id,
                 read,
                 propose,
+                note_on_its_own,
                 vault,
-            } => cmd::client::set(&id, read, propose, vault),
+            } => cmd::client::set(&id, read, propose, note_on_its_own.as_deref(), vault),
             ClientAction::List { vault } => cmd::client::list(vault),
             ClientAction::Remove { id, vault } => cmd::client::remove(&id, vault),
         },

@@ -12,6 +12,7 @@
 		onread,
 		onpropose,
 		onauto,
+		onnote,
 		ondisconnect
 	}: {
 		ai: AiView;
@@ -20,6 +21,7 @@
 		onread: (category: CategoryView, on: boolean) => void;
 		onpropose: (category: CategoryView, on: boolean) => void;
 		onauto: (standing: string, on: boolean) => void;
+		onnote: (on: boolean) => void;
 		ondisconnect: () => void;
 	} = $props();
 
@@ -98,6 +100,34 @@
 			{/each}
 		</tbody>
 	</table>
+
+	{#if ai.propose.length}
+		<!-- Only for an AI that proposes somewhere: it widens nothing (issue #246). -->
+		<div class="auto-accept" role="group" aria-labelledby="note-{ai.id}">
+			<h3 id="note-{ai.id}">{i18n.t.noteTitle}</h3>
+			<p class="hint">{i18n.t.noteLead(ai.name)}</p>
+			<ul>
+				<li>
+					<label>
+						<input
+							type="checkbox"
+							role="switch"
+							class="switch"
+							checked={ai.note_on_its_own}
+							disabled={busy}
+							aria-label={i18n.t.noteSwitch(ai.name)}
+							onchange={(e) => {
+								const next = e.currentTarget.checked;
+								e.currentTarget.checked = ai.note_on_its_own;
+								onnote(next);
+							}}
+						/>
+						<span>{i18n.t.noteTitle}</span>
+					</label>
+				</li>
+			</ul>
+		</div>
+	{/if}
 
 	<div class="auto-accept" role="group" aria-labelledby="auto-{ai.id}">
 		<h3 id="auto-{ai.id}">{i18n.t.autoTitle}</h3>

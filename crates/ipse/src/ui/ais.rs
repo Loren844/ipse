@@ -40,6 +40,9 @@ pub(crate) struct AiView {
     /// What Ipse offers to accept from it in advance, after the person accepted
     /// several of these in a row, one by one.
     offers: Vec<String>,
+    /// It proposes on its own what is worth remembering, without being asked (issue
+    /// #246). Only offered once it proposes in a category.
+    note_on_its_own: bool,
 }
 
 /// One category, and who may see it.
@@ -155,6 +158,12 @@ struct RightsBody {
     propose: Vec<String>,
 }
 
+/// The body of `note`.
+#[derive(Deserialize)]
+struct SwitchBody {
+    on: bool,
+}
+
 /// The body of `auto` and `decline`.
 #[derive(Deserialize)]
 struct StandingBody {
@@ -241,7 +250,8 @@ fn apps() -> Vec<AppView> {
 /// The person's changes: `POST /api/ais` connects an AI, `/api/ais/<id>/rights` sets
 /// what it reads and proposes in, `/api/ais/<id>/auto` turns a standing consent on or
 /// off and `/api/ais/<id>/decline` says no to one offered (decision 0017),
-/// `/api/ais/<id>/remove` disconnects it,
+/// `/api/ais/<id>/note` lets it note on its own what is worth remembering or not (issue
+/// #246), `/api/ais/<id>/remove` disconnects it,
 /// `/api/categories` declares a category. `None` for an unknown address.
 ///
 /// # Errors
@@ -304,6 +314,10 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
             } else {
                 clients.decline(id, standing)?;
             }
+        }
+        "note" => {
+            let body: SwitchBody = read_body(body)?;
+            Clients::load(&root)?.set_note_on_its_own(id, body.on)?;
         }
         "remove" => {
             if !Clients::load(&root)?.remove(id)? {
@@ -401,6 +415,7 @@ fn ai_view(client: &Client, last_access: Option<String>, offers: &[Standing]) ->
         last_access,
         read: client.read.clone(),
         propose: client.propose.clone(),
+        note_on_its_own: client.note_on_its_own,
     }
 }
 

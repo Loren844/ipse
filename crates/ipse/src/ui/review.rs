@@ -54,6 +54,8 @@ pub(crate) struct ProposalLine {
     merge: bool,
     /// Accepted by the person's standing consent for its AI (decision 0017).
     automatic: bool,
+    /// Its AI noted it on its own, without the person asking (issue #246).
+    on_its_own: bool,
     /// What it changes, file by file: what it would change in the files as they are
     /// now for a waiting one, what it said for a decided or stale one. The interface
     /// titles a proposal by its change, and shows a single change in the inbox.
@@ -449,6 +451,7 @@ fn line(
             .iter()
             .any(|c| matches!(c, ipse_core::proposals::Change::Merge { .. })),
         automatic: proposal.automatic,
+        on_its_own: proposal.on_its_own,
         files: files(preview, owner),
     }
 }
