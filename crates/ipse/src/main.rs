@@ -145,6 +145,11 @@ enum Command {
         /// 0.0.0.0:7420 to be reached from your network
         #[arg(long, value_name = "ADDRESS")]
         listen: Option<String>,
+        /// The https address it is reached at from the internet, for claude.ai, like
+        /// `https://nas.tail1234.ts.net` (default: `IPSE_PUBLIC_URL`, or the address
+        /// each request names)
+        #[arg(long, value_name = "URL")]
+        public_url: Option<String>,
         /// Folder of the memory (default: the current folder)
         #[arg(long)]
         vault: Option<PathBuf>,
@@ -571,7 +576,11 @@ fn main() -> ExitCode {
                 ui::Start::Browser
             },
         ),
-        Command::Serve { listen, vault } => ui::serve::run(vault, listen.as_deref()),
+        Command::Serve {
+            listen,
+            public_url,
+            vault,
+        } => ui::serve::run(vault, listen.as_deref(), public_url),
         Command::AccessCode { vault } => cmd::access::run(vault),
         Command::Health { port } => cmd::health::run(port),
         Command::Connector { name } => connectors::run(&name),

@@ -25,3 +25,4 @@ Each file has: **Status** (proposed, accepted, superseded), **Date**, **Context*
 | [0017](0017-standing-consent.md) | Standing consent for low-risk changes | Accepted |
 | [0018](0018-standing-consent-for-new-files.md) | Standing consent for new files | Accepted |
 | [0019](0019-reached-from-the-network.md) | Reached from the network, for a home server | Accepted |
+| [0020](0020-reached-from-claude-ai.md) | Reached from claude.ai, over OAuth | Accepted |

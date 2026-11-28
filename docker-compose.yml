@@ -17,6 +17,9 @@ services:
       # Reached from your network. Behind a reverse proxy on this same server, keep it
       # to this server only: "127.0.0.1:7420:7420".
       - "7420:7420"
+    # environment:
+    #   # The HTTPS address of a tunnel, for claude.ai (docs/guide/self-hosting.md, step 6).
+    #   IPSE_PUBLIC_URL: https://ipse.example.org
     volumes:
       # Your memory: plain files, to back up like any folder.
       - ./vault:/vault

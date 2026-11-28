@@ -98,6 +98,35 @@ On a home network without a public name, `tls internal` in that block makes Cadd
 
 A login of your proxy (basic auth, an SSO) in front of the interface is fine, but leave `/mcp` without it: AI apps send only their `Authorization` header.
 
+## 6. Reach your memory from claude.ai
+
+claude.ai, on the web and in its phone app, reaches MCP servers on the internet only, over HTTPS, and signs in to them with OAuth. `ipse serve` speaks it (decision [0020](../decisions/0020-reached-from-claude-ai.md)): you add Ipse as a custom connector, and approve it on Ipse's own page, behind the interface's access code.
+
+What this changes: your server is reached **from the internet**, through a tunnel, by anyone who has a code, and by Anthropic's servers for what you open to Claude. The [threat model](threat-model.md) says more.
+
+**1. An HTTPS address, without opening a port.** Pick one:
+
+- **Tailscale Funnel**, with Tailscale on the server and Funnel allowed in your tailnet's settings:
+
+  ```sh
+  tailscale funnel --bg 7420
+  ```
+
+  Your memory is then at `https://<machine>.<tailnet>.ts.net`. HTTPS ends on your server: Tailscale does not see what crosses it.
+
+- **Cloudflare Tunnel**, with `cloudflared` and a domain on Cloudflare: create a tunnel in Zero Trust → Networks → Tunnels, and give its public hostname, like `ipse.example.org`, the service `http://localhost:7420`. To try it first without a domain, `cloudflared tunnel --url http://localhost:7420` prints a `trycloudflare.com` address, new each time. Cloudflare ends HTTPS on its servers: it can read what crosses it.
+
+**2. Tell Ipse that address**, so that what it tells apps matches what they see: `ipse serve --public-url https://ipse.example.org`, or with Docker, in `docker-compose.yml`:
+
+```yaml
+    environment:
+      IPSE_PUBLIC_URL: https://ipse.example.org
+```
+
+**3. Add the connector.** In claude.ai, Settings → Connectors → **Add custom connector**, give it a name and the address followed by `/mcp`, like `https://ipse.example.org/mcp`, then **Connect**. Ipse's page opens: log in with the interface's access code if it asks, check the AI's name and what it may read (sensitive categories stay closed unless you tick them), then **Connect**. Claude then reaches your memory in every conversation where you turn the connector on, on the web and on your phone.
+
+It is a connected AI like the others: change what it reads in **Connected AIs**, see what it read in **History**, and **Disconnect** it to cut it off at once; to connect it again, use **Connect** on the connector in claude.ai.
+
 ## Backups
 
 `vault/` is plain files: back it up as any folder, with Ipse running or not (its writes are atomic). `secrets/` is not needed to restore your memory: without it, reconnect your sources. If you back it up, keep that copy as safe as the passwords it holds.

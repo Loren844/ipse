@@ -28,6 +28,8 @@ quick-xml = { workspace = true }
 rmcp = { workspace = true, features = ["transport-streamable-http-server"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# PKCE's SHA-256, for claude.ai's OAuth (issue #270).
+sha2 = { workspace = true }
 tokio = { workspace = true, features = ["fs", "io-util", "net", "rt-multi-thread", "time"] }
 ureq = { workspace = true }
 
