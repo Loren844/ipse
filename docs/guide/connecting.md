@@ -70,6 +70,17 @@ A request without the code, or with a wrong one, is refused before anything is r
 
 To reach your memory from other machines, run it on a home server instead: [Ipse on a home server](self-hosting.md) serves MCP at `/mcp` beside the interface, with the same codes.
 
+## Ready-made prompts
+
+Not sure what to ask? Ipse offers a few ready-made prompts, in your memory's language. In Claude Desktop, they are in the **+** menu of a conversation, under Ipse; other apps list them where they show an MCP server's prompts.
+
+- **Prepare my day** (**Prépare ma journée**): today's reminders and agenda, who you will see and what not to forget.
+- **Prepare my week** (**Prépare ma semaine**): the next seven days, day by day.
+- **Summarize my month** (**Résume mon mois**): this month so far, who you saw most, what you listened to and watched.
+- **What do you know about…** (**Que sais-tu de…**): everything your memory says about a person, a place or a thing; the app asks you for its name.
+
+A prompt only asks: the AI then reads your memory with its tools, within the rights you gave it.
+
 ## Changing what an AI sees
 
 The simplest way: `ipse ui --vault ~/Ipse`, then **IA connectées** (**Connected AIs**). Each AI has a switch per category, to read and to propose; a sensitive category asks before opening. You can also connect an AI there (its code is shown once, with what to paste in Claude Desktop or LM Studio), disconnect one, and add your own categories. From the command line:
