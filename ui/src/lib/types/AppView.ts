@@ -5,7 +5,8 @@
  */
 export type AppView = { 
 /**
- * `claude-desktop`, `claude-code` or `lm-studio`.
+ * `claude-desktop`, `claude-code`, `lm-studio`, `cursor`, `vs-code`, `windsurf`,
+ * `zed` or `goose`.
  */
 id: string, 
 /**
@@ -19,4 +20,8 @@ found: boolean,
 /**
  * It runs models on this computer.
  */
-local: boolean, };
+local: boolean, 
+/**
+ * Its configuration file on this computer, where Ipse writes, or where to paste.
+ */
+file: string, };

@@ -105,8 +105,8 @@
 		if (next) show(next);
 	}
 
-	async function connect(name: string, local: boolean, openAll: boolean, install?: string): Promise<ConnectedView | null> {
-		const connected = await run(() => api.connect(name, local, openAll, install), () => '');
+	async function connect(name: string, local: boolean, openAll: boolean, install?: string, app?: string): Promise<ConnectedView | null> {
+		const connected = await run(() => api.connect(name, local, openAll, install, app), () => '');
 		outcome = connected ? null : outcome;
 		if (connected) await screen.load(() => api.ais(), true);
 		return connected;

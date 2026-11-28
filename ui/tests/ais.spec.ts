@@ -149,3 +149,34 @@ test('Ipse writes itself into an app found on this computer, without showing the
 	expect(readFileSync(config, 'utf8')).toBe('{ broken');
 	await expect(page.getByTestId('ai').filter({ has: page.getByRole('heading', { name: 'LM Studio 2' }) })).toHaveCount(0);
 });
+
+test('an app Ipse knows, or any other, gets what to paste with the code filled in', async ({ page }) => {
+	await page.goto(ipse.url);
+	await page.getByRole('navigation').getByRole('link', { name: 'IA connectées' }).click();
+	await page.getByRole('button', { name: 'Connecter une IA' }).click();
+	// The newer apps (issue #266) are offered beside the first ones.
+	for (const app of ['Cursor', 'VS Code', 'Windsurf', 'Zed', 'Goose']) await expect(page.getByRole('radio', { name: app })).toBeVisible();
+	await page.getByRole('radio', { name: 'Zed' }).check();
+	await expect(page.getByLabel('Son nom', { exact: true }).first()).toHaveValue('Zed');
+	await page.getByRole('button', { name: 'Connecter', exact: true }).click();
+	let code = (await page.getByLabel('IPSE_TOKEN', { exact: true }).textContent())!;
+	await expect(page.getByTestId('paste-steps')).toContainText('« zed: open settings »');
+	const zed = JSON.parse((await page.getByLabel('settings.json', { exact: true }).textContent())!);
+	expect(zed.context_servers.ipse.env.IPSE_TOKEN).toBe(code);
+	expect(zed.context_servers.ipse.args.slice(0, 2)).toEqual(['mcp', '--vault']);
+	await page.getByRole('button', { name: 'J’ai copié le code' }).click();
+
+	await page.getByRole('button', { name: 'Connecter une IA' }).click();
+	await page.getByRole('radio', { name: 'Une autre application' }).check();
+	await page.getByLabel('Son nom', { exact: true }).first().fill('Jan');
+	await page.getByRole('button', { name: 'Connecter', exact: true }).click();
+	code = (await page.getByLabel('IPSE_TOKEN', { exact: true }).textContent())!;
+	await expect(page.getByTestId('paste-steps')).toContainText('serveur MCP « stdio »');
+	await expect(page.getByLabel('Commande', { exact: true })).toContainText(/" mcp --vault "/);
+	const any = JSON.parse((await page.getByLabel('mcpServers', { exact: true }).textContent())!);
+	expect(any.mcpServers.ipse.env.IPSE_TOKEN).toBe(code);
+	// Over HTTP, for an app that only speaks it, folded away.
+	await page.getByText('Elle ne sait parler qu’en HTTP ?').click();
+	await expect(page.getByLabel('MCP', { exact: true })).toContainText(`Authorization: Bearer ${code}`);
+	expect(clients()).not.toContain(code);
+});

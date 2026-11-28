@@ -946,7 +946,8 @@ fn client_add_install_writes_the_app_configuration_without_showing_the_code() {
         ],
     );
     assert!(
-        String::from_utf8_lossy(&out.stderr).contains("claude-desktop, claude-code or lm-studio")
+        String::from_utf8_lossy(&out.stderr)
+            .contains("claude-desktop, claude-code, lm-studio, cursor")
     );
 }
 
@@ -1089,4 +1090,81 @@ fn ui_for_the_app_prints_its_address_and_stops_with_the_app() {
     assert_eq!(port(&address), port(&second));
     drop(again.stdin.take());
     assert!(stops_by_itself(&mut again));
+}
+
+/// The apps added by issue #266, each in its own file on the system the tests run on.
+#[test]
+fn client_add_install_writes_the_newer_apps_files() {
+    let dir = tempfile::tempdir().unwrap();
+    let home = dir.path().join("home");
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    assert!(
+        ipse(&["init", vault_arg, "--name", "Camille Durand"])
+            .status
+            .success()
+    );
+    let roaming = home.join("AppData").join("Roaming");
+    let settings = if cfg!(target_os = "macos") {
+        home.join("Library/Application Support")
+    } else if cfg!(windows) {
+        roaming.clone()
+    } else {
+        home.join(".config")
+    };
+    let cases = [
+        ("cursor", home.join(".cursor/mcp.json"), "Cursor"),
+        ("vs-code", settings.join("Code/User/mcp.json"), "VS Code"),
+        (
+            "windsurf",
+            home.join(".codeium/windsurf/mcp_config.json"),
+            "Windsurf",
+        ),
+        (
+            "zed",
+            if cfg!(windows) {
+                roaming.join("Zed/settings.json")
+            } else {
+                home.join(".config/zed/settings.json")
+            },
+            "Zed",
+        ),
+        (
+            "goose",
+            if cfg!(windows) {
+                roaming.join("Block/goose/config/config.yaml")
+            } else {
+                home.join(".config/goose/config.yaml")
+            },
+            "Goose",
+        ),
+    ];
+    for (app, file, label) in cases {
+        let out = ipse_at_home(
+            &home,
+            &[
+                "client",
+                "add",
+                label,
+                "--install",
+                app,
+                "--vault",
+                vault_arg,
+            ],
+        );
+        assert!(
+            out.status.success(),
+            "{app}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let said = String::from_utf8_lossy(&out.stdout).into_owned();
+        assert!(!said.contains("ipse_"), "the code is never shown: {said}");
+        assert!(
+            said.contains(&format!("Ipse is set up in {label}")),
+            "{said}"
+        );
+        let text = std::fs::read_to_string(&file).unwrap_or_else(|_| panic!("{app}: {file:?}"));
+        assert!(text.contains("ipse_"), "{app}: the code is in its file");
+        assert!(text.contains("\"mcp\""), "{app}: {text}");
+    }
 }
