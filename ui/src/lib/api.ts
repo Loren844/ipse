@@ -164,6 +164,8 @@ export const api = {
 	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),
 	/** Accepts, or stops accepting, one kind of change from this AI in advance. */
 	autoAccept: (id: string, standing: string, on: boolean) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/auto`, { standing, on }),
+	/** Lets an AI note on its own what is worth remembering, or stops it (issue #246). */
+	noteOnItsOwn: (id: string, on: boolean) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/note`, { on }),
 	/** Says no to an offer to accept one kind of change in advance. */
 	declineOffer: (id: string, standing: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/decline`, { standing }),
 	addCategory: (label: string, sensitive: boolean, openTo: string[]) =>

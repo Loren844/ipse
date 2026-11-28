@@ -33,4 +33,9 @@ auto_accept: Array<string>,
  * What Ipse offers to accept from it in advance, after the person accepted
  * several of these in a row, one by one.
  */
-offers: Array<string>, };
+offers: Array<string>, 
+/**
+ * It proposes on its own what is worth remembering, without being asked (issue
+ * #246). Only offered once it proposes in a category.
+ */
+note_on_its_own: boolean, };

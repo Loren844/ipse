@@ -14,6 +14,7 @@ Settled on 2026-11-12.
 | --- | --- | --- | --- |
 | Q1 | What a newly connected AI may read | Every category except sensitive ones, shown on the connection screen with one switch per category. | Connecting an AI stays one action (decision 0007); sensitive categories stay off until the person turns them on. |
 | Q2 | Smallest unit a category applies to | A whole file (an entity, an event) for milestone 1. To hide one fact, the person moves it to a file of a private category. | Simple to understand and to enforce. Per-fact categories can be added later without breaking files. |
+| Q3 | Whether an AI notes on its own what is worth remembering (issue #246) | A switch per AI, **Note on its own** (**Retenir d'elle-même**), off by default, offered only for an AI that proposes in at least one category. | Proposing also serves for tidying up on request; noting in the middle of a conversation is more intrusive, so it is an explicit choice for each AI. |
 
 ## 1. Categories
 
@@ -70,6 +71,7 @@ token_hash = "b3:4e1a…"        # BLAKE3 of the token; the token itself is neve
 read = ["identity", "people", "agenda", "places", "media", "work", "things", "summaries"]
 propose = []                    # categories where it may submit proposals
 local = false                   # the person said this AI runs entirely on this computer
+note_on_its_own = true          # left out when false: it notes on its own (section 4.3)
 ```
 
 - **Connecting an AI** creates a client, generates a random 256-bit token, and shows the person exactly what to paste or click for their AI app (decision 0007). The token appears once and is stored only by that app.
@@ -153,9 +155,22 @@ Decision 0010: the person's own AI does the work that needs a language model. Th
 - `propose` with a `task` and no `changes` says the task holds nothing worth keeping: the task is closed, and nothing is written.
 - **Standing consent** (decision 0017): the person may accept in advance, for one AI, its summaries (proposals made only of summaries, for a `summary` task) and its event kinds (proposals made only of `kind` keys of events, for a `classify` task). Off by default, turned on by the person in the interface; kept as `auto_accept` in `.ipse/clients.toml`. Such a proposal is accepted at once by the same path as when the person accepts it (one change of the history, `Ipse-Source: proposal:<id>`), marked `automatic`, and can be undone like any other. Anything else from the same AI, a fact, a person or a relation, or a summary made without its task, still waits.
 - **Standing consent for new files** (decision 0018): the person may also accept in advance, for one AI, `creations`: a proposal made only of `create` of a `thing`, `topic`, `project`, `organization` or `work`, and of `add_fact` or `add_relation` on files of those types that same AI created by a proposal still accepted, every file in a known category that is not sensitive. No task is needed. A reminder (`create` of a `reminder`, or `set_key` of `done` or `at` on a reminder) counts as such a change: the person asked for it (issue #206). People, places, events, a file the AI did not create, any other change and sensitive categories still wait.
+- **Noting on its own** (issue #246, Q3): see section 4.3.
 - `propose` checks every change before storing it (`vault.md`, section 12), with at most 100 changes, a reason under 1 000 characters and 256 KB in all; a refusal says in plain words what to fix.
 - When the client supports MCP sampling and the person enabled it for that client, Ipse may send `summary` tasks to the client's model directly.
 - Every tool here has an `ipse` command doing the same thing (`ipse tasks`, `ipse propose`…), so that an agent or a script on the same computer can run them on a schedule.
+
+### 4.3 Noting on its own
+
+Without being asked, an AI only proposes what the person asks it to remember ("remember my PC setup") or what a task holds. With **Note on its own** on, it also proposes what the person mentions in passing that is lasting about their life.
+
+- **The right.** `note_on_its_own` in `.ipse/clients.toml`, off by default; turned on in **Connected AIs** (`ipse client set <id> --note-on-its-own on|off`). It can be turned on only for an AI that proposes in at least one category, and goes off when that AI no longer proposes anywhere (a file edited by hand cannot turn it on either). It never widens where the AI may propose: its proposals go through the same checks, categories and rights as any other.
+- **What it does not change.** Nothing is written without the person: a proposal noted on its own waits in the review inbox like any other, except what the person already accepts in advance from that AI (section 4.2, decisions 0017 and 0018). The AI never writes directly. How faithfully each AI follows what it is told stays the model's choice.
+- **What the AI is told**, only when the right is on, so that an AI without it is told exactly what it was before: the server's instructions (given at `initialize`, and by `server/discover`) gain the paragraph below, the description of `propose` gains the same rules with an example, and `propose` shows an `on_its_own` argument. Both are worked out for the access code of the request; `tools/list` is then cached for that AI only (`cacheScope: private`).
+
+  > The person lets you note on your own what is worth remembering. When they mention in passing something lasting about their life (a preference or habit, a person and how they relate to them, a project, an important date, a thing they own), `propose` it without waiting to be asked, with `"on_its_own": true`. Never what is passing (today's mood, a one-off errand), never what was only discussed hypothetically, and never health or another sensitive subject unless they ask. `search` first: add the fact to the file that exists rather than create a new one. Group what one conversation brings into few proposals, each with a `reason` that quotes what they said. Then say it in one line in the conversation ("I proposed to Ipse: …"), so that they know and can object.
+
+- **The mark.** A proposal sent with `"on_its_own": true`, without a `task`, by an AI that has the right is saved with `on_its_own: true`; the inbox shows it as **noted on its own** (**Notée d'elle-même**), to tell it from one the person asked for. From an AI without the right, the argument is ignored.
 
 ## 5. Access log
 

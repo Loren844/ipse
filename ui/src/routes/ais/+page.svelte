@@ -90,6 +90,14 @@
 		if (next) show(next);
 	}
 
+	async function note(ai: AiView, on: boolean) {
+		const next = await run(
+			() => api.noteOnItsOwn(ai.id, on),
+			() => (on ? i18n.t.noteOn(ai.name) : i18n.t.noteOff(ai.name))
+		);
+		if (next) show(next);
+	}
+
 	async function disconnect(ai: AiView) {
 		const yes = await ask(i18n.t.disconnectTitle(ai.name), i18n.t.disconnectBody, i18n.t.disconnect, i18n.t.cancelForm);
 		if (!yes) return;
@@ -162,6 +170,7 @@
 					onread={(category, on) => read(ai, category, on)}
 					onpropose={(category, on) => propose(ai, category, on)}
 					onauto={(standing, on) => auto(ai, standing, on)}
+					onnote={(on) => note(ai, on)}
 					ondisconnect={() => disconnect(ai)}
 				/>
 			{/each}

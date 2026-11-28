@@ -79,6 +79,10 @@ pub struct Proposal {
     /// (decision 0017), not one by one.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub automatic: bool,
+    /// The AI noted it on its own during a conversation, without the person asking
+    /// (issue #246), as the AI said.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub on_its_own: bool,
 }
 
 /// Who made a proposal.
@@ -210,11 +214,29 @@ impl<'v> Proposals<'v> {
         task: Option<String>,
         changes: Vec<Change>,
     ) -> Result<Proposal> {
+        self.submit_noted(by, reason, task, changes, false)
+    }
+
+    /// As [`Proposals::submit`], marked as noted by the AI on its own when
+    /// `on_its_own` (issue #246): the person did not ask for it.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Proposals::submit`].
+    pub fn submit_noted(
+        &self,
+        by: Author,
+        reason: &str,
+        task: Option<String>,
+        changes: Vec<Change>,
+        on_its_own: bool,
+    ) -> Result<Proposal> {
         let task = match task {
             Some(id) => Some(Tasks::new(self.vault).check_open(&id)?),
             None => None,
         };
-        let proposal = self.prepare(by, reason, task, changes)?;
+        let mut proposal = self.prepare(by, reason, task, changes)?;
+        proposal.on_its_own = on_its_own;
         self.save(&proposal)?;
         if let Some(task) = &proposal.task {
             Tasks::new(self.vault).proposed(task, &proposal.id)?;
@@ -347,6 +369,7 @@ impl<'v> Proposals<'v> {
             changes,
             status: Status::Waiting,
             automatic: false,
+            on_its_own: false,
         };
         // Checked without looking for the links a merge redirects: they are found
         // when the person opens it and when it is applied.

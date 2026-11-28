@@ -57,6 +57,9 @@ pub struct Client {
     pub auto_accept: Vec<Standing>,
     /// The kinds the person said no to, or turned off: Ipse no longer offers them.
     pub declined: Vec<Standing>,
+    /// The person lets this AI propose on its own what is worth remembering, without
+    /// being asked (issue #246). Never true without a `propose` category.
+    pub note_on_its_own: bool,
 }
 
 /// A kind of change the person may accept in advance from one AI (decision 0017).
@@ -110,6 +113,7 @@ impl Client {
             local: true,
             auto_accept: Vec::new(),
             declined: Vec::new(),
+            note_on_its_own: false,
         }
     }
 
@@ -145,6 +149,8 @@ struct RawClient {
     auto_accept: Vec<String>,
     #[serde(default)]
     declined: Vec<String>,
+    #[serde(default)]
+    note_on_its_own: bool,
 }
 
 /// The connected AIs of one vault.
@@ -189,6 +195,9 @@ impl Clients {
             .client
             .into_iter()
             .map(|c| Client {
+                // A file edited by hand cannot turn it on without a category to
+                // propose in.
+                note_on_its_own: c.note_on_its_own && !c.propose.is_empty(),
                 id: c.id,
                 name: c.name,
                 created: c.created.to_string(),
@@ -261,6 +270,7 @@ impl Clients {
             local,
             auto_accept: Vec::new(),
             declined: Vec::new(),
+            note_on_its_own: false,
         };
         self.clients.push(client.clone());
         self.save()?;
@@ -334,6 +344,9 @@ impl Clients {
         let client = &mut self.clients[at];
         client.read = read;
         client.propose = propose;
+        // Without a category to propose in, there is nothing to note: the switch goes
+        // off rather than come back on its own with the next category.
+        client.note_on_its_own &= !client.propose.is_empty();
         let client = client.clone();
         self.save()?;
         Ok(client)
@@ -360,6 +373,31 @@ impl Clients {
             client.declined.push(standing);
             client.declined.sort_unstable();
         }
+        let client = client.clone();
+        self.save()?;
+        Ok(client)
+    }
+
+    /// Turns on or off, for the AI `id`, proposing on its own what is worth remembering
+    /// (issue #246), and saves. It never widens where that AI may propose.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Refused`] when there is no such AI, or when turning it on for an AI that
+    /// may propose in no category; [`Error::Io`] when the list cannot be saved.
+    pub fn set_note_on_its_own(&mut self, id: &str, on: bool) -> Result<Client> {
+        let Some(client) = self.clients.iter_mut().find(|c| c.id == id) else {
+            return Err(Error::Refused(format!(
+                "There is no AI {id}. `ipse client list` shows their ids."
+            )));
+        };
+        if on && client.propose.is_empty() {
+            return Err(Error::Refused(format!(
+                "{} cannot propose changes yet: give it a category to propose in first, with --propose.",
+                client.name
+            )));
+        }
+        client.note_on_its_own = on;
         let client = client.clone();
         self.save()?;
         Ok(client)
@@ -441,6 +479,9 @@ impl Clients {
             if !c.declined.is_empty() {
                 let names: Vec<String> = c.declined.iter().map(|s| s.as_str().to_owned()).collect();
                 let _ = writeln!(out, "declined = {}", list(&names));
+            }
+            if c.note_on_its_own {
+                out.push_str("note_on_its_own = true\n");
             }
         }
         write_atomic(&self.path, out.as_bytes())
@@ -561,6 +602,45 @@ mod tests {
             .unwrap();
         let reloaded = Clients::load(dir.path()).unwrap();
         assert_eq!(reloaded.list()[0].name, "Mon \"IA\"\nlocale");
+    }
+
+    #[test]
+    fn noting_on_its_own_needs_a_category_to_propose_in() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut clients = Clients::load(dir.path()).unwrap();
+        clients.add("Claude", now(), &none(), false).unwrap();
+        assert!(!clients.list()[0].note_on_its_own, "off by default");
+        let refused = clients.set_note_on_its_own("claude", true).unwrap_err();
+        assert!(refused.to_string().contains("--propose"), "{refused}");
+        assert!(clients.set_note_on_its_own("nobody", false).is_err());
+
+        clients
+            .set_rights("claude", None, Some(vec!["people".into()]), &none())
+            .unwrap();
+        let on = clients.set_note_on_its_own("claude", true).unwrap();
+        assert!(on.note_on_its_own);
+        assert_eq!(on.propose, ["people"], "it widens nothing");
+        assert!(Clients::load(dir.path()).unwrap().list()[0].note_on_its_own);
+
+        // Proposing nowhere any more turns it off, for good.
+        clients
+            .set_rights("claude", None, Some(Vec::new()), &none())
+            .unwrap();
+        clients
+            .set_rights("claude", None, Some(vec!["people".into()]), &none())
+            .unwrap();
+        assert!(!Clients::load(dir.path()).unwrap().list()[0].note_on_its_own);
+    }
+
+    #[test]
+    fn noting_on_its_own_by_hand_without_propose_stays_off() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut clients = Clients::load(dir.path()).unwrap();
+        clients.add("Claude", now(), &none(), false).unwrap();
+        let file = dir.path().join(CLIENTS_FILE);
+        let text = std::fs::read_to_string(&file).unwrap();
+        std::fs::write(&file, format!("{text}note_on_its_own = true\n")).unwrap();
+        assert!(!Clients::load(dir.path()).unwrap().list()[0].note_on_its_own);
     }
 
     #[test]
