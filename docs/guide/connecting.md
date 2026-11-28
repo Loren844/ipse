@@ -6,13 +6,29 @@
 
 `ipse client add <name> --install <app>` writes Ipse into the app's MCP configuration, with the access code, which is then shown nowhere:
 
-| `<app>` | File |
-| --- | --- |
-| `claude-desktop` | macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`; Windows: `%APPDATA%\Claude\claude_desktop_config.json`; Linux: `~/.config/Claude/claude_desktop_config.json` |
-| `claude-code` | `~/.claude.json` (every project) |
-| `lm-studio` | `~/.lmstudio/mcp.json` (Windows: `%USERPROFILE%\.lmstudio\mcp.json`) |
+| `<app>` | App | File | Where Ipse goes |
+| --- | --- | --- | --- |
+| `claude-desktop` | Claude Desktop | macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`; Windows: `%APPDATA%\Claude\claude_desktop_config.json`; Linux: `~/.config/Claude/claude_desktop_config.json` | `mcpServers` |
+| `claude-code` | Claude Code | `~/.claude.json` (every project) | `mcpServers` |
+| `lm-studio` | LM Studio 0.3.17 or later | `~/.lmstudio/mcp.json` (Windows: `%USERPROFILE%\.lmstudio\mcp.json`) | `mcpServers` |
+| `cursor` | Cursor | `~/.cursor/mcp.json` (every project) | `mcpServers` |
+| `vs-code` | VS Code, with Copilot in agent mode | macOS: `~/Library/Application Support/Code/User/mcp.json`; Windows: `%APPDATA%\Code\User\mcp.json`; Linux: `~/.config/Code/User/mcp.json` | `servers` |
+| `windsurf` | Windsurf | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
+| `zed` | Zed | macOS and Linux: `~/.config/zed/settings.json`; Windows: `%APPDATA%\Zed\settings.json` | `context_servers` |
+| `goose` | Goose | macOS and Linux: `~/.config/goose/config.yaml`; Windows: `%APPDATA%\Block\goose\config\config.yaml` | `extensions` |
 
-Only Ipse's entry, `ipse`, is added or replaced: the app's other servers and settings stay. The file as it was is kept next to it, with `.before-ipse` added to its name. A file Ipse cannot read as JSON (one with comments, say) is left alone, and the AI is not connected. In `ipse ui`, **Connect an AI** offers the same for the apps found on this computer.
+Only Ipse's entry, `ipse`, is added or replaced: the app's other servers and settings stay. The file as it was is kept next to it, with `.before-ipse` added to its name. Comments at the top of a JSON file, as Zed writes them, are kept; a file Ipse cannot read otherwise (a comment inside the settings, say, or Goose's `extensions` written on one line) is left alone, and the AI is not connected: add Ipse by hand instead. In `ipse ui`, **Connect an AI** offers the same for the apps found on this computer.
+
+What each app needs after that:
+
+- **Claude Desktop**: quit it completely and open it again.
+- **Claude Code**: start a new session; `/mcp` lists Ipse.
+- **LM Studio**: Ipse appears in the Program tab; pick a model that supports tools.
+- **Cursor**: Settings, then MCP: turn Ipse on if it is off.
+- **VS Code**: open Chat in Agent mode; VS Code asks once to start Ipse.
+- **Windsurf**: refresh Cascade's MCP servers.
+- **Zed**: nothing, it reloads its settings; Ipse is among the Agent panel's context servers.
+- **Goose**: start a new session; Ipse is among its extensions.
 
 ## An app set up by hand
 
@@ -20,7 +36,9 @@ Only Ipse's entry, `ipse`, is added or replaced: the app's other servers and set
 ipse client add "My app" --vault ~/Ipse
 ```
 
-shows the code once. Most apps take a JSON entry like this one in their `mcpServers`, with **full paths** (`~` does not work there; on Windows, `"C:\\Users\\you\\Ipse"`):
+shows the code once. In `ipse ui`, **Connect an AI** → **Another app** shows the same code once, with the command to run and the block to paste, the code and the full paths filled in, each with a button to copy it; for an app of the table above that is not on this computer, it shows that app's own block.
+
+The app starts `ipse mcp --vault <folder>`, with the code in the `IPSE_TOKEN` variable. Most apps (Jan, Msty, and others) take a JSON entry like this one in their `mcpServers`, with **full paths** (`~` does not work there; on Windows, `"C:\\Users\\you\\Ipse"`):
 
 ```json
 {

@@ -1,18 +1,21 @@
-//! Writing Ipse into an AI app's MCP configuration (issue #105), so that connecting an
-//! AI is one command, or one button in the interface, instead of a JSON block to paste.
+//! Writing Ipse into an AI app's MCP configuration (issues #105 and #266), so that
+//! connecting an AI is one command, or one button in the interface, instead of a block
+//! to paste.
 //!
-//! Each app keeps its MCP servers in a JSON file under `mcpServers`. Ipse adds or
-//! replaces its own entry, `ipse`, and leaves everything else as it was. The previous
-//! file is kept next to it (`<file>.before-ipse`). A file Ipse cannot read as JSON is
-//! left alone, with a plain explanation. The access code is written in the file and
-//! nowhere else: never printed, never logged.
+//! Most apps keep their MCP servers in a JSON file, under a key of their own
+//! (`mcpServers`, `servers`, `context_servers`); Goose keeps them in a YAML file, under
+//! `extensions`. Ipse adds or replaces its own entry, `ipse`, and leaves everything else
+//! as it was. The previous file is kept next to it (`<file>.before-ipse`). A file Ipse
+//! cannot read is left alone, with a plain explanation; comments at the top of a JSON
+//! file, as Zed writes them, are kept as they are. The access code is written in the
+//! file and nowhere else: never printed, never logged.
 
 use std::path::{Path, PathBuf};
 
 use ipse_core::{Error, Result};
 use serde_json::{Map, Value, json};
 
-/// The name of Ipse's entry in an app's `mcpServers`.
+/// The name of Ipse's entry in an app's MCP servers.
 pub(crate) const ENTRY: &str = "ipse";
 
 /// An AI app whose MCP configuration Ipse can write.
@@ -24,6 +27,16 @@ pub(crate) enum App {
     ClaudeCode,
     /// LM Studio, 0.3.17 or later: `~/.lmstudio/mcp.json`.
     LmStudio,
+    /// Cursor, for every project: `~/.cursor/mcp.json`.
+    Cursor,
+    /// VS Code (Copilot in agent mode), for the user: `Code/User/mcp.json`.
+    VsCode,
+    /// Windsurf: `~/.codeium/windsurf/mcp_config.json`.
+    Windsurf,
+    /// Zed: its `settings.json`, under `context_servers`.
+    Zed,
+    /// Goose: `goose/config.yaml`, under `extensions`.
+    Goose,
 }
 
 /// The system a configuration path is for.
@@ -63,18 +76,48 @@ impl Places {
             app_data: std::env::var_os("APPDATA").map(PathBuf::from),
         })
     }
+
+    /// `%APPDATA%`, or where it usually is.
+    fn roaming(&self) -> PathBuf {
+        self.app_data
+            .clone()
+            .unwrap_or_else(|| self.home.join("AppData").join("Roaming"))
+    }
+}
+
+/// How an app's file holds its MCP servers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Format {
+    /// A JSON object whose key holds one entry per server.
+    Json(&'static str),
+    /// Goose's YAML, one entry per extension under `extensions`.
+    GooseYaml,
 }
 
 impl App {
     /// Every app, in the order they are offered.
-    pub(crate) const ALL: [Self; 3] = [Self::ClaudeDesktop, Self::ClaudeCode, Self::LmStudio];
+    pub(crate) const ALL: [Self; 8] = [
+        Self::ClaudeDesktop,
+        Self::ClaudeCode,
+        Self::LmStudio,
+        Self::Cursor,
+        Self::VsCode,
+        Self::Windsurf,
+        Self::Zed,
+        Self::Goose,
+    ];
 
-    /// Its name on the command line: `claude-desktop`, `claude-code`, `lm-studio`.
+    /// Its name on the command line: `claude-desktop`, `vs-code`…
     pub(crate) fn id(self) -> &'static str {
         match self {
             Self::ClaudeDesktop => "claude-desktop",
             Self::ClaudeCode => "claude-code",
             Self::LmStudio => "lm-studio",
+            Self::Cursor => "cursor",
+            Self::VsCode => "vs-code",
+            Self::Windsurf => "windsurf",
+            Self::Zed => "zed",
+            Self::Goose => "goose",
         }
     }
 
@@ -84,7 +127,19 @@ impl App {
             Self::ClaudeDesktop => "Claude Desktop",
             Self::ClaudeCode => "Claude Code",
             Self::LmStudio => "LM Studio",
+            Self::Cursor => "Cursor",
+            Self::VsCode => "VS Code",
+            Self::Windsurf => "Windsurf",
+            Self::Zed => "Zed",
+            Self::Goose => "Goose",
         }
+    }
+
+    /// The ids of every app, as a sentence: `claude-desktop, claude-code… or goose`.
+    pub(crate) fn ids() -> String {
+        let ids: Vec<&str> = Self::ALL.iter().map(|a| a.id()).collect();
+        let (last, rest) = ids.split_last().unwrap_or((&"", &[]));
+        format!("{} or {last}", rest.join(", "))
     }
 
     /// The app named `text` on the command line.
@@ -98,35 +153,55 @@ impl App {
             .find(|a| a.id() == text.trim())
             .ok_or_else(|| {
                 Error::Refused(format!(
-                    "Ipse cannot set up `{}`: use claude-desktop, claude-code or lm-studio. For another app, connect it by hand (docs/guide/connecting.md).",
-                    text.trim()
+                    "Ipse cannot set up `{}`: use {}. For another app, connect it by hand (docs/guide/connecting.md).",
+                    text.trim(),
+                    Self::ids()
                 ))
             })
+    }
+
+    fn format(self) -> Format {
+        match self {
+            Self::VsCode => Format::Json("servers"),
+            Self::Zed => Format::Json("context_servers"),
+            Self::Goose => Format::GooseYaml,
+            _ => Format::Json("mcpServers"),
+        }
     }
 
     /// The file this app reads its MCP servers from, on `system`.
     pub(crate) fn config_path(self, system: System, places: &Places) -> PathBuf {
         let home = &places.home;
+        // Where an app keeps its settings: `~/Library/Application Support` on macOS,
+        // `%APPDATA%` on Windows, `~/.config` on Linux.
+        let settings = match system {
+            System::MacOs => home.join("Library").join("Application Support"),
+            System::Windows => places.roaming(),
+            System::Linux => home.join(".config"),
+        };
         match self {
-            Self::ClaudeDesktop => match system {
-                System::MacOs => home
-                    .join("Library")
-                    .join("Application Support")
-                    .join("Claude")
-                    .join("claude_desktop_config.json"),
-                System::Windows => places
-                    .app_data
-                    .clone()
-                    .unwrap_or_else(|| home.join("AppData").join("Roaming"))
-                    .join("Claude")
-                    .join("claude_desktop_config.json"),
-                System::Linux => home
-                    .join(".config")
-                    .join("Claude")
-                    .join("claude_desktop_config.json"),
-            },
+            Self::ClaudeDesktop => settings.join("Claude").join("claude_desktop_config.json"),
             Self::ClaudeCode => home.join(".claude.json"),
             Self::LmStudio => home.join(".lmstudio").join("mcp.json"),
+            Self::Cursor => home.join(".cursor").join("mcp.json"),
+            Self::VsCode => settings.join("Code").join("User").join("mcp.json"),
+            Self::Windsurf => home
+                .join(".codeium")
+                .join("windsurf")
+                .join("mcp_config.json"),
+            Self::Zed => match system {
+                System::Windows => places.roaming().join("Zed").join("settings.json"),
+                _ => home.join(".config").join("zed").join("settings.json"),
+            },
+            Self::Goose => match system {
+                System::Windows => places
+                    .roaming()
+                    .join("Block")
+                    .join("goose")
+                    .join("config")
+                    .join("config.yaml"),
+                _ => home.join(".config").join("goose").join("config.yaml"),
+            },
         }
     }
 
@@ -157,6 +232,19 @@ impl App {
             Self::LmStudio => {
                 "LM Studio reloads its MCP servers: Ipse appears in the Program tab. Pick a model that supports tools."
             }
+            Self::Cursor => {
+                "In Cursor, open Settings, then MCP: Ipse is listed there, turn it on if it is off."
+            }
+            Self::VsCode => {
+                "In VS Code, open Chat in Agent mode: Ipse is among the tools, and VS Code asks once to start it."
+            }
+            Self::Windsurf => {
+                "In Windsurf, open Cascade's MCP servers and refresh them: Ipse is listed there."
+            }
+            Self::Zed => {
+                "Zed reloads its settings: Ipse is listed in the Agent panel's settings, among the context servers."
+            }
+            Self::Goose => "Start a new Goose session: Ipse is among its extensions.",
         }
     }
 
@@ -168,13 +256,41 @@ impl App {
             "args": ["mcp", "--vault", plain(vault)],
             "env": { "IPSE_TOKEN": token },
         });
-        if self == Self::ClaudeCode
-            && let Some(map) = entry.as_object_mut()
-        {
-            map.insert("type".to_owned(), Value::String("stdio".to_owned()));
+        if let Some(map) = entry.as_object_mut() {
+            match self {
+                Self::ClaudeCode | Self::VsCode => {
+                    map.insert("type".to_owned(), Value::from("stdio"));
+                }
+                Self::Zed => {
+                    map.insert("source".to_owned(), Value::from("custom"));
+                }
+                _ => {}
+            }
         }
         entry
     }
+
+    /// What the person pastes in this app's file to add Ipse by hand, the access code
+    /// filled in.
+    pub(crate) fn snippet(self, program: &Path, vault: &Path, token: &str) -> String {
+        match self.format() {
+            Format::Json(key) => {
+                let block = json!({ key: { ENTRY: self.entry(program, vault, token) } });
+                serde_json::to_string_pretty(&block).unwrap_or_default()
+            }
+            Format::GooseYaml => format!("extensions:\n{}", goose_entry(program, vault, token)),
+        }
+    }
+}
+
+/// What any other app needs, to paste by hand: the usual `mcpServers` block.
+pub(crate) fn any_app_snippet(program: &Path, vault: &Path, token: &str) -> String {
+    App::ClaudeDesktop.snippet(program, vault, token)
+}
+
+/// The command any app starts, for one that asks for it rather than a file.
+pub(crate) fn command(program: &Path, vault: &Path) -> String {
+    format!("\"{}\" mcp --vault \"{}\"", plain(program), plain(vault))
 }
 
 /// A path as written in a configuration: without Windows' `\\?\` prefix.
@@ -230,36 +346,21 @@ pub(crate) fn install(
     };
     let unreadable = || {
         Error::Refused(format!(
-            "{} is not a JSON file Ipse can read, so it was left as it is. Fix it in {}, or add Ipse to it by hand (docs/guide/connecting.md).",
+            "{} is not a file Ipse can read, so it was left as it is. Fix it in {}, or add Ipse to it by hand (docs/guide/connecting.md).",
             path.display(),
             app.label()
         ))
     };
-    let mut config: Map<String, Value> = match &before {
-        None => Map::new(),
-        Some(bytes) if bytes.iter().all(u8::is_ascii_whitespace) => Map::new(),
-        Some(bytes) => match serde_json::from_slice::<Value>(bytes) {
-            Ok(Value::Object(map)) => map,
-            _ => return Err(unreadable()),
-        },
+    let old = match &before {
+        None => "",
+        Some(bytes) => std::str::from_utf8(bytes).map_err(|_| unreadable())?,
     };
-    let servers = config
-        .entry("mcpServers")
-        .or_insert_with(|| Value::Object(Map::new()));
-    let Value::Object(servers) = servers else {
-        return Err(unreadable());
-    };
-    let replaced = servers
-        .get(ENTRY)
-        .and_then(|e| e.pointer("/env/IPSE_TOKEN"))
-        .and_then(Value::as_str)
-        .map(str::to_owned);
-    servers.insert(ENTRY.to_owned(), app.entry(program, vault, token));
+    let (text, replaced) = match app.format() {
+        Format::Json(key) => with_json_entry(old, key, app.entry(program, vault, token)),
+        Format::GooseYaml => with_goose_entry(old, program, vault, token),
+    }
+    .ok_or_else(unreadable)?;
 
-    let mut text = serde_json::to_string_pretty(&Value::Object(config)).map_err(|_| {
-        Error::Refused("The configuration could not be written as JSON.".to_owned())
-    })?;
-    text.push('\n');
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(io("create", dir))?;
     }
@@ -277,6 +378,161 @@ pub(crate) fn install(
         backup,
         replaced,
     })
+}
+
+/// `old`, a JSON configuration, with `entry` as Ipse's under `key`; and the access
+/// code of the entry it replaced. Comments at the top, before the object, are kept as
+/// they are; `None` for anything else Ipse cannot read as a JSON object.
+fn with_json_entry(old: &str, key: &str, entry: Value) -> Option<(String, Option<String>)> {
+    let (header, body) = split_header(old);
+    let mut config: Map<String, Value> = if body.trim().is_empty() {
+        Map::new()
+    } else {
+        match serde_json::from_str::<Value>(body).ok()? {
+            Value::Object(map) => map,
+            _ => return None,
+        }
+    };
+    let Value::Object(servers) = config
+        .entry(key)
+        .or_insert_with(|| Value::Object(Map::new()))
+    else {
+        return None;
+    };
+    let replaced = servers
+        .get(ENTRY)
+        .and_then(|e| e.pointer("/env/IPSE_TOKEN"))
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    servers.insert(ENTRY.to_owned(), entry);
+    let text = serde_json::to_string_pretty(&Value::Object(config)).ok()?;
+    Some((format!("{header}{text}\n"), replaced))
+}
+
+/// The blank and `//` lines at the top of `text`, and the rest.
+fn split_header(text: &str) -> (&str, &str) {
+    let mut at = 0;
+    for line in text.split_inclusive('\n') {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with("//") {
+            at += line.len();
+        } else {
+            break;
+        }
+    }
+    // Only comments: none of it is a header to keep before a new object.
+    if text[..at].trim().is_empty() {
+        ("", text)
+    } else {
+        text.split_at(at)
+    }
+}
+
+/// Ipse's extension for Goose, indented by `indent` spaces under `extensions:`, and
+/// by as many at each level below, as the file is. Its strings are written as JSON
+/// strings, which YAML reads as they are.
+fn goose_entry_at(program: &Path, vault: &Path, token: &str, indent: usize) -> String {
+    let quote = |text: &str| serde_json::to_string(text).unwrap_or_default();
+    let pad = " ".repeat(indent);
+    let inner = " ".repeat(indent * 2);
+    let deeper = " ".repeat(indent * 3);
+    let lines = [
+        format!("{pad}{ENTRY}:"),
+        format!("{inner}name: Ipse"),
+        format!("{inner}description: {}", quote("Your memory, from Ipse")),
+        format!("{inner}type: stdio"),
+        format!("{inner}cmd: {}", quote(&plain(program))),
+        format!(
+            "{inner}args: [\"mcp\", \"--vault\", {}]",
+            quote(&plain(vault))
+        ),
+        format!("{inner}envs:"),
+        format!("{deeper}IPSE_TOKEN: {}", quote(token)),
+        format!("{inner}enabled: true"),
+        format!("{inner}timeout: 300"),
+    ];
+    let mut text = lines.join("\n");
+    text.push('\n');
+    text
+}
+
+fn goose_entry(program: &Path, vault: &Path, token: &str) -> String {
+    goose_entry_at(program, vault, token, 2)
+}
+
+/// How many spaces start `line`.
+fn indent_of(line: &str) -> usize {
+    line.len() - line.trim_start_matches(' ').len()
+}
+
+/// True for a line that holds YAML content: not blank, not a comment.
+fn content(line: &str) -> bool {
+    let trimmed = line.trim();
+    !trimmed.is_empty() && !trimmed.starts_with('#')
+}
+
+/// `old`, Goose's `config.yaml`, with Ipse's extension under `extensions`; and the
+/// access code of the entry it replaced. Edited line by line, so that the rest stays
+/// exactly as it was; `None` when `extensions` is not written in a way Ipse can follow
+/// (on one line, or with tabs).
+fn with_goose_entry(
+    old: &str,
+    program: &Path,
+    vault: &Path,
+    token: &str,
+) -> Option<(String, Option<String>)> {
+    if old.contains('\t') {
+        return None;
+    }
+    let mut lines: Vec<String> = old.lines().map(str::to_owned).collect();
+    let header = lines.iter().position(|l| {
+        l.strip_prefix("extensions:")
+            .is_some_and(|rest| !content(rest) || rest.trim() == "{}")
+    });
+    let Some(header) = header else {
+        if lines.iter().any(|l| l.starts_with("extensions")) {
+            return None;
+        }
+        let mut text = old.to_owned();
+        if !text.is_empty() && !text.ends_with('\n') {
+            text.push('\n');
+        }
+        text.push_str("extensions:\n");
+        text.push_str(&goose_entry(program, vault, token));
+        return Some((text, None));
+    };
+    "extensions:".clone_into(&mut lines[header]);
+    // The extensions: every line after, up to the next key at the top.
+    let end = lines[header + 1..]
+        .iter()
+        .position(|l| content(l) && indent_of(l) == 0)
+        .map_or(lines.len(), |i| header + 1 + i);
+    let indent = lines[header + 1..end]
+        .iter()
+        .find(|l| content(l))
+        .map_or(2, |l| indent_of(l));
+    let mut replaced = None;
+    let mine = (header + 1..end).find(|&i| {
+        indent_of(&lines[i]) == indent && lines[i].trim_start().starts_with(&format!("{ENTRY}:"))
+    });
+    let at = if let Some(start) = mine {
+        let stop = (start + 1..end)
+            .find(|&i| content(&lines[i]) && indent_of(&lines[i]) <= indent)
+            .unwrap_or(end);
+        replaced = lines[start..stop].iter().find_map(|l| {
+            let value = l.trim().strip_prefix("IPSE_TOKEN:")?.trim();
+            Some(value.trim_matches(['"', '\'']).to_owned())
+        });
+        lines.drain(start..stop);
+        start
+    } else {
+        header + 1
+    };
+    let entry = goose_entry_at(program, vault, token, indent);
+    lines.splice(at..at, entry.lines().map(str::to_owned));
+    let mut text = lines.join("\n");
+    text.push('\n');
+    Some((text, replaced))
 }
 
 /// Writes `bytes` to `path` atomically, readable by its owner only: the file holds an
@@ -314,6 +570,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::too_many_lines)] // one table: each app on each system
     fn each_app_has_its_file_on_each_system() {
         let home = Path::new("/home/ines");
         let p = places(home);
@@ -351,6 +608,69 @@ mod tests {
                 System::Linux,
                 "/home/ines/.lmstudio/mcp.json",
             ),
+            (App::Cursor, System::MacOs, "/home/ines/.cursor/mcp.json"),
+            (App::Cursor, System::Windows, "/home/ines/.cursor/mcp.json"),
+            (App::Cursor, System::Linux, "/home/ines/.cursor/mcp.json"),
+            (
+                App::VsCode,
+                System::MacOs,
+                "/home/ines/Library/Application Support/Code/User/mcp.json",
+            ),
+            (
+                App::VsCode,
+                System::Windows,
+                "/home/ines/AppData/Roaming/Code/User/mcp.json",
+            ),
+            (
+                App::VsCode,
+                System::Linux,
+                "/home/ines/.config/Code/User/mcp.json",
+            ),
+            (
+                App::Windsurf,
+                System::MacOs,
+                "/home/ines/.codeium/windsurf/mcp_config.json",
+            ),
+            (
+                App::Windsurf,
+                System::Windows,
+                "/home/ines/.codeium/windsurf/mcp_config.json",
+            ),
+            (
+                App::Windsurf,
+                System::Linux,
+                "/home/ines/.codeium/windsurf/mcp_config.json",
+            ),
+            (
+                App::Zed,
+                System::MacOs,
+                "/home/ines/.config/zed/settings.json",
+            ),
+            (
+                App::Zed,
+                System::Windows,
+                "/home/ines/AppData/Roaming/Zed/settings.json",
+            ),
+            (
+                App::Zed,
+                System::Linux,
+                "/home/ines/.config/zed/settings.json",
+            ),
+            (
+                App::Goose,
+                System::MacOs,
+                "/home/ines/.config/goose/config.yaml",
+            ),
+            (
+                App::Goose,
+                System::Windows,
+                "/home/ines/AppData/Roaming/Block/goose/config/config.yaml",
+            ),
+            (
+                App::Goose,
+                System::Linux,
+                "/home/ines/.config/goose/config.yaml",
+            ),
         ];
         for (app, system, expected) in cases {
             assert_eq!(
@@ -371,7 +691,15 @@ mod tests {
         let Err(Error::Refused(message)) = App::parse("chatgpt") else {
             panic!("parsed")
         };
-        assert!(message.contains("claude-desktop, claude-code or lm-studio"));
+        assert!(
+            message.contains(
+                "claude-desktop, claude-code, lm-studio, cursor, vs-code, windsurf, zed or goose"
+            ),
+            "{message}"
+        );
+        for app in App::ALL {
+            assert_eq!(App::parse(app.id()).unwrap(), app);
+        }
     }
 
     #[test]
@@ -384,6 +712,15 @@ mod tests {
         std::fs::create_dir_all(dir.path().join(".config/Claude")).unwrap();
         std::fs::create_dir_all(dir.path().join(".lmstudio")).unwrap();
         std::fs::write(dir.path().join(".claude.json"), "{}").unwrap();
+        for folder in [
+            ".cursor",
+            ".config/Code/User",
+            ".codeium/windsurf",
+            ".config/zed",
+            ".config/goose",
+        ] {
+            std::fs::create_dir_all(dir.path().join(folder)).unwrap();
+        }
         for app in App::ALL {
             assert!(app.found(System::Linux, &p), "{app:?}");
         }
@@ -519,5 +856,150 @@ mod tests {
         )
         .unwrap();
         assert_eq!(read(&path)["mcpServers"]["ipse"]["command"], PROGRAM);
+    }
+
+    fn install_at(app: App, path: &Path, token: &str) -> Installed {
+        install(app, path, Path::new(PROGRAM), Path::new(VAULT), token).unwrap()
+    }
+
+    #[test]
+    fn each_app_gets_its_own_shape_of_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        for app in [App::Cursor, App::Windsurf] {
+            let path = dir.path().join(format!("{}.json", app.id()));
+            install_at(app, &path, "ipse_secret");
+            assert_eq!(
+                read(&path),
+                json!({"mcpServers": {"ipse": {
+                    "command": PROGRAM,
+                    "args": ["mcp", "--vault", VAULT],
+                    "env": {"IPSE_TOKEN": "ipse_secret"}
+                }}}),
+                "{app:?}"
+            );
+        }
+        // VS Code: under `servers`, beside its `inputs`.
+        let path = dir.path().join("mcp.json");
+        std::fs::write(
+            &path,
+            r#"{"inputs": [{"id": "key"}], "servers": {"other": {}}}"#,
+        )
+        .unwrap();
+        install_at(App::VsCode, &path, "ipse_secret");
+        let after = read(&path);
+        assert_eq!(after["inputs"][0]["id"], "key");
+        assert!(after["servers"]["other"].is_object());
+        assert_eq!(after["servers"]["ipse"]["type"], "stdio");
+        assert_eq!(after["servers"]["ipse"]["env"]["IPSE_TOKEN"], "ipse_secret");
+        assert!(after.get("mcpServers").is_none());
+    }
+
+    #[test]
+    fn zed_keeps_the_comments_at_the_top_of_its_settings() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let header = "// Zed settings\n//\n// For information on how to configure Zed, see the Zed\n// documentation: https://zed.dev/docs/configuring-zed\n";
+        let before =
+            format!("{header}{{\n  \"ui_font_size\": 16,\n  \"theme\": \"One Dark\"\n}}\n");
+        std::fs::write(&path, &before).unwrap();
+        let done = install_at(App::Zed, &path, "ipse_secret");
+        assert_eq!(
+            std::fs::read_to_string(done.backup.unwrap()).unwrap(),
+            before
+        );
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.starts_with(header), "{text}");
+        let after: Value = serde_json::from_str(&text[header.len()..]).unwrap();
+        assert_eq!(after["ui_font_size"], 16);
+        let entry = &after["context_servers"]["ipse"];
+        assert_eq!(entry["source"], "custom");
+        assert_eq!(entry["command"], PROGRAM);
+        assert_eq!(entry["env"]["IPSE_TOKEN"], "ipse_secret");
+
+        // A comment inside the object: left alone.
+        let inside = "{\n  // my font\n  \"ui_font_size\": 16\n}\n";
+        std::fs::write(&path, inside).unwrap();
+        assert!(install(App::Zed, &path, Path::new(PROGRAM), Path::new(VAULT), "x").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), inside);
+    }
+
+    #[test]
+    fn goose_gets_an_extension_and_the_rest_of_its_file_stays() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("config.yaml");
+        // A new file.
+        install_at(App::Goose, &path, "ipse_one");
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.starts_with("extensions:\n  ipse:\n    name: Ipse\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains(&format!("    cmd: \"{PROGRAM}\"\n")),
+            "{text}"
+        );
+        assert!(text.contains(&format!("    args: [\"mcp\", \"--vault\", \"{VAULT}\"]\n")));
+        assert!(text.contains("      IPSE_TOKEN: \"ipse_one\"\n"), "{text}");
+
+        // Goose's own file, with another extension: kept line for line.
+        let before = "GOOSE_PROVIDER: anthropic\nextensions:\n    developer:\n        bundled: true\n        enabled: true\n        name: developer\n        type: builtin\nGOOSE_MODE: smart_approve\n";
+        std::fs::write(&path, before).unwrap();
+        let done = install_at(App::Goose, &path, "ipse_two");
+        assert_eq!(done.replaced, None);
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            text.starts_with(
+                "GOOSE_PROVIDER: anthropic\nextensions:\n    ipse:\n        name: Ipse\n"
+            ),
+            "{text}"
+        );
+        assert!(
+            text.contains("    developer:\n        bundled: true\n"),
+            "{text}"
+        );
+        assert!(
+            text.contains("          IPSE_TOKEN: \"ipse_two\"\n"),
+            "{text}"
+        );
+        assert!(text.ends_with("GOOSE_MODE: smart_approve\n"), "{text}");
+
+        // Again: replaced, not added twice, and the code it replaced is told.
+        let done = install_at(App::Goose, &path, "ipse_three");
+        assert_eq!(done.replaced.as_deref(), Some("ipse_two"));
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(text.matches("    ipse:\n").count(), 1, "{text}");
+        assert!(!text.contains("ipse_two"));
+        assert!(text.contains("    developer:\n        bundled: true\n        enabled: true\n        name: developer\n        type: builtin\nGOOSE_MODE"), "{text}");
+
+        // `extensions: {}` is empty; extensions on one line are left alone.
+        std::fs::write(&path, "extensions: {}\n").unwrap();
+        install_at(App::Goose, &path, "ipse_four");
+        assert!(
+            std::fs::read_to_string(&path)
+                .unwrap()
+                .starts_with("extensions:\n  ipse:\n")
+        );
+        let flow = "extensions: {developer: {enabled: true}}\n";
+        std::fs::write(&path, flow).unwrap();
+        assert!(install(App::Goose, &path, Path::new(PROGRAM), Path::new(VAULT), "x").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), flow);
+    }
+
+    #[test]
+    fn what_to_paste_is_written_for_each_app() {
+        let (program, vault) = (Path::new(PROGRAM), Path::new(VAULT));
+        let vs: Value =
+            serde_json::from_str(&App::VsCode.snippet(program, vault, "ipse_s")).unwrap();
+        assert_eq!(vs["servers"]["ipse"]["env"]["IPSE_TOKEN"], "ipse_s");
+        let zed: Value = serde_json::from_str(&App::Zed.snippet(program, vault, "ipse_s")).unwrap();
+        assert_eq!(zed["context_servers"]["ipse"]["command"], PROGRAM);
+        let any: Value = serde_json::from_str(&any_app_snippet(program, vault, "ipse_s")).unwrap();
+        assert_eq!(any["mcpServers"]["ipse"]["args"][2], VAULT);
+        let goose = App::Goose.snippet(program, vault, "ipse_s");
+        assert!(goose.starts_with("extensions:\n  ipse:\n"), "{goose}");
+        assert_eq!(
+            command(program, vault),
+            format!("\"{PROGRAM}\" mcp --vault \"{VAULT}\"")
+        );
     }
 }

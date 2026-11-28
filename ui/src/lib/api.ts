@@ -163,8 +163,8 @@ export const api = {
 	refuse: (id: string, comment?: string) => post<DecisionView>(`${proposal(id)}/refuse`, { comment: comment || undefined }),
 	undo: (id: string) => post<DecisionView>(`${proposal(id)}/undo`),
 	ais: () => get<AisView>('/api/ais'),
-	connect: (name: string, local: boolean, openAll: boolean, install?: string) =>
-		post<ConnectedView>('/api/ais', { name, local, open_all: openAll, install }),
+	connect: (name: string, local: boolean, openAll: boolean, install?: string, app?: string) =>
+		post<ConnectedView>('/api/ais', { name, local, open_all: openAll, install, app }),
 	setRights: (id: string, read: string[], propose: string[]) =>
 		post<AisView>(`/api/ais/${encodeURIComponent(id)}/rights`, { read, propose }),
 	disconnect: (id: string) => post<AisView>(`/api/ais/${encodeURIComponent(id)}/remove`),

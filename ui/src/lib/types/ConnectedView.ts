@@ -23,4 +23,13 @@ program: string,
 /**
  * The full path of the memory folder.
  */
-vault: string, };
+vault: string, 
+/**
+ * The command an AI app starts, with the access code in `IPSE_TOKEN`.
+ */
+command: string, 
+/**
+ * What to paste in the app's file, the code filled in, when it is shown: for the
+ * app chosen, or the usual `mcpServers` block for any other app (issue #266).
+ */
+snippet: string | null, };

@@ -446,7 +446,8 @@ enum ClientAction {
         #[arg(long, value_delimiter = ',')]
         propose: Vec<String>,
         /// Write Ipse into this app's MCP configuration, the code included, instead of
-        /// showing the code: claude-desktop, claude-code or lm-studio
+        /// showing the code: claude-desktop, claude-code, lm-studio, cursor, vs-code,
+        /// windsurf, zed or goose
         #[arg(long, value_name = "APP")]
         install: Option<String>,
         /// Folder of the memory (default: the current folder)

@@ -91,7 +91,8 @@ pub(crate) struct AisView {
     ts(export, export_to = "../../../ui/src/lib/types/")
 )]
 pub(crate) struct AppView {
-    /// `claude-desktop`, `claude-code` or `lm-studio`.
+    /// `claude-desktop`, `claude-code`, `lm-studio`, `cursor`, `vs-code`, `windsurf`,
+    /// `zed` or `goose`.
     id: String,
     /// Its name for people.
     label: String,
@@ -99,6 +100,8 @@ pub(crate) struct AppView {
     found: bool,
     /// It runs models on this computer.
     local: bool,
+    /// Its configuration file on this computer, where Ipse writes, or where to paste.
+    file: String,
 }
 
 /// Where Ipse wrote an app's configuration.
@@ -136,6 +139,11 @@ pub(crate) struct ConnectedView {
     program: String,
     /// The full path of the memory folder.
     vault: String,
+    /// The command an AI app starts, with the access code in `IPSE_TOKEN`.
+    command: String,
+    /// What to paste in the app's file, the code filled in, when it is shown: for the
+    /// app chosen, or the usual `mcpServers` block for any other app (issue #266).
+    snippet: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -147,9 +155,13 @@ struct ConnectBody {
     /// choice (`docs/spec/rights.md`, section 2).
     #[serde(default)]
     open_all: bool,
-    /// The app to set up: `claude-desktop`, `claude-code` or `lm-studio`.
+    /// The app to set up: `claude-desktop`, `cursor`…
     #[serde(default)]
     install: Option<String>,
+    /// The app chosen, set up by Ipse or not: what to paste is written for it. Any
+    /// other app when not given.
+    #[serde(default)]
+    app: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -243,6 +255,10 @@ fn apps() -> Vec<AppView> {
                 .as_ref()
                 .is_some_and(|p| app.found(System::current(), p)),
             local: app.is_local(),
+            file: places
+                .as_ref()
+                .map(|p| plain_path(&app.config_path(System::current(), p)))
+                .unwrap_or_default(),
         })
         .collect()
 }
@@ -332,6 +348,10 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
 fn connect(gateway: &mut Gateway, body: &ConnectBody) -> Result<ConnectedView> {
     let name = name_of(&body.name, "AI")?;
     let app = body.install.as_deref().map(App::parse).transpose()?;
+    let chosen = match body.app.as_deref() {
+        None | Some("other") => app,
+        Some(id) => Some(App::parse(id)?),
+    };
     let root = gateway.vault().root().to_owned();
     let categories = Categories::of(gateway.settings());
     let mut clients = Clients::load(&root)?;
@@ -378,10 +398,17 @@ fn connect(gateway: &mut Gateway, body: &ConnectBody) -> Result<ConnectedView> {
             }
         }
     };
+    let (program_path, vault_path) = (std::path::Path::new(&program), std::path::Path::new(&vault));
+    let snippet = installed.is_none().then(|| match chosen {
+        Some(app) => app.snippet(program_path, vault_path, token.expose()),
+        None => install::any_app_snippet(program_path, vault_path, token.expose()),
+    });
     Ok(ConnectedView {
         ai: ai_view(&client, None, &[]),
         code: installed.is_none().then(|| token.expose().to_owned()),
         installed,
+        command: install::command(program_path, vault_path),
+        snippet,
         program,
         vault,
     })
