@@ -681,6 +681,13 @@ const fr = {
 	offerNo: 'Non merci',
 	offerDeclined: 'Compris : Ipse ne le proposera plus.',
 	acceptedAutomatically: 'Acceptée automatiquement',
+	noteTitle: 'Retenir d’elle-même',
+	noteLead: (ai: string) =>
+		`${ai} propose sans attendre que vous le demandiez ce que vous dites en passant et qui dure : une habitude, une personne, un projet, une date importante, un objet. Jamais le passager ni ce qui est sensible, sauf si vous le demandez. Chaque note vous attend dans À revoir, et ${ai} vous le signale dans la conversation. Elle ne propose que là où vous l’avez permis ci-dessus.`,
+	noteSwitch: (ai: string) => `Laisser ${ai} retenir d’elle-même ce qui compte`,
+	noteOn: (ai: string) => `${ai} proposera d’elle-même ce qui mérite d’être retenu. Tout vous attendra dans À revoir.`,
+	noteOff: (ai: string) => `${ai} ne proposera plus que ce que vous lui demandez.`,
+	notedOnItsOwn: 'Notée d’elle-même',
 	undoNow: 'Annuler',
 	undoneNow: 'Annulé.',
 	automaticHome: (n: number, standing: string) =>
@@ -1761,6 +1768,13 @@ const en = {
 	offerNo: 'No thanks',
 	offerDeclined: 'Understood: Ipse will not offer it again.',
 	acceptedAutomatically: 'Accepted automatically',
+	noteTitle: 'Note on its own',
+	noteLead: (ai: string) =>
+		`${ai} proposes, without waiting to be asked, the lasting things you mention in passing: a habit, a person, a project, an important date, a thing you own. Never what is passing or sensitive, unless you ask. Every note waits for you in To review, and ${ai} tells you in the conversation. It only proposes where you allowed it above.`,
+	noteSwitch: (ai: string) => `Let ${ai} note on its own what matters`,
+	noteOn: (ai: string) => `${ai} will propose on its own what is worth remembering. Everything will wait for you in To review.`,
+	noteOff: (ai: string) => `${ai} will only propose what you ask for.`,
+	notedOnItsOwn: 'Noted on its own',
 	undoNow: 'Undo',
 	undoneNow: 'Undone.',
 	automaticHome: (n: number, standing: string) =>

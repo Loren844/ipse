@@ -312,6 +312,24 @@ impl Access<'_> {
         changes: Vec<Change>,
         reason: &str,
     ) -> Result<Proposed> {
+        self.propose_noted(task, changes, reason, false)
+    }
+
+    /// As [`Access::propose`]; `on_its_own` when the AI noted it during a conversation
+    /// without the person asking (issue #246). The proposal is marked so in the
+    /// review inbox, and goes through the same checks, rights and standing consent as
+    /// any other: the mark widens nothing. An answer to a task is never on its own.
+    ///
+    /// # Errors
+    ///
+    /// As for [`Access::propose`].
+    pub fn propose_noted(
+        &self,
+        task: Option<&str>,
+        changes: Vec<Change>,
+        reason: &str,
+        on_its_own: bool,
+    ) -> Result<Proposed> {
         let task = task.map(str::trim).filter(|t| !t.is_empty());
         if let Some(id) = task {
             match Tasks::new(&self.gateway.vault).get(id) {
@@ -355,11 +373,12 @@ impl Access<'_> {
         for change in &changes {
             self.may_change(change)?;
         }
-        let proposal = Proposals::new(&self.gateway.vault).submit(
+        let proposal = Proposals::new(&self.gateway.vault).submit_noted(
             Author::Client(self.client.id.clone()),
             reason,
             task.map(str::to_owned),
             changes,
+            on_its_own && task.is_none(),
         )?;
         for category in &proposal.categories {
             self.returned(category);

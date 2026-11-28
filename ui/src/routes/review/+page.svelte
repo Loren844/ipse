@@ -173,6 +173,7 @@
 									<span>{byline(line)}</span>
 									<span>{ago(line.created)}</span>
 									<span>{i18n.t.changes(line.changes)}</span>
+									{#if line.on_its_own}<span class="badge" data-testid="on-its-own">{i18n.t.notedOnItsOwn}</span>{/if}
 									{#if line.status === 'stale'}<span class="badge warn">{i18n.t.status.stale}</span>{/if}
 								</p>
 								<ul class="touches">
@@ -208,6 +209,7 @@
 								<p class="why"><span class="visually-hidden">{`${i18n.t.why} `}</span>{line.reason}</p>
 								<p class="meta">
 									<span>{byline(line)}</span>
+									{#if line.on_its_own}<span class="badge" data-testid="on-its-own">{i18n.t.notedOnItsOwn}</span>{/if}
 									<span>{i18n.t.decidedOn(line.automatic && line.status === 'accepted' ? i18n.t.acceptedAutomatically : i18n.t.status[line.status], ago(line.decided ?? line.created))}</span>
 								</p>
 								{#if line.automatic && line.status === 'accepted'}

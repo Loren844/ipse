@@ -673,6 +673,65 @@ fn an_ai_is_allowed_to_propose_only_when_asked() {
 }
 
 #[test]
+fn an_ai_notes_on_its_own_only_where_it_proposes() {
+    // Issue #246.
+    let dir = tempfile::tempdir().unwrap();
+    let vault = dir.path().join("memoire");
+    let vault_arg = vault.to_str().unwrap();
+    let run = |args: &[&str]| {
+        let out = ipse(args);
+        (
+            out.status.success(),
+            String::from_utf8(out.stdout).unwrap(),
+            String::from_utf8(out.stderr).unwrap(),
+        )
+    };
+    run(&["init", vault_arg, "--name", "Camille Durand"]);
+    run(&[
+        "client",
+        "add",
+        "Claude",
+        "--propose",
+        "people",
+        "--vault",
+        vault_arg,
+    ]);
+    run(&["client", "add", "Autre", "--vault", vault_arg]);
+    let (ok, _, error) = run(&[
+        "client",
+        "set",
+        "autre",
+        "--note-on-its-own",
+        "on",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(!ok && error.contains("--propose"), "{error}");
+    let (ok, said, _) = run(&[
+        "client",
+        "set",
+        "claude",
+        "--note-on-its-own",
+        "on",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(ok && said.contains("notes on its own"), "{said}");
+    let listed = run(&["client", "list", "--vault", vault_arg]).1;
+    assert!(listed.contains("  notes on its own"), "{listed}");
+    let (ok, said, _) = run(&[
+        "client",
+        "set",
+        "claude",
+        "--note-on-its-own",
+        "off",
+        "--vault",
+        vault_arg,
+    ]);
+    assert!(ok && !said.contains("notes on its own"), "{said}");
+}
+
+#[test]
 fn a_contact_changed_on_both_sides_waits_for_the_person() {
     let dir = tempfile::tempdir().unwrap();
     let vault = dir.path().join("memoire");

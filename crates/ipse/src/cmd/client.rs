@@ -97,27 +97,47 @@ pub(crate) fn list(vault: Option<PathBuf>) -> Result<()> {
         if !client.propose.is_empty() {
             println!("  proposes in {}", client.propose.join(", "));
         }
+        if client.note_on_its_own {
+            println!("  notes on its own what is worth remembering");
+        }
     }
     Ok(())
 }
 
-/// Changes what an AI may read and propose on.
+/// Changes what an AI may read and propose on, and whether it notes on its own what is
+/// worth remembering (issue #246): `on` or `off`.
 pub(crate) fn set(
     id: &str,
     read: Option<Vec<String>>,
     propose: Option<Vec<String>>,
+    note_on_its_own: Option<&str>,
     vault: Option<PathBuf>,
 ) -> Result<()> {
-    if read.is_none() && propose.is_none() {
+    let note_on_its_own = note_on_its_own.map(|v| v == "on");
+    if read.is_none() && propose.is_none() && note_on_its_own.is_none() {
         return Err(Error::Refused(
-            "Say what to change: --read people,agenda or --propose people (empty to remove all)."
+            "Say what to change: --read people,agenda, --propose people (empty to remove all) or --note-on-its-own on."
                 .to_owned(),
         ));
     }
     let vault = open(vault)?;
     let categories = Categories::of(vault.settings());
     let mut clients = Clients::load(vault.root())?;
-    let client = clients.set_rights(id, read, propose, &categories)?;
+    let mut client = if read.is_some() || propose.is_some() {
+        clients.set_rights(id, read, propose, &categories)?
+    } else {
+        match clients.list().iter().find(|c| c.id == id) {
+            Some(client) => client.clone(),
+            None => {
+                return Err(Error::Refused(format!(
+                    "There is no AI {id}. `ipse client list` shows their ids."
+                )));
+            }
+        }
+    };
+    if let Some(on) = note_on_its_own {
+        client = clients.set_note_on_its_own(id, on)?;
+    }
     println!(
         "{} reads {}.",
         client.name,
@@ -131,6 +151,11 @@ pub(crate) fn set(
         println!("It cannot propose changes.");
     } else {
         println!("It proposes changes in {}.", client.propose.join(", "));
+    }
+    if client.note_on_its_own {
+        println!(
+            "It notes on its own what is worth remembering; every note waits for you in the review inbox, unless you accept it in advance."
+        );
     }
     let sensitive: Vec<&str> = categories
         .sensitive()
