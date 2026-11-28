@@ -9,6 +9,7 @@
 //! its next request.
 
 pub(crate) mod http;
+mod prompts;
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -21,9 +22,10 @@ use ipse_core::vault::EventTime;
 use rmcp::handler::server::router::tool::ToolRouter;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::model::{
-    CacheScope, CallToolResult, ContentBlock, DiscoverResult, Implementation,
-    InitializeRequestParams, InitializeResult, ListToolsResult, PaginatedRequestParams,
-    ProtocolVersion, ResultType, ServerCapabilities, ServerConfig, Tool,
+    CacheScope, CallToolResult, ContentBlock, DiscoverResult, GetPromptRequestParams,
+    GetPromptResponse, Implementation, InitializeRequestParams, InitializeResult,
+    ListPromptsResult, ListToolsResult, PaginatedRequestParams, ProtocolVersion, ResultType,
+    ServerCapabilities, ServerConfig, Tool,
 };
 use rmcp::service::RequestContext;
 use rmcp::{
@@ -602,6 +604,28 @@ impl ServerHandler for Server {
             cache_scope: supports_cache_hints.then_some(CacheScope::Private),
         })
     }
+
+    // Ready-made prompts (issue #274), in the memory's language: they only ask, and
+    // read nothing of the memory.
+    async fn list_prompts(
+        &self,
+        _request: Option<PaginatedRequestParams>,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<ListPromptsResult, ErrorData> {
+        let (language, _) = self.language_and_today();
+        Ok(ListPromptsResult::with_all_items(prompts::list(language)))
+    }
+
+    async fn get_prompt(
+        &self,
+        request: GetPromptRequestParams,
+        _context: RequestContext<RoleServer>,
+    ) -> Result<GetPromptResponse, ErrorData> {
+        let (language, today) = self.language_and_today();
+        prompts::get(&request.name, request.arguments.as_ref(), language, today)
+            .map(GetPromptResponse::from)
+            .map_err(|message| ErrorData::invalid_params(message, None))
+    }
 }
 
 /// The server's description and instructions, with what noting on its own adds when
@@ -612,9 +636,14 @@ fn info(notes: bool) -> ServerConfig {
     } else {
         INSTRUCTIONS.to_owned()
     };
-    ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
-        .with_server_info(Implementation::new("ipse", env!("CARGO_PKG_VERSION")).with_title("Ipse"))
-        .with_instructions(instructions)
+    ServerConfig::new(
+        ServerCapabilities::builder()
+            .enable_tools()
+            .enable_prompts()
+            .build(),
+    )
+    .with_server_info(Implementation::new("ipse", env!("CARGO_PKG_VERSION")).with_title("Ipse"))
+    .with_instructions(instructions)
 }
 
 /// The tools as an AI sees them: `propose` says how to note on its own when `notes`,
@@ -636,6 +665,16 @@ fn tools(mut tools: Vec<Tool>, notes: bool) -> Vec<Tool> {
 }
 
 impl Server {
+    /// The memory's language, and today in its time zone, for the prompts.
+    fn language_and_today(&self) -> (ipse_core::vault::Language, jiff::civil::Date) {
+        let gateway = self.gateway.lock().unwrap_or_else(PoisonError::into_inner);
+        let settings = gateway.settings();
+        let today = jiff::Timestamp::now()
+            .to_zoned(settings.time_zone().clone())
+            .date();
+        (settings.language(), today)
+    }
+
     /// True when the AI of this request may note on its own what is worth remembering
     /// (issue #246). A missing or wrong code, or a memory that cannot be read, is false:
     /// the tools will say why at the first call.

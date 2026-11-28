@@ -4470,6 +4470,14 @@ p.automatic a {
 	max-width: 62ch;
 }
 
+.first-steps .first-prompts {
+	margin-top: 0.75rem;
+}
+
+.first-steps .first-prompts q {
+	color: var(--text);
+}
+
 .first-steps li p:has(.button),
 .first-steps .step-text p:has(.button) {
 	margin-top: 0.75rem;

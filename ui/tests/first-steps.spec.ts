@@ -18,6 +18,10 @@ test('the first steps follow what the memory shows, then go away when put away',
 	await expect(steps.locator('li.now')).toHaveAttribute('data-step', 'sources');
 	await expect(steps.getByRole('link', { name: 'Ouvrir les sources' })).toHaveAttribute('href', '/sources');
 	await expect(steps.getByRole('button', { name: /Copier/ })).toBeVisible();
+	// Ready-made prompts the AI app lists (issue #274), as examples.
+	await expect(steps.getByTestId('first-prompts')).toHaveText(
+		'Ou choisissez une invite toute prête dans le menu de votre IA, sous Ipse : Prépare ma journée, Résume mon mois, Que sais-tu de….'
+	);
 
 	// An AI connected from the command line: the step is done, the others wait.
 	execFileSync(IPSE, ['client', 'add', 'Claude', '--vault', ipse.vault]);
