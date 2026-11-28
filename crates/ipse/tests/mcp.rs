@@ -1185,3 +1185,93 @@ fn over_http_an_ai_is_told_by_its_own_code() {
     assert!(!off.contains("I proposed to Ipse"), "{off}");
     assert!(propose["inputSchema"]["properties"]["on_its_own"].is_null());
 }
+
+/// Ready-made prompts (issue #274): listed in the memory's language, each one only asks
+/// with today's period, and the tools it names answer on the demo memory.
+#[tokio::test]
+async fn ready_made_prompts_on_the_demo_memory() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("demo");
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_ipse"))
+        .arg("init")
+        .arg(&root)
+        .args(["--demo", "--language", "fr", "--time-zone", "Europe/Paris"])
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let mut clients = Clients::load(&root).unwrap();
+    let (_, token) = clients
+        .add(
+            "Claude",
+            DateTime::now(&TimeZone::UTC),
+            &Categories::default(),
+            false,
+        )
+        .unwrap();
+    let ai = connect(&root, Some(token.expose())).await;
+
+    let told = ai.peer_info().unwrap();
+    assert!(told.capabilities.prompts.is_some());
+    let listed = ai.list_all_prompts().await.unwrap();
+    let titles: Vec<&str> = listed.iter().filter_map(|p| p.title.as_deref()).collect();
+    assert_eq!(
+        titles,
+        [
+            "Prépare ma journée",
+            "Prépare ma semaine",
+            "Résume mon mois",
+            "Que sais-tu de…"
+        ]
+    );
+
+    let today = jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date()
+        .to_string();
+    let week = ai
+        .get_prompt(rmcp::model::GetPromptRequestParams::new("prepare_my_week"))
+        .await
+        .unwrap();
+    let asked = &week.messages[0];
+    assert_eq!(asked.role, rmcp::model::Role::User);
+    let text = &asked.content.as_text().unwrap().text;
+    assert!(text.starts_with("Prépare ma semaine"), "{text}");
+    assert!(text.contains(&format!("`events` du {today} au ")), "{text}");
+
+    // What the prompt asks, the tools answer as for any question, within the rights.
+    let last = text
+        .split(&format!("`events` du {today} au "))
+        .nth(1)
+        .and_then(|rest| rest.get(..10))
+        .unwrap()
+        .to_owned();
+    let agenda = read(&ai, "events", json!({ "from": today, "to": last })).await;
+    assert!(!agenda["events"].as_array().unwrap().is_empty(), "{agenda}");
+    read(&ai, "now", json!({})).await;
+
+    let mut arguments = serde_json::Map::new();
+    arguments.insert("name".to_owned(), Value::from("Camille Laurent"));
+    let about = ai
+        .get_prompt(
+            rmcp::model::GetPromptRequestParams::new("what_do_you_know_about")
+                .with_arguments(arguments),
+        )
+        .await
+        .unwrap();
+    let text = &about.messages[0].content.as_text().unwrap().text;
+    assert!(
+        text.starts_with("Que sais-tu de « Camille Laurent » ?"),
+        "{text}"
+    );
+    let missing = ai
+        .get_prompt(rmcp::model::GetPromptRequestParams::new(
+            "what_do_you_know_about",
+        ))
+        .await;
+    assert!(missing.is_err());
+    ai.cancel().await.unwrap();
+}

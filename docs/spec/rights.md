@@ -172,6 +172,20 @@ Without being asked, an AI only proposes what the person asks it to remember ("r
 
 - **The mark.** A proposal sent with `"on_its_own": true`, without a `task`, by an AI that has the right is saved with `on_its_own: true`; the inbox shows it as **noted on its own** (**Notée d'elle-même**), to tell it from one the person asked for. From an AI without the right, the argument is ignored.
 
+### 4.4 Ready-made prompts
+
+Once Ipse is connected, people do not know what to ask. The server offers **prompts** (MCP `prompts/list` and `prompts/get`), which Claude Desktop and other apps list in their menu, in the memory's language (`language` in `.ipse/vault.toml`):
+
+| Name | French | English | Argument |
+|---|---|---|---|
+| `prepare_my_day` | Prépare ma journée | Prepare my day | |
+| `prepare_my_week` | Prépare ma semaine | Prepare my week | |
+| `summarize_my_month` | Résume mon mois | Summarize my month | |
+| `what_do_you_know_about` | Que sais-tu de… | What do you know about… | `name`, required |
+
+- **A prompt only asks.** It is one message from the person that says which tools to call and for what period, with today's date in the memory's time zone (`events` from today to six days later for the week, from the first of the month to today for the month). It reads nothing of the memory and is not written to the access log; the tools it names go through the same rights and checks as any other call.
+- **Later prompts.** *Who have I lost touch with?* waits for #273, and *My year in review* for the year's recap.
+
 ## 5. Access log
 
 Every request is logged in `.ipse/access/<YYYY-MM>.jsonl`, one line per call:

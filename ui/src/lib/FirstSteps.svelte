@@ -54,6 +54,10 @@
 							<p>{words.text}</p>
 							{#if step.id === 'question'}
 								<Copy text={i18n.t.firstQuestion} label={i18n.t.firstQuestionLabel} />
+								<p class="first-prompts" data-testid="first-prompts">
+									{i18n.t.firstPrompts}
+									{#each i18n.t.firstPromptNames as name, i (name)}{i ? ', ' : ' '}<q>{name}</q>{/each}.
+								</p>
 							{:else}
 								<p><a class="button" class:primary={step.id === next} href={LINKS[step.id]}>{words.action}</a></p>
 							{/if}
