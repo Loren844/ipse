@@ -33,6 +33,7 @@ Settled on 2026-11-12. These choices are hard to undo after 1.0.
 ├── reminders/              what to remind the person of, once or again and again
 ├── events/<YYYY>/          one file per dated event
 ├── states/<topic>/<YYYY>.md   "right now" states, one file per topic and year
+├── notes/<YYYY>/<YYYY-MM-DD>.md   the person's notes of one day, written without an AI
 ├── summaries/
 │   ├── day/<YYYY>/<YYYY-MM-DD>.md
 │   ├── week/<YYYY>/<YYYY>-W<ww>.md
@@ -65,7 +66,7 @@ Every memory file starts with a YAML front matter block. These keys are common t
 | Key | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | `id` | string | yes | Stable identifier, a [ULID](https://github.com/ulid/spec) in lowercase. Never changes, even when the file is renamed or moved. A file that holds another's `id` (a copy made by hand) is reported by `ipse check` and in the interface, which gives it an id of its own as the person's change; the oldest by `created`, then the shortest path, keeps it. |
-| `type` | string | yes | `person`, `place`, `organization`, `project`, `thing`, `topic`, `work`, `event`, `state-log`, `summary`. |
+| `type` | string | yes | `person`, `place`, `organization`, `project`, `thing`, `topic`, `work`, `event`, `state-log`, `summary`, `note` (section 7.1). |
 | `category` | string | yes | Rights category (see `rights.md`). Defaults per type are listed there. |
 | `created` | datetime | yes | RFC 3339 with offset, e.g. `2026-11-12T19:30:00+01:00`. |
 | `updated` | datetime | yes | Last change, same format. |
@@ -289,6 +290,30 @@ A summary of a longer period is built from the summaries of the shorter periods 
 - The tasks are planned when an AI lists them (`tasks`) and by `ipse tasks list`.
 - The interface (`ipse ui`, **Résumés**) lists them by period, newest first, shows a day's summary in the agenda and the latest on the home screen. Correcting one there changes only its `Summary` text, as one change of history by the person (`Correct a summary`).
 
+### 7.1 Notes of the day
+
+What the person jots down without an AI (issue #277), from the home screen of `ipse ui`, the **Note du jour…** item of the app's tray menu, or later the phone's quick capture, all through `POST /api/notes`.
+
+```markdown
+---
+id: 01jd5z8x3k4m2n6p7q9r0s1t2v
+type: note
+category: private
+created: 2026-11-28T09:12:00+01:00
+updated: 2026-11-28T14:32:00+01:00
+---
+
+## Notes
+
+- 09:12 : Acheter du pain.
+- 14:32 : [[aaron-petit|Aaron]] part vivre à Lyon en mars.
+```
+
+- One file a day, `notes/<YYYY>/<YYYY-MM-DD>.md`, named after the day in the vault's time zone. Each note is one bullet line of its `Notes` section, starting with the time it was written, at most 500 characters, in the order written.
+- A mention (`@` and a few letters in the interface) is written as a link to a person or a place, `[[stem|Name]]`: the index counts it as a link, so the day shows among what links to that file, and the interface opens it from there or from a search.
+- Its category is `private`: closed to every AI until the person opens it to one (`rights.md`, section 1).
+- What the person writes is theirs: written at once, never a proposal, one change of the history by the person (`Add a note of the day`).
+
 ## 8. Settings: `.ipse/vault.toml`
 
 ```toml
@@ -373,6 +398,7 @@ Decision 0005: anything an AI infers, merges or changes is a **proposal**, which
 - **The review inbox** of `ipse ui` lists the waiting proposals newest first, with who made them, why, and the files they touch; one that no longer applies is marked so. Several can be accepted in one action, each still accepted on its own (one change of history each). A refusal takes an optional comment of at most 2 000 characters. The last 20 decided proposals stay listed, to read them again or undo an accepted one. A decided or stale proposal is shown as it was written; a waiting one, as it would change the files now.
 - **Possible duplicates** (decision 0011) are proposed by Ipse (`by: ipse`) after each import and sync, and by `ipse duplicates`: people sharing an email (very likely) or a phone (likely), the same name only adding weight; events with the same title and start in two calendars, one proposal per pair of calendars. A value shared by more than 8 files (a switchboard) is no clue. Pairs waiting or said to be different are left out.
 - `ipse proposals list|show|accept|refuse|undo` does the same from the command line.
+- **A quick note** on an entity's or an event's page (issue #277): one line, at most 500 characters, written at once as one change by the person (`Add a note`). On an entity, it is a fact starting with today's date in the vault's time zone (`2026-11-28 : Part vivre à Lyon en mars.`); on an event, which has no facts, a line added to its notes the same way.
 - **The person's own edits** in `ipse ui` (decision 0016) go through the same changes and the same writing code, without waiting: a file's form is read with a version (a hash of the file), and saving turns what differs into `set_key`, fact, relation and `set_notes` changes, applied at once as **one change** by the person (`Edit a file`, `Create a file`, `Delete a file`), which can be undone from the history. Saving with an older version is refused: the file changed meanwhile. `set_notes` (`from`, `to`) rewrites the `Notes` section; it is the person's only, never accepted from an AI. A file the person creates has no `sources`; created from a link to a file that does not exist yet, it takes the link's name when that name is free. Deleting leaves links to the file as they are, and the owner's file cannot be deleted. A waiting proposal made from the old text becomes stale; a source that changes the file again proposes instead of writing over the person (section 9).
 
 ## 13. Tasks

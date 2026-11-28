@@ -10,6 +10,7 @@
 	import { i18n } from '#lib/i18n.svelte.ts';
 	import Mention from '#lib/Mention.svelte';
 	import Notice from '#lib/Notice.svelte';
+	import QuickNote from '#lib/QuickNote.svelte';
 	import { Loader } from '#lib/remote.svelte.ts';
 	import Sensitive from '#lib/Sensitive.svelte';
 
@@ -24,6 +25,18 @@
 	let outcome: { tone: 'done' | 'warn'; text: string } | null = $state(null);
 	let question: Question | null = $state(null);
 	let editButton: HTMLButtonElement | undefined = $state();
+
+	async function note(text: string) {
+		try {
+			const view = await api.note(page.params.id ?? '', text);
+			await file.load(async () => view, true);
+			outcome = { tone: 'done', text: i18n.t.noted };
+		} catch (error) {
+			if (error instanceof SessionEnded) app.state = { kind: 'ended' };
+			outcome = { tone: 'warn', text: i18n.t.noteFailed };
+			throw error;
+		}
+	}
 
 	async function edit() {
 		outcome = null;
@@ -122,6 +135,9 @@
 				{/if}
 				{#if event.place}<dt>{i18n.t.place}</dt><dd><Mention link={event.place} /></dd>{/if}
 			</dl>
+			<div class="note-field" data-testid="quick-note">
+				<QuickNote id="quick-note" label={i18n.t.noteLabel(event.title)} placeholder={i18n.t.notePlaceholder} save={note} />
+			</div>
 			{#if event.notes}
 				<section aria-labelledby="notes">
 					<h2 id="notes">{i18n.t.notes}</h2>

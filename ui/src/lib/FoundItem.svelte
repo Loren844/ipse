@@ -3,7 +3,7 @@
 	// people; a person what they are to the owner, or where they work; a fact the words
 	// that matched. A repeating event is one result, unfolding to its dates.
 	import type { FoundView } from './api.ts';
-	import { dayOf, hrefOf, isDay, monthYear, periodName, shortDay, timeOf } from './format.ts';
+	import { dayOf, hrefOf, isDay, longDay, monthYear, periodName, shortDay, timeOf } from './format.ts';
 	import { i18n } from './i18n.svelte.ts';
 	import { iconOf } from './kinds.ts';
 
@@ -37,10 +37,10 @@
 	});
 </script>
 
-<a href={hrefOf({ id: item.id, kind: item.kind }) ?? '/summaries'}>
+<a href={hrefOf({ id: item.id, kind: item.kind, name: item.name }) ?? '/summaries'}>
 	<span class="kind-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d={iconOf(item.kind)} /></svg></span>
 	<span class="who">
-		<span class="name">{item.kind === 'summary' ? periodName(item.name) : item.name}</span>
+		<span class="name">{item.kind === 'summary' ? periodName(item.name) : item.kind === 'note' ? i18n.t.dayNoteOf(longDay(item.name)) : item.name}</span>
 		<span class="aliases">{line}</span>
 		{#if item.excerpt.length}
 			<span class="excerpt" class:one-line={compact}

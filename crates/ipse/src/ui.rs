@@ -43,6 +43,7 @@ mod history;
 mod kinds;
 mod map;
 mod memory;
+mod notes;
 mod questions;
 mod review;
 pub(crate) mod serve;
@@ -550,6 +551,8 @@ fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<Option<Vec<u
         review::decide(gateway, path, body).map(|v| v.map(|v| to_json(&v)))
     } else if path == "settings" {
         settings::change(gateway, body).map(|v| Some(to_json(&v)))
+    } else if path == "notes" {
+        notes::add(gateway, body).map(|v| Some(to_json(&v)))
     } else if path == "guide" {
         guide::change(gateway, body).map(|v| Some(to_json(&v)))
     } else if let Some(action) = path.strip_prefix("sources/") {
@@ -643,6 +646,8 @@ fn read(gateway: &mut Gateway, path: &str, query: &str) -> Result<Option<Vec<u8>
                 edit::text(gateway, id).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(id) = path.strip_prefix("file/") {
                 api::file(gateway, id).map(|v| v.map(|v| to_json(&v)))
+            } else if let Some(day) = path.strip_prefix("notes/") {
+                notes::day(gateway, day).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(kind) = path.strip_prefix("kinds/") {
                 kinds::view(gateway, kind).map(|v| v.map(|v| to_json(&v)))
             } else if let Some(id) = path.strip_prefix("proposals/") {
@@ -695,6 +700,7 @@ fn api_answer(request: &Request<Bytes>, path: &str, state: &State) -> Response<B
                 || path.starts_with("file/")
                 || path == "settings"
                 || path == "guide"
+                || path == "notes"
                 || path.starts_with("sources/"))
         {
             if !json_request(request) {

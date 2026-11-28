@@ -11,6 +11,7 @@ pub mod duplicates;
 pub mod error;
 pub mod journal;
 pub mod materialize;
+pub mod notes;
 pub mod proposals;
 pub mod reminders;
 pub mod rights;

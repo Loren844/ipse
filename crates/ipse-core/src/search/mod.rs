@@ -312,7 +312,10 @@ fn folders(root: &Path, summaries: bool) -> (Vec<String>, Vec<String>) {
         .filter(|t| t.is_entity())
         .map(|t| t.folder().to_owned())
         .collect();
-    let mut parents = vec![FileType::Event.folder().to_owned()];
+    let mut parents = vec![
+        FileType::Event.folder().to_owned(),
+        FileType::Note.folder().to_owned(),
+    ];
     if summaries {
         folders.push(format!("{SUMMARIES}/year"));
         parents.extend(SUMMARY_PERIODS.map(|p| format!("{SUMMARIES}/{p}")));
@@ -733,6 +736,13 @@ impl SearchIndex {
                     .iter()
                     .any(|p| p.eq_ignore_ascii_case(&stem));
                 if with || d.facts.iter().any(|f| links(&f.text)) {
+                    found.push((d, None));
+                }
+                continue;
+            }
+            if d.file_type == FileType::Note {
+                // A note of the day that mentions it (issue #277).
+                if d.facts.iter().any(|f| links(&f.text)) {
                     found.push((d, None));
                 }
                 continue;

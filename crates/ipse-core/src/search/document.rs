@@ -74,7 +74,7 @@ pub(super) struct DocLink {
 }
 
 /// The links of a document: `word : [[target]]` relations, and an event's place and
-/// people, which its facts hold as `[[target]]`.
+/// people, or a note of the day's mentions, which its facts hold as `[[target]]`.
 fn links_of(relations: &[String], facts: &[String], event: bool) -> Vec<DocLink> {
     let mut links = Vec::with_capacity(relations.len() + if event { facts.len() } else { 0 });
     for relation in relations {
@@ -178,7 +178,11 @@ impl Document {
                 placed: e.placed,
             }),
         };
-        let links = links_of(&s.relations, &s.facts, event.is_some());
+        let links = links_of(
+            &s.relations,
+            &s.facts,
+            event.is_some() || s.file_type == FileType::Note.as_str(),
+        );
         Some(Self {
             links,
             id: Id::parse(&s.id)?,
@@ -280,6 +284,23 @@ impl Stored {
         };
         if let Some(event) = file.event() {
             return Some(Self::event(base(event.title.clone()), file, event));
+        }
+        if common.file_type == FileType::Note {
+            // A note of the day (issue #277), named after its day: its mentions are
+            // links, kept as `[[target]]` the way an event keeps its people.
+            let notes = section_text(file.body(), Section::Notes);
+            let facts = notes
+                .as_deref()
+                .map(crate::notes::links_in)
+                .unwrap_or_default()
+                .into_iter()
+                .map(|l| format!("[[{}]]", l.target))
+                .collect();
+            return Some(Self {
+                facts,
+                notes,
+                ..base(stem)
+            });
         }
         if common.file_type == FileType::Summary {
             return Some(Self {

@@ -36,6 +36,8 @@ pub(crate) struct Words {
     pub(crate) window: &'static str,
     /// Menu bar or tray: show the window.
     pub(crate) tray_open: &'static str,
+    /// Menu bar or tray: open the note of the day (issue #277).
+    pub(crate) tray_note: &'static str,
     /// Menu bar or tray: sync every followed source now.
     pub(crate) tray_sync: &'static str,
     /// Menu bar or tray: quit the app.
@@ -118,6 +120,7 @@ const FRENCH: Words = Words {
     reload: "Recharger",
     window: "Fenêtre",
     tray_open: "Ouvrir Ipse",
+    tray_note: "Note du jour…",
     tray_sync: "Synchroniser maintenant",
     tray_quit: "Quitter Ipse",
     still_running_title: "Ipse reste ouvert",
@@ -147,6 +150,7 @@ const ENGLISH: Words = Words {
     reload: "Reload",
     window: "Window",
     tray_open: "Open Ipse",
+    tray_note: "Note of the day…",
     tray_sync: "Sync now",
     tray_quit: "Quit Ipse",
     still_running_title: "Ipse keeps running",

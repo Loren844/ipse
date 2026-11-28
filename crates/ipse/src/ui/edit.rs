@@ -115,6 +115,12 @@ struct DeleteBody {
     version: String,
 }
 
+/// `POST /api/file/<id>/note`.
+#[derive(Debug, Deserialize)]
+struct NoteBody {
+    text: String,
+}
+
 /// `POST /api/files`.
 #[derive(Debug, Deserialize)]
 struct CreateBody {
@@ -299,8 +305,8 @@ pub(crate) fn text(gateway: &mut Gateway, id: &str) -> Result<Option<TextView>> 
     }))
 }
 
-/// `POST /api/file/<id>/edit`, `POST /api/file/<id>/text`, `POST /api/file/<id>/delete`
-/// and `POST /api/files`.
+/// `POST /api/file/<id>/edit`, `POST /api/file/<id>/text`, `POST /api/file/<id>/note`
+/// (a quick note, issue #277), `POST /api/file/<id>/delete` and `POST /api/files`.
 ///
 /// # Errors
 ///
@@ -360,6 +366,14 @@ pub(crate) fn change(gateway: &mut Gateway, path: &str, body: &[u8]) -> Result<O
         "text" => {
             let body: TextBody = read_body(body)?;
             proposals.edit_text(&file, &body.version, &body.text)?;
+            gateway.refresh()?;
+            let view: Option<FileView> = api::file(gateway, id)?;
+            Ok(view.map(|v| super::to_json(&v)))
+        }
+        "note" => {
+            // A quick note (issue #277): one line, the person's, with today's date.
+            let body: NoteBody = read_body(body)?;
+            proposals.note(&file, &body.text)?;
             gateway.refresh()?;
             let view: Option<FileView> = api::file(gateway, id)?;
             Ok(view.map(|v| super::to_json(&v)))

@@ -531,3 +531,66 @@ fn a_copy_made_by_hand_gets_an_id_of_its_own() {
     assert_eq!(last.source, Some(Source::Person));
     assert!(matches!(proposals.own_id(copy), Err(Error::Refused(_))));
 }
+
+/// Today in Paris, like `2026-11-28`.
+fn today() -> String {
+    jiff::Timestamp::now()
+        .to_zoned(jiff::tz::TimeZone::get("Europe/Paris").unwrap())
+        .date()
+        .to_string()
+}
+
+#[test]
+fn a_quick_note_is_a_dated_fact_by_the_person() {
+    // Issue #277.
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let proposals = Proposals::new(&vault);
+    let change = proposals
+        .note(FILE, "  Part vivre   à Lyon en mars. ")
+        .unwrap()
+        .expect("a line was added");
+    let after = read(dir.path(), FILE);
+    let line = format!("- {} : Part vivre à Lyon en mars. ^f-", today());
+    assert!(after.contains(&line), "{after}");
+    assert!(after.contains("- Joue du piano ^f-ef56"), "the rest stays");
+    let history = vault.history().unwrap();
+    let entry = &history.entries(1).unwrap()[0];
+    assert_eq!(entry.id, change);
+    assert_eq!(entry.source, Some(Source::Person));
+    assert_eq!(entry.summary, "Add a note");
+
+    let refused = |text: &str| match proposals.note(FILE, text) {
+        Err(Error::Refused(message)) => message,
+        other => panic!("{other:?}"),
+    };
+    assert!(refused("   ").contains("Write something"));
+    assert!(refused(&"a".repeat(501)).contains("500"));
+}
+
+#[test]
+fn a_quick_note_on_an_event_goes_to_its_notes() {
+    let dir = tempfile::tempdir().unwrap();
+    let vault = vault(dir.path());
+    let event = "events/2026/2026-11-14-diner.md";
+    std::fs::create_dir_all(dir.path().join("events/2026")).unwrap();
+    std::fs::write(
+        dir.path().join(event),
+        "---\nid: 01jcx8m2p4q6r8t0v2w4y6z8b1\ntype: event\ncategory: agenda\ncreated: 2026-11-12T19:30:00+01:00\nupdated: 2026-11-12T19:30:00+01:00\ntitle: Dîner\nstart: 2026-11-14T20:00:00+01:00\n---\n\n## Notes\n\nApporter le dessert.\n",
+    )
+    .unwrap();
+    History::open(dir.path())
+        .unwrap()
+        .record_outside_edits()
+        .unwrap();
+    let vault = Vault::open(vault.root()).unwrap();
+    Proposals::new(&vault)
+        .note(event, "Marc a adoré le gâteau.")
+        .unwrap();
+    let after = read(dir.path(), event);
+    let expected = format!(
+        "## Notes\n\nApporter le dessert.\n\n{} : Marc a adoré le gâteau.\n",
+        today()
+    );
+    assert!(after.contains(&expected), "{after}");
+}

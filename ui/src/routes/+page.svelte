@@ -1,6 +1,8 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, tick } from 'svelte';
+	import { page } from '$app/state';
 	import { api, type HomeView } from '#lib/api.ts';
+	import DayNote from '#lib/DayNote.svelte';
 	import Events from '#lib/Events.svelte';
 	import DiskNote from '#lib/DiskNote.svelte';
 	import FirstSteps from '#lib/FirstSteps.svelte';
@@ -12,7 +14,16 @@
 	import { Loader } from '#lib/remote.svelte.ts';
 
 	const home = new Loader<HomeView>();
-	onMount(() => home.load(api.home));
+	onMount(async () => {
+		await home.load(api.home);
+		// From the tray menu's "Note of the day" (issue #277): straight to the field.
+		if (page.url.searchParams.has('note')) {
+			await tick();
+			const field = document.getElementById('day-note-field');
+			field?.scrollIntoView({ block: 'center' });
+			field?.focus();
+		}
+	});
 </script>
 
 {#if home.state.kind === 'ready'}
@@ -53,6 +64,8 @@
 				</div>
 			{/if}
 		</section>
+
+		<DayNote note={view.day_note} editable />
 
 		{#if view.now.length}
 			<section aria-labelledby="now" class="home-now">
