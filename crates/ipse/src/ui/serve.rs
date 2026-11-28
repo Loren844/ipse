@@ -60,8 +60,25 @@ pub(crate) fn address(text: &str) -> Result<SocketAddr> {
 /// # Errors
 ///
 /// Errors of [`Gateway::open`]; [`Error::Io`] when the address cannot be listened on.
-pub(crate) fn run(vault: Option<PathBuf>, listen: Option<&str>) -> Result<()> {
+pub(crate) fn run(
+    vault: Option<PathBuf>,
+    listen: Option<&str>,
+    public_url: Option<String>,
+) -> Result<()> {
     let root = vault.unwrap_or_else(|| PathBuf::from("."));
+    let public_url = public_url
+        .or_else(|| std::env::var("IPSE_PUBLIC_URL").ok())
+        .map(|u| u.trim().trim_end_matches('/').to_owned())
+        .filter(|u| !u.is_empty());
+    if let Some(url) = &public_url
+        && !(url.starts_with("https://") || url.starts_with("http://"))
+    {
+        return Err(Error::Refused(
+            "--public-url takes the address the server is reached at, like \
+             https://nas.tail1234.ts.net."
+                .to_owned(),
+        ));
+    }
     let address = match listen {
         Some(text) => address(text)?,
         None => SocketAddr::from((Ipv4Addr::LOCALHOST, DEFAULT_PORT)),
@@ -96,6 +113,8 @@ pub(crate) fn run(vault: Option<PathBuf>, listen: Option<&str>) -> Result<()> {
             app: false,
             wake: Some(wake),
             serving: Some(root.clone()),
+            public_url,
+            grants: Mutex::new(Vec::new()),
         });
         let mcp = Mcp {
             // Any `Host`, as for the interface; no browser.
@@ -187,17 +206,27 @@ pub(super) fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
         return super::refused(StatusCode::NOT_FOUND);
     };
     if access::current(root).is_none() {
-        return page(Said::NoCode, StatusCode::OK);
+        return page(Said::NoCode, StatusCode::OK, None);
     }
+    // Where to go once logged in: only an app's approval page (issue #270).
+    let next = |text: &str| {
+        super::parameter(text, "next")
+            .filter(|n| n.starts_with(&format!("{}?", super::oauth::AUTHORIZE)))
+            .filter(|n| !n.chars().any(char::is_control))
+    };
     match *request.method() {
-        Method::GET | Method::HEAD => return page(Said::Ask, StatusCode::OK),
+        Method::GET | Method::HEAD => {
+            let after = next(request.uri().query().unwrap_or_default());
+            return page(Said::Ask, StatusCode::OK, after.as_deref());
+        }
         Method::POST => {}
         _ => return super::refused(StatusCode::METHOD_NOT_ALLOWED),
     }
     let body = String::from_utf8_lossy(request.body());
+    let after = next(&body);
     let code = super::parameter(&body, "code").unwrap_or_default();
     let Some(code) = access::check(root, &code) else {
-        return page(Said::Wrong, StatusCode::UNAUTHORIZED);
+        return page(Said::Wrong, StatusCode::UNAUTHORIZED, after.as_deref());
     };
     let Ok(session) = random() else {
         return super::refused(StatusCode::INTERNAL_SERVER_ERROR);
@@ -215,7 +244,10 @@ pub(super) fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
     let mut response = Response::new(super::empty_body());
     *response.status_mut() = StatusCode::SEE_OTHER;
     let headers = response.headers_mut();
-    headers.insert(header::LOCATION, HeaderValue::from_static("/"));
+    let to = after
+        .and_then(|a| HeaderValue::from_str(&a).ok())
+        .unwrap_or_else(|| HeaderValue::from_static("/"));
+    headers.insert(header::LOCATION, to);
     let secure = request
         .headers()
         .get("x-forwarded-proto")
@@ -232,15 +264,25 @@ pub(super) fn login(request: &Request<Bytes>, state: &State) -> Response<Body> {
     response
 }
 
-/// The login page, in both languages.
-fn page(said: Said, status: StatusCode) -> Response<Body> {
-    const STYLE: &str = "body{font-family:system-ui,sans-serif;margin:0;background:#f7f6f3;color:#1d1c1a}\
+/// The login page's look, light and dark.
+const STYLE: &str = "body{font-family:system-ui,sans-serif;margin:0;background:#f7f6f3;color:#1d1c1a}\
 main{max-width:26rem;margin:12vh auto;padding:0 16px}h1{font-weight:600}\
 label{display:block;margin:1.5rem 0 .4rem}input{width:100%;box-sizing:border-box;padding:.6rem;font:inherit;\
 border:1px solid #bbb;border-radius:6px}button{margin-top:1rem;padding:.6rem 1.2rem;font:inherit;border:0;\
 border-radius:6px;background:#1d1c1a;color:#fff}.wrong{color:#a12a1a}code{font-size:.9em}\
 @media (prefers-color-scheme:dark){body{background:#1b1a18;color:#eceae5}input{background:#262522;color:inherit;\
 border-color:#555}button{background:#eceae5;color:#1b1a18}.wrong{color:#f08a78}}";
+
+/// The login page, in both languages; `next`, where to go once logged in.
+fn page(said: Said, status: StatusCode, next: Option<&str>) -> Response<Body> {
+    let next = next.map_or_else(String::new, |n| {
+        format!(
+            "<input type=\"hidden\" name=\"next\" value=\"{}\">",
+            n.replace('&', "&amp;")
+                .replace('"', "&quot;")
+                .replace('<', "&lt;")
+        )
+    });
     let content = match said {
         Said::NoCode => "<p>Aucun code d'accès n'a encore été créé pour l'interface. Sur le serveur, \
 lancez <code>ipse access-code</code> (avec Docker : <code>docker compose exec ipse ipse access-code</code>), \
@@ -249,7 +291,7 @@ puis rechargez cette page.</p><p lang=\"en\">The interface has no access code ye
 reload this page.</p>"
             .to_owned(),
         Said::Ask | Said::Wrong => format!(
-            "{}<form method=\"post\" action=\"/login\"><label for=\"code\">Code d'accès \
+            "{}<form method=\"post\" action=\"/login\">{next}<label for=\"code\">Code d'accès \
 <span lang=\"en\">· Access code</span></label><input id=\"code\" name=\"code\" type=\"password\" \
 autocomplete=\"current-password\" required autofocus><button type=\"submit\">Ouvrir \
 <span lang=\"en\">· Open</span></button></form><p>Le code vient de <code>ipse access-code</code>, \
@@ -275,6 +317,12 @@ sur le serveur.</p><p lang=\"en\">The code comes from <code>ipse access-code</co
         HeaderValue::from_static("text/html; charset=utf-8"),
     );
     headers.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    // Its form must say where it comes from: under `no-referrer`, a browser sends
+    // `Origin: null`, refused.
+    headers.insert(
+        header::REFERRER_POLICY,
+        HeaderValue::from_static("same-origin"),
+    );
     response
 }
 

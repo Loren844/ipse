@@ -116,7 +116,7 @@ pub(crate) fn serve(gateway: Gateway, address: SocketAddr) -> Result<()> {
             let gateway = Arc::clone(&gateway);
             tokio::spawn(async move {
                 let service = hyper::service::service_fn(move |request| {
-                    answer(request, mcp.clone(), Arc::clone(&gateway))
+                    answer(request, mcp.clone(), Arc::clone(&gateway), None)
                 });
                 // A client that hangs up mid-request is not Ipse's problem to report.
                 let _ = hyper::server::conn::http1::Builder::new()
@@ -152,11 +152,14 @@ pub(crate) fn service(
     )
 }
 
-/// One request: the path, then the access code, then MCP.
+/// One request: the path, then the access code, then MCP. A request without a valid
+/// code is told where `metadata` is, when given: how an app gets one over OAuth
+/// (`ipse serve`, issue #270).
 pub(crate) async fn answer(
     request: Request<Incoming>,
     mcp: StreamableHttpService<Server, NeverSessionManager>,
     gateway: Arc<Mutex<Gateway>>,
+    metadata: Option<&str>,
 ) -> std::result::Result<Response<Body>, Infallible> {
     if request.uri().path() != PATH {
         return Ok(empty(StatusCode::NOT_FOUND));
@@ -167,9 +170,10 @@ pub(crate) async fn answer(
     });
     if !allowed {
         let mut response = empty(StatusCode::UNAUTHORIZED);
-        response
-            .headers_mut()
-            .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
+        let challenge = metadata
+            .and_then(|m| HeaderValue::from_str(&format!("Bearer resource_metadata=\"{m}\"")).ok())
+            .unwrap_or_else(|| HeaderValue::from_static("Bearer"));
+        response.headers_mut().insert(WWW_AUTHENTICATE, challenge);
         return Ok(response);
     }
     Ok(mcp.handle(request).await)

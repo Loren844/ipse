@@ -44,6 +44,7 @@ mod kinds;
 mod map;
 mod memory;
 mod notes;
+mod oauth;
 mod questions;
 mod review;
 pub(crate) mod serve;
@@ -110,6 +111,11 @@ struct State {
     /// Served by `ipse serve` (decision 0019): the folder of the memory, where the
     /// interface's access code is kept.
     serving: Option<PathBuf>,
+    /// The address `ipse serve` is reached at from the internet, when given
+    /// (`--public-url`), for OAuth (issue #270).
+    public_url: Option<String>,
+    /// Approvals of AI apps waiting for their code to be exchanged (issue #270).
+    grants: Mutex<Vec<oauth::Grant>>,
 }
 
 /// How `ipse ui` hands the interface over.
@@ -177,6 +183,8 @@ pub(crate) fn run(vault: Option<PathBuf>, start: Start) -> Result<()> {
             app: start == Start::App,
             wake: (start == Start::App).then(|| wake.clone()),
             serving: None,
+            public_url: None,
+            grants: Mutex::new(Vec::new()),
         });
         let login = format!("http://127.0.0.1:{port}/login?code={code}");
         // Written without panicking: the terminal may be gone while the server runs on.
@@ -225,9 +233,35 @@ async fn accept(
                     if let Some(mcp) = mcp
                         && request.uri().path() == crate::mcp::http::PATH
                     {
-                        return crate::mcp::http::answer(request, mcp.service, mcp.gateway).await;
+                        // Where an app finds how to be approved (issue #270).
+                        let metadata = oauth::base(request.headers(), state.public_url.as_deref())
+                            .map(|base| oauth::resource_metadata(&base));
+                        return crate::mcp::http::answer(
+                            request,
+                            mcp.service,
+                            mcp.gateway,
+                            metadata.as_deref(),
+                        )
+                        .await;
                     }
                     let (parts, body) = request.into_parts();
+                    // OAuth's discovery, registration and token, for any app: no
+                    // session, no browser (issue #270).
+                    if state.serving.is_some() && oauth::is_open(parts.uri.path()) {
+                        let answer = match Limited::new(body, MAX_BODY).collect().await {
+                            Ok(body) => {
+                                let request = Request::from_parts(parts, body.to_bytes());
+                                let state = Arc::clone(&state);
+                                tokio::task::spawn_blocking(move || {
+                                    oauth::open_answer(&request, &state)
+                                })
+                                .await
+                                .unwrap_or_else(|_| refused(StatusCode::INTERNAL_SERVER_ERROR))
+                            }
+                            Err(_) => refused(StatusCode::PAYLOAD_TOO_LARGE),
+                        };
+                        return Ok::<_, Infallible>(secured(answer));
+                    }
                     // A file to import is written to disk as it arrives.
                     if parts.method == Method::POST && parts.uri.path() == UPLOAD {
                         return Ok::<_, Infallible>(secured(upload(&parts, body, &state).await));
@@ -325,6 +359,18 @@ fn open_browser(url: &str) -> bool {
 /// One request: where it comes from, who sends it, then what it asks.
 fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
     let headers = request.headers();
+    // An app sends the person to approve it from its own site (issue #270): the page
+    // is shown, never framed; approving is a form of this page, checked as any change.
+    if state.serving.is_some()
+        && request.uri().path() == oauth::AUTHORIZE
+        && request.method() == Method::GET
+    {
+        return if has_session(headers, state) {
+            oauth::authorize(request, state)
+        } else {
+            oauth::without_session(request)
+        };
+    }
     if let Some(refusal) = where_from(request.method(), headers, state) {
         return refused(refusal);
     }
@@ -347,6 +393,9 @@ fn answer(request: &Request<Bytes>, state: &State) -> Response<Body> {
     }
     if let Some(api) = path.strip_prefix("/api/") {
         return api_answer(request, api, state);
+    }
+    if state.serving.is_some() && path == oauth::AUTHORIZE {
+        return oauth::authorize(request, state);
     }
     if request.method() != Method::GET && request.method() != Method::HEAD {
         return refused(StatusCode::METHOD_NOT_ALLOWED);
@@ -875,7 +924,10 @@ fn secured(mut response: Response<Body>) -> Response<Body> {
         assets::SCRIPT_SRC
     );
     let headers = response.headers_mut();
-    if let Ok(policy) = HeaderValue::from_str(&policy) {
+    // A page with a policy of its own (OAuth's approval) keeps it.
+    if let Ok(policy) = HeaderValue::from_str(&policy)
+        && !headers.contains_key(header::CONTENT_SECURITY_POLICY)
+    {
         headers.insert(header::CONTENT_SECURITY_POLICY, policy);
     }
     for (name, value) in [
@@ -883,7 +935,11 @@ fn secured(mut response: Response<Body>) -> Response<Body> {
         (header::REFERRER_POLICY, "no-referrer"),
         (header::X_FRAME_OPTIONS, "DENY"),
     ] {
-        headers.insert(name, HeaderValue::from_static(value));
+        // A page with a form keeps its own referrer policy (`same-origin`): under
+        // `no-referrer`, a browser sends `Origin: null` with the form, refused.
+        if !headers.contains_key(&name) {
+            headers.insert(name, HeaderValue::from_static(value));
+        }
     }
     headers.insert(
         "cross-origin-opener-policy",

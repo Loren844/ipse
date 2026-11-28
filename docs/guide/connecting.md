@@ -50,7 +50,7 @@ claude mcp add --transport http ipse http://127.0.0.1:7420/mcp --header "Authori
 
 A request without the code, or with a wrong one, is refused before anything is read.
 
-To reach your memory from other machines, run it on a home server instead: [Ipse on a home server](self-hosting.md) serves MCP at `/mcp` beside the interface, with the same codes.
+To reach your memory from other machines, run it on a home server instead: [Ipse on a home server](self-hosting.md) serves MCP at `/mcp` beside the interface, with the same codes. From claude.ai, on the web and the phone, add it as a custom connector, approved on Ipse's own page: [Reach your memory from claude.ai](self-hosting.md#6-reach-your-memory-from-claudeai).
 
 ## Changing what an AI sees
 
